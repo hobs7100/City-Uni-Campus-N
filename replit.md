@@ -1,7 +1,7 @@
 # City College Campus Management System
 
 ## Overview
-A full-stack Campus Management System for City College (University Campus), built in phases. Phase 1 covers Authentication and core academic structure management: Users, Affiliations, Departments, Classes, Students, and Teachers. Phase 2 adds Course Catalog and Semester Management. Phase 3 adds Allocation Management (assigning teachers to courses within active semesters, including combined-class allocations).
+A full-stack Campus Management System for City College (University Campus), built in phases. Phase 1 covers Authentication and core academic structure management: Users, Affiliations, Departments, Classes, Students, and Teachers. Phase 2 adds Course Catalog and Semester Management. Phase 3 adds Allocation Management (assigning teachers to courses within active semesters, including combined-class allocations). Phase 4 adds Timetable Management with teacher clash detection.
 
 ## Tech Stack
 - **Framework**: Next.js (App Router, TypeScript) — frontend and backend (API routes) in one app
@@ -20,12 +20,13 @@ A full-stack Campus Management System for City College (University Campus), buil
 - **Soft deletes**: Students, teachers, and users use `deleted_at` for soft deletion; departments/classes/affiliations are hard-deleted (with FK-safety checks, e.g. a class can't be deleted while it has students).
 - **Semesters**: Only one `active` semester per class is allowed at a time (enforced by a partial unique index on `semesters(class_id) where status = 'active'`, plus an app-level check). Starting a semester requires selecting courses from the department's catalog (`semester_courses` junction table); a course already used in any semester cannot be deleted from the catalog.
 - **Allocations**: A course can only be allocated once per semester — enforced via a unique constraint on `allocation_semesters(semester_id, course_id)` (a denormalized `course_id` lives on the junction table specifically to make this possible). Combined allocations (one teacher + one course taught across multiple classes as a single lecture) insert one `allocation_semesters` row per involved semester under a single `allocations` row; the API validates every involved semester is active and has the chosen course in its catalog before inserting.
+- **Timetables**: One timetable per class+semester (`timetables`, unique on `class_id, semester_id`). Grid is normalized into `timetable_days` (rows) x `timetable_periods` (columns) x `timetable_cells` (intersection, holds a nullable `allocation_id`); adding/removing a day or period fans out/collapses the cross-product of cells. Filling a cell runs a teacher clash check: blocks if another cell (any timetable) shares the same day name and an overlapping period time range with the same teacher via a *different* `allocation_id`; the exact same `allocation_id` (a genuine combined-class lecture) is exempt and can be placed in multiple timetables at the identical slot.
 
 ## Project Structure
 - `db/migrations/` — SQL migrations; run via `node scripts/migrate.mjs`
 - `scripts/seed-admin.mjs` — seeds the initial admin account
 - `lib/` — shared server logic: `db.ts` (pg pool), `auth.ts` (hashing, unified login lookup), `session.ts` (iron-session config), `requireRole.ts` (API route guards), `cloudinary.ts`, `nav.ts` (role-based nav)
-- `app/api/admin/*` — CRUD API routes for users, affiliations, departments, classes, students, teachers, courses, semesters, allocations
+- `app/api/admin/*` — CRUD API routes for users, affiliations, departments, classes, students, teachers, courses, semesters, allocations, timetables
 - `app/dashboard/<role>/*` — role-specific pages (admin has full management pages; hod/coordinator/teacher/student currently have overview pages, to be expanded in later phases)
 - `components/ui/` — shared UI primitives (Modal, SearchableSelect, ConfirmDialog, StatusBadge)
 
@@ -40,7 +41,9 @@ A full-stack Campus Management System for City College (University Campus), buil
 
 **Phase 3 (complete)**: Allocation Management — assign a teacher to a course within a class's active semester (Workload/Per Credit Hour/Fixed rate types), with a "show all teachers" toggle to bypass department scoping, and combined-class allocations (one teacher + one course taught across multiple classes as a single lecture, validated so every combined class has an active semester with that course in its catalog). A course can only be allocated once per semester across the whole system.
 
-Not yet built (future phases): timetables (with clash detection), teacher/student attendance, billing, exams/results, and the remaining modules from the full 18-module spec in `attached_assets/`.
+**Phase 4 (complete)**: Timetable Management — create a timetable for a class's active semester (Morning/Evening shift, W.e.f. date), auto-seeded with a default Mon–Fri x hourly-slot grid; admin can add/remove days and time-slot columns. Each empty cell offers a picker of that semester's allocations (course + teacher) to fill in; filling a cell runs a teacher clash check across all timetables (same teacher, same day, overlapping time in a different class = blocked), with a specific exemption for true combined-class lectures (same allocation placed in multiple timetables at the identical slot is allowed). Includes a print/PDF-friendly grid view.
+
+Not yet built (future phases): teacher/student attendance, billing, exams/results, and the remaining modules from the full 18-module spec in `attached_assets/`.
 
 ## User Preferences
 None recorded yet.
