@@ -150,6 +150,13 @@ export async function POST(request: NextRequest) {
     }
 
     await client.query("commit");
+
+    const course = await queryOne<{ title: string }>(`select title from courses where id = $1`, [d.course_id]);
+    await query(
+      `insert into notifications (recipient_type, recipient_id, title, message) values ('teacher', $1, $2, $3)`,
+      [d.teacher_id, "New course allocation", `You have been allocated to teach ${course?.title ?? "a course"}.`]
+    ).catch((err) => console.error("Failed to create allocation notification:", err));
+
     return NextResponse.json({ allocation }, { status: 201 });
   } catch (err: unknown) {
     await client.query("rollback");

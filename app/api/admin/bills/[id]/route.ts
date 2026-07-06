@@ -21,10 +21,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const existing = await queryOne(`select id from bills where id = $1`, [id]);
   if (!existing) return NextResponse.json({ error: "Bill not found." }, { status: 404 });
 
-  const bill = await queryOne(
+  const bill = await queryOne<{ teacher_id: string; bill_number: string; status: string }>(
     `update bills set status = $1, updated_at = now() where id = $2 returning *`,
     [parsed.data.status, id]
   );
+
+  if (bill && parsed.data.status === "paid") {
+    await query(
+      `insert into notifications (recipient_type, recipient_id, title, message) values ('teacher', $1, $2, $3)`,
+      [bill.teacher_id, "Bill paid", `Your bill ${bill.bill_number} has been marked as paid.`]
+    ).catch((err) => console.error("Failed to create bill notification:", err));
+  }
+
   return NextResponse.json({ bill });
 }
 
