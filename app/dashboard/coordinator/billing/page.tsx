@@ -1,5 +1,5 @@
 import BillingManager from "@/components/billing/BillingManager";
 
-export default function AdminBillingPage() {
+export default function CoordinatorBillingPage() {
   return <BillingManager />;
 }
