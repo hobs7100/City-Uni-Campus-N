@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import { TableLoader } from "@/components/ui/Loaders";
 
 interface Affiliation {
   id: string;
@@ -125,7 +126,9 @@ export default function AffiliationsPage() {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Affiliations Management</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+            Affiliations Management
+          </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Configure university affiliations and their marks structure
           </p>
@@ -138,7 +141,7 @@ export default function AffiliationsPage() {
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden card-3d card-hover">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
@@ -153,22 +156,44 @@ export default function AffiliationsPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+              <TableLoader colSpan={7} />
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No affiliations found.</td></tr>
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                  No affiliations found.
+                </td>
+              </tr>
             ) : (
               items.map((a) => (
                 <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{a.university_name}</td>
+                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                    {a.university_name}
+                  </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.mid_marks}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.sessional_marks}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {a.sessional_marks}
+                  </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.final_marks}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.practical_marks}</td>
-                  <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {a.practical_marks}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={a.status} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => openEdit(a)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Pencil size={16} /></button>
-                      <button onClick={() => setDeleteTarget(a)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 size={16} /></button>
+                      <button
+                        onClick={() => openEdit(a)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(a)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -178,10 +203,16 @@ export default function AffiliationsPage() {
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Affiliation" : "Add Affiliation"}>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit Affiliation" : "Add Affiliation"}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">University Name</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              University Name
+            </label>
             <input
               required
               value={form.university_name}
@@ -190,35 +221,54 @@ export default function AffiliationsPage() {
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {(["mid_marks", "sessional_marks", "final_marks", "practical_marks"] as const).map((field) => (
-              <div key={field}>
-                <label className="mb-1.5 block text-sm font-medium capitalize text-slate-700 dark:text-slate-300">
-                  {field.replace("_", " ")}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  required
-                  value={form[field]}
-                  onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-            ))}
+            {(["mid_marks", "sessional_marks", "final_marks", "practical_marks"] as const).map(
+              (field) => (
+                <div key={field}>
+                  <label className="mb-1.5 block text-sm font-medium capitalize text-slate-700 dark:text-slate-300">
+                    {field.replace("_", "")}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    required
+                    value={form[field]}
+                    onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              ),
+            )}
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Status
+            </label>
             <SearchableSelect
               options={statusOptions}
               value={statusOptions.find((s) => s.value === form.status)}
-              onChange={(opt) => setForm({ ...form, status: (opt as { value: string }).value as "active" | "blocked" })}
+              onChange={(opt) =>
+                setForm({
+                  ...form,
+                  status: (opt as { value: string }).value as "active" | "blocked",
+                })
+              }
               isClearable={false}
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {saving ? "Saving..." : editing ? "Save Changes" : "Create"}
             </button>
           </div>
@@ -228,7 +278,7 @@ export default function AffiliationsPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Affiliation"
-        message={`Are you sure you want to delete "${deleteTarget?.university_name}"? This cannot be undone.`}
+        message={`Are you sure you want to delete"${deleteTarget?.university_name}"? This cannot be undone.`}
         confirmLabel="Delete"
         loading={deleting}
         onConfirm={handleDelete}

@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
-import { Pencil, Plus, Search, Trash2, Loader2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import { DataFetchLoader } from "@/components/ui/Loaders";
 
 interface UserRow {
   id: string;
@@ -141,7 +142,7 @@ export default function UsersPage() {
   const filtered = users.filter(
     (u) =>
       u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
+      u.email.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -171,7 +172,7 @@ export default function UsersPage() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden card-3d card-hover">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
@@ -187,7 +188,7 @@ export default function UsersPage() {
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                  <Loader2 className="mx-auto animate-spin" />
+                  <DataFetchLoader />
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
@@ -199,11 +200,19 @@ export default function UsersPage() {
             ) : (
               filtered.map((u) => (
                 <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{u.name}</td>
+                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                    {u.name}
+                  </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{u.email}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{u.cellno || "-"}</td>
-                  <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">{u.role}</td>
-                  <td className="px-4 py-3"><StatusBadge status={u.status} /></td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {u.cellno || "-"}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">
+                    {u.role}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={u.status} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
@@ -227,10 +236,16 @@ export default function UsersPage() {
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit User" : "Add User"}>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit User" : "Add User"}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Name
+            </label>
             <input
               required
               value={form.name}
@@ -239,7 +254,9 @@ export default function UsersPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Email</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Email
+            </label>
             <input
               type="email"
               required
@@ -250,7 +267,10 @@ export default function UsersPage() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Password {editing && <span className="text-xs text-slate-400">(leave blank to keep unchanged)</span>}
+              Password{" "}
+              {editing && (
+                <span className="text-xs text-slate-400">(leave blank to keep unchanged)</span>
+              )}
             </label>
             <input
               type="password"
@@ -262,7 +282,9 @@ export default function UsersPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Cell No</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Cell No
+            </label>
             <input
               value={form.cellno}
               onChange={(e) => setForm({ ...form, cellno: e.target.value })}
@@ -271,20 +293,31 @@ export default function UsersPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Role</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Role
+              </label>
               <SearchableSelect
                 options={roleOptions}
                 value={roleOptions.find((r) => r.value === form.role)}
-                onChange={(opt) => setForm({ ...form, role: (opt as { value: string }).value as UserRow["role"] })}
+                onChange={(opt) =>
+                  setForm({ ...form, role: (opt as { value: string }).value as UserRow["role"] })
+                }
                 isClearable={false}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Status
+              </label>
               <SearchableSelect
                 options={statusOptions}
                 value={statusOptions.find((s) => s.value === form.status)}
-                onChange={(opt) => setForm({ ...form, status: (opt as { value: string }).value as UserRow["status"] })}
+                onChange={(opt) =>
+                  setForm({
+                    ...form,
+                    status: (opt as { value: string }).value as UserRow["status"],
+                  })
+                }
                 isClearable={false}
               />
             </div>

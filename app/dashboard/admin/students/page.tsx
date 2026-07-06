@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Loader2, Pencil, Plus, Trash2, Upload, User } from "lucide-react";
+import { Pencil, Plus, Trash2, Upload, User } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import { TableLoader } from "@/components/ui/Loaders";
 
 interface Student {
   id: string;
@@ -86,7 +87,12 @@ export default function StudentsPage() {
       const classData = await classRes.json();
       if (stuRes.ok) setItems(stuData.students);
       if (deptRes.ok)
-        setDepartments(deptData.departments.map((d: { id: string; name: string }) => ({ value: d.id, label: d.name })));
+        setDepartments(
+          deptData.departments.map((d: { id: string; name: string }) => ({
+            value: d.id,
+            label: d.name,
+          })),
+        );
       if (classRes.ok) setClasses(classData.classes);
     } finally {
       setLoading(false);
@@ -99,7 +105,7 @@ export default function StudentsPage() {
 
   const sessionOptions = useMemo(() => {
     const sessions = new Set(
-      classes.filter((c) => c.department_id === form.department_id).map((c) => c.session)
+      classes.filter((c) => c.department_id === form.department_id).map((c) => c.session),
     );
     return Array.from(sessions).map((s) => ({ value: s, label: s }));
   }, [classes, form.department_id]);
@@ -140,7 +146,9 @@ export default function StudentsPage() {
       profile_image_url: item.profile_image_url,
       status: item.status,
       status_change_date: item.status_change_date || "",
-      status_change_semester: item.status_change_semester ? String(item.status_change_semester) : "",
+      status_change_semester: item.status_change_semester
+        ? String(item.status_change_semester)
+        : "",
     });
     setEditing(true);
     setModalOpen(true);
@@ -182,7 +190,10 @@ export default function StudentsPage() {
       const payload = {
         ...form,
         status_change_date: needsStatusFields ? form.status_change_date || null : null,
-        status_change_semester: needsStatusFields && form.status_change_semester ? Number(form.status_change_semester) : null,
+        status_change_semester:
+          needsStatusFields && form.status_change_semester
+            ? Number(form.status_change_semester)
+            : null,
       };
       const url = editing ? `/api/admin/students/${form.id}` : "/api/admin/students";
       const method = editing ? "PATCH" : "POST";
@@ -197,7 +208,9 @@ export default function StudentsPage() {
         return;
       }
       if (!editing && data.generatedPassword) {
-        toast.success(`Student created. Temporary password: ${data.generatedPassword}`, { duration: 8000 });
+        toast.success(`Student created. Temporary password: ${data.generatedPassword}`, {
+          duration: 8000,
+        });
       } else {
         toast.success("Student updated.");
       }
@@ -233,14 +246,19 @@ export default function StudentsPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Student Management</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Manage student records and enrollment</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Manage student records and enrollment
+          </p>
         </div>
-        <button onClick={openCreate} className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+        <button
+          onClick={openCreate}
+          className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+        >
           <Plus size={18} /> Add Student
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden card-3d card-hover">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
@@ -255,9 +273,13 @@ export default function StudentsPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+              <TableLoader colSpan={7} />
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No students found.</td></tr>
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                  No students found.
+                </td>
+              </tr>
             ) : (
               items.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -265,7 +287,11 @@ export default function StudentsPage() {
                     <div className="flex items-center gap-3">
                       {s.profile_image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={s.profile_image_url} alt={s.name} className="h-8 w-8 rounded-full object-cover" />
+                        <img
+                          src={s.profile_image_url}
+                          alt={s.name}
+                          className="h-8 w-8 rounded-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
                           <User size={16} />
@@ -278,14 +304,28 @@ export default function StudentsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.cnic}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.department_name}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {s.department_name}
+                  </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.class_name}</td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.session}</td>
-                  <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={s.status} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Pencil size={16} /></button>
-                      <button onClick={() => setDeleteTarget(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 size={16} /></button>
+                      <button
+                        onClick={() => openEdit(s)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(s)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -295,12 +335,21 @@ export default function StudentsPage() {
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Student" : "Add Student"} widthClass="max-w-2xl">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit Student" : "Add Student"}
+        widthClass="max-w-2xl"
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center gap-4">
             {form.profile_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.profile_image_url} alt="Profile" className="h-16 w-16 rounded-full object-cover" />
+              <img
+                src={form.profile_image_url}
+                alt="Profile"
+                className="h-16 w-16 rounded-full object-cover"
+              />
             ) : (
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
                 <User size={28} />
@@ -308,69 +357,138 @@ export default function StudentsPage() {
             )}
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
               <Upload size={16} /> {uploading ? "Uploading..." : "Upload Photo"}
-              <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={uploading}
+              />
             </label>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Name
+              </label>
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Father Name</label>
-              <input value={form.father_name} onChange={(e) => setForm({ ...form, father_name: e.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Father Name
+              </label>
+              <input
+                value={form.father_name}
+                onChange={(e) => setForm({ ...form, father_name: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">CNIC</label>
-              <input required value={form.cnic} onChange={(e) => setForm({ ...form, cnic: e.target.value })} placeholder="XXXXX-XXXXXXX-X" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                CNIC
+              </label>
+              <input
+                required
+                value={form.cnic}
+                onChange={(e) => setForm({ ...form, cnic: e.target.value })}
+                placeholder="XXXXX-XXXXXXX-X"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Contact</label>
-              <input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Contact
+              </label>
+              <input
+                value={form.contact}
+                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Address</label>
-            <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Email {!editing && <span className="text-xs text-slate-400">(login credentials will be generated)</span>}
+              Address
             </label>
-            <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+            <input
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Email{" "}
+              {!editing && (
+                <span className="text-xs text-slate-400">
+                  (login credentials will be generated)
+                </span>
+              )}
+            </label>
+            <input
+              type="email"
+              required
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Department
+              </label>
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === form.department_id) || null}
                 onChange={(opt) =>
-                  setForm({ ...form, department_id: opt ? (opt as SelectOption).value : "", session: "", class_id: "" })
+                  setForm({
+                    ...form,
+                    department_id: opt ? (opt as SelectOption).value : "",
+                    session: "",
+                    class_id: "",
+                  })
                 }
                 placeholder="Select..."
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Session</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Session
+              </label>
               <SearchableSelect
                 options={sessionOptions}
                 value={sessionOptions.find((s) => s.value === form.session) || null}
-                onChange={(opt) => setForm({ ...form, session: opt ? (opt as SelectOption).value : "", class_id: "" })}
+                onChange={(opt) =>
+                  setForm({
+                    ...form,
+                    session: opt ? (opt as SelectOption).value : "",
+                    class_id: "",
+                  })
+                }
                 placeholder="Select..."
                 isDisabled={!form.department_id}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Class</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Class
+              </label>
               <SearchableSelect
                 options={classOptions}
                 value={classOptions.find((c) => c.value === form.class_id) || null}
-                onChange={(opt) => setForm({ ...form, class_id: opt ? (opt as SelectOption).value : "" })}
+                onChange={(opt) =>
+                  setForm({ ...form, class_id: opt ? (opt as SelectOption).value : "" })
+                }
                 placeholder="Select..."
                 isDisabled={!form.session}
               />
@@ -378,11 +496,15 @@ export default function StudentsPage() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Status
+            </label>
             <SearchableSelect
               options={statusOptions}
               value={statusOptions.find((s) => s.value === form.status)}
-              onChange={(opt) => setForm({ ...form, status: (opt as { value: string }).value as Student["status"] })}
+              onChange={(opt) =>
+                setForm({ ...form, status: (opt as { value: string }).value as Student["status"] })
+              }
               isClearable={false}
             />
           </div>
@@ -390,7 +512,9 @@ export default function StudentsPage() {
           {needsStatusFields && (
             <div className="grid grid-cols-2 gap-4 rounded-lg bg-amber-50 p-3 dark:bg-amber-500/10">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Effective Date</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Effective Date
+                </label>
                 <input
                   type="date"
                   value={form.status_change_date}
@@ -399,11 +523,20 @@ export default function StudentsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Semester</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Semester
+                </label>
                 <SearchableSelect
                   options={semesterOptions}
-                  value={semesterOptions.find((s) => s.value === form.status_change_semester) || null}
-                  onChange={(opt) => setForm({ ...form, status_change_semester: opt ? (opt as SelectOption).value : "" })}
+                  value={
+                    semesterOptions.find((s) => s.value === form.status_change_semester) || null
+                  }
+                  onChange={(opt) =>
+                    setForm({
+                      ...form,
+                      status_change_semester: opt ? (opt as SelectOption).value : "",
+                    })
+                  }
                   placeholder="Select semester..."
                 />
               </div>
@@ -411,8 +544,18 @@ export default function StudentsPage() {
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {saving ? "Saving..." : editing ? "Save Changes" : "Create"}
             </button>
           </div>

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, Loader2, Lock, Pencil, Play, Plus, X } from "lucide-react";
+import { BookOpen, Calendar, Lock, Pencil, Play, Plus, X } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
+import { DataFetchLoader } from "@/components/ui/Loaders";
 
 interface ClassOption {
   id: string;
@@ -98,7 +99,13 @@ export default function SemestersPage() {
       const classData = await classRes.json();
       const courseData = await courseRes.json();
       const semData = await semRes.json();
-      if (deptRes.ok) setDepartments(deptData.departments.map((d: { id: string; name: string }) => ({ value: d.id, label: d.name })));
+      if (deptRes.ok)
+        setDepartments(
+          deptData.departments.map((d: { id: string; name: string }) => ({
+            value: d.id,
+            label: d.name,
+          })),
+        );
       if (classRes.ok) setClasses(classData.classes);
       if (courseRes.ok) setCourses(courseData.courses);
       if (semRes.ok) setSemesters(semData.semesters);
@@ -112,13 +119,18 @@ export default function SemestersPage() {
   }, [load]);
 
   const sessionOptions = useMemo(() => {
-    const sessions = new Set(classes.filter((c) => c.department_id === departmentId).map((c) => c.session));
+    const sessions = new Set(
+      classes.filter((c) => c.department_id === departmentId).map((c) => c.session),
+    );
     return Array.from(sessions).map((s) => ({ value: s, label: s }));
   }, [classes, departmentId]);
 
   const classOptions = useMemo(
-    () => classes.filter((c) => c.department_id === departmentId && c.session === session).map((c) => ({ value: c.id, label: c.class_name })),
-    [classes, departmentId, session]
+    () =>
+      classes
+        .filter((c) => c.department_id === departmentId && c.session === session)
+        .map((c) => ({ value: c.id, label: c.class_name })),
+    [classes, departmentId, session],
   );
 
   const selectedClass = classes.find((c) => c.id === classId);
@@ -132,9 +144,12 @@ export default function SemestersPage() {
 
   const availableCourses = useMemo(
     () => courses.filter((c) => c.department_id === departmentId && c.status !== "blocked"),
-    [courses, departmentId]
+    [courses, departmentId],
   );
-  const courseOptions = availableCourses.map((c) => ({ value: c.id, label: `${c.code} — ${c.title} (${c.credit_hours} Cr)` }));
+  const courseOptions = availableCourses.map((c) => ({
+    value: c.id,
+    label: `${c.code} — ${c.title} (${c.credit_hours} Cr)`,
+  }));
   const selectedCoursesDetail = availableCourses.filter((c) => selectedCourseIds.includes(c.id));
 
   const editCourseOptions = useMemo(() => {
@@ -173,8 +188,13 @@ export default function SemestersPage() {
         return;
       }
       toast.success("Semester started successfully.");
-      setDepartmentId(""); setSession(""); setClassId(""); setSemesterNumber("");
-      setTermType("Fall"); setStartDate(""); setSelectedCourseIds([]);
+      setDepartmentId("");
+      setSession("");
+      setClassId("");
+      setSemesterNumber("");
+      setTermType("Fall");
+      setStartDate("");
+      setSelectedCourseIds([]);
       load();
     } finally {
       setStarting(false);
@@ -182,13 +202,18 @@ export default function SemestersPage() {
   }
 
   const closeSessionOptions = useMemo(() => {
-    const sessions = new Set(classes.filter((c) => c.department_id === closeDepartmentId).map((c) => c.session));
+    const sessions = new Set(
+      classes.filter((c) => c.department_id === closeDepartmentId).map((c) => c.session),
+    );
     return Array.from(sessions).map((s) => ({ value: s, label: s }));
   }, [classes, closeDepartmentId]);
 
   const closeClassOptions = useMemo(
-    () => classes.filter((c) => c.department_id === closeDepartmentId).map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` })),
-    [classes, closeDepartmentId]
+    () =>
+      classes
+        .filter((c) => c.department_id === closeDepartmentId)
+        .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` })),
+    [classes, closeDepartmentId],
   );
 
   useEffect(() => {
@@ -289,7 +314,9 @@ export default function SemestersPage() {
     if (!editSemester) return;
     setRemovingCourseId(courseId);
     try {
-      const res = await fetch(`/api/admin/semesters/${editSemester.id}/courses/${courseId}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/semesters/${editSemester.id}/courses/${courseId}`, {
+        method: "DELETE",
+      });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Something went wrong.");
@@ -306,7 +333,9 @@ export default function SemestersPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-900 dark:text-white">Semester Management</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Start and close semesters for each class</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Start and close semesters for each class
+        </p>
       </div>
 
       <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-800">
@@ -330,25 +359,39 @@ export default function SemestersPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16 text-slate-400"><Loader2 className="animate-spin" size={28} /></div>
+        <div className="flex justify-center py-16 text-slate-400">
+          <DataFetchLoader />
+        </div>
       ) : tab === "start" ? (
-        <form onSubmit={handleStart} className="max-w-2xl space-y-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <form onSubmit={handleStart} className="max-w-2xl space-y-4 card-3d p-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Department
+              </label>
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === departmentId) || null}
-                onChange={(opt) => { setDepartmentId(opt ? (opt as SelectOption).value : ""); setSession(""); setClassId(""); setSelectedCourseIds([]); }}
+                onChange={(opt) => {
+                  setDepartmentId(opt ? (opt as SelectOption).value : "");
+                  setSession("");
+                  setClassId("");
+                  setSelectedCourseIds([]);
+                }}
                 placeholder="Select..."
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Session</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Session
+              </label>
               <SearchableSelect
                 options={sessionOptions}
                 value={sessionOptions.find((s) => s.value === session) || null}
-                onChange={(opt) => { setSession(opt ? (opt as SelectOption).value : ""); setClassId(""); }}
+                onChange={(opt) => {
+                  setSession(opt ? (opt as SelectOption).value : "");
+                  setClassId("");
+                }}
                 placeholder="Select..."
                 isDisabled={!departmentId}
               />
@@ -356,17 +399,24 @@ export default function SemestersPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Class</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Class
+              </label>
               <SearchableSelect
                 options={classOptions}
                 value={classOptions.find((c) => c.value === classId) || null}
-                onChange={(opt) => { setClassId(opt ? (opt as SelectOption).value : ""); setSemesterNumber(""); }}
+                onChange={(opt) => {
+                  setClassId(opt ? (opt as SelectOption).value : "");
+                  setSemesterNumber("");
+                }}
                 placeholder="Select..."
                 isDisabled={!session}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Semester</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Semester
+              </label>
               <SearchableSelect
                 options={semesterNumberOptions}
                 value={semesterNumberOptions.find((s) => s.value === semesterNumber) || null}
@@ -378,16 +428,22 @@ export default function SemestersPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Term Type</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Term Type
+              </label>
               <SearchableSelect
                 options={termOptions}
                 value={termOptions.find((t) => t.value === termType)}
-                onChange={(opt) => setTermType((opt as { value: string }).value as "Fall" | "Spring")}
+                onChange={(opt) =>
+                  setTermType((opt as { value: string }).value as "Fall" | "Spring")
+                }
                 isClearable={false}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Start Date</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Start Date
+              </label>
               <input
                 type="date"
                 required
@@ -398,7 +454,9 @@ export default function SemestersPage() {
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Add Courses</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Add Courses
+            </label>
             <SearchableSelect
               options={courseOptions}
               value={null}
@@ -407,7 +465,9 @@ export default function SemestersPage() {
                   setSelectedCourseIds([...selectedCourseIds, (opt as SelectOption).value]);
                 }
               }}
-              placeholder={departmentId ? "Search by course name or code..." : "Select a department first"}
+              placeholder={
+                departmentId ? "Search by course name or code..." : "Select a department first"
+              }
               isDisabled={!departmentId}
             />
           </div>
@@ -425,11 +485,21 @@ export default function SemestersPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {selectedCoursesDetail.map((c) => (
                     <tr key={c.id}>
-                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{c.code}</td>
+                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                        {c.code}
+                      </td>
                       <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.title}</td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.credit_hours}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                        {c.credit_hours}
+                      </td>
                       <td className="px-3 py-2 text-right">
-                        <button type="button" onClick={() => setSelectedCourseIds(selectedCourseIds.filter((id) => id !== c.id))} className="text-red-500 hover:text-red-600">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedCourseIds(selectedCourseIds.filter((id) => id !== c.id))
+                          }
+                          className="text-red-500 hover:text-red-600"
+                        >
                           <X size={16} />
                         </button>
                       </td>
@@ -440,25 +510,36 @@ export default function SemestersPage() {
             </div>
           )}
           <div className="flex justify-end pt-2">
-            <button type="submit" disabled={starting} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={starting}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               <Play size={16} /> {starting ? "Starting..." : "Start Semester"}
             </button>
           </div>
         </form>
       ) : tab === "close" ? (
-        <div className="max-w-2xl space-y-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <div className="max-w-2xl space-y-4 card-3d p-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Department
+              </label>
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === closeDepartmentId) || null}
-                onChange={(opt) => { setCloseDepartmentId(opt ? (opt as SelectOption).value : ""); setCloseClassId(""); }}
+                onChange={(opt) => {
+                  setCloseDepartmentId(opt ? (opt as SelectOption).value : "");
+                  setCloseClassId("");
+                }}
                 placeholder="Select..."
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Class</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Class
+              </label>
               <SearchableSelect
                 options={closeClassOptions}
                 value={closeClassOptions.find((c) => c.value === closeClassId) || null}
@@ -484,17 +565,24 @@ export default function SemestersPage() {
                   </p>
                   <StatusBadge status={activeSemester.status} />
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Started: {new Date(activeSemester.start_date).toLocaleDateString()}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Started: {new Date(activeSemester.start_date).toLocaleDateString()}
+                </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {activeSemester.courses.map((c) => (
-                    <span key={c.id} className="flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                    <span
+                      key={c.id}
+                      className="flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+                    >
                       <BookOpen size={12} /> {c.code}
                     </span>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Close Date</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Close Date
+                </label>
                 <input
                   type="date"
                   required
@@ -517,7 +605,7 @@ export default function SemestersPage() {
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="overflow-hidden card-3d card-hover">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
@@ -534,24 +622,46 @@ export default function SemestersPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {semesters.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No semesters found.</td></tr>
+                <tr>
+                  <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                    No semesters found.
+                  </td>
+                </tr>
               ) : (
                 semesters.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{s.class_name} ({s.session})</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.department_name}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.semester_number}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                      {s.class_name} ({s.session})
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {s.department_name}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {s.semester_number}
+                    </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.term_type}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{new Date(s.start_date).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.close_date ? new Date(s.close_date).toLocaleDateString() : "-"}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.courses.length}</td>
-                    <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {new Date(s.start_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {s.close_date ? new Date(s.close_date).toLocaleDateString() : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {s.courses.length}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={s.status} />
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
                         onClick={() => openEdit(s)}
                         disabled={s.status === "closed"}
-                        title={s.status === "closed" ? "Closed semesters cannot be edited" : "Edit semester"}
+                        title={
+                          s.status === "closed"
+                            ? "Closed semesters cannot be edited"
+                            : "Edit semester"
+                        }
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
                       >
                         <Pencil size={15} />
@@ -578,25 +688,37 @@ export default function SemestersPage() {
       <Modal
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
-        title={editSemester ? `Edit Semester — ${editSemester.class_name} (${editSemester.session})` : "Edit Semester"}
+        title={
+          editSemester
+            ? `Edit Semester — ${editSemester.class_name} (${editSemester.session})`
+            : "Edit Semester"
+        }
         widthClass="max-w-2xl"
       >
         {editSemester && (
           <div className="space-y-6">
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Semester Details</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Semester Details
+              </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Term Type</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Term Type
+                  </label>
                   <SearchableSelect
                     options={termOptions}
                     value={termOptions.find((t) => t.value === editTermType)}
-                    onChange={(opt) => setEditTermType((opt as { value: string }).value as "Fall" | "Spring")}
+                    onChange={(opt) =>
+                      setEditTermType((opt as { value: string }).value as "Fall" | "Spring")
+                    }
                     isClearable={false}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Start Date</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Start Date
+                  </label>
                   <input
                     type="date"
                     value={editStartDate}
@@ -618,7 +740,9 @@ export default function SemestersPage() {
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Curriculum Courses</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Curriculum Courses
+              </p>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <SearchableSelect
@@ -649,13 +773,23 @@ export default function SemestersPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {editSemester.courses.length === 0 ? (
-                      <tr><td colSpan={4} className="px-3 py-4 text-center text-slate-400">No courses in this semester yet.</td></tr>
+                      <tr>
+                        <td colSpan={4} className="px-3 py-4 text-center text-slate-400">
+                          No courses in this semester yet.
+                        </td>
+                      </tr>
                     ) : (
                       editSemester.courses.map((c) => (
                         <tr key={c.id}>
-                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{c.code}</td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.title}</td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.credit_hours}</td>
+                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                            {c.code}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                            {c.title}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                            {c.credit_hours}
+                          </td>
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
@@ -672,7 +806,9 @@ export default function SemestersPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-2 text-xs text-slate-400">A course already allocated to a teacher in this semester cannot be removed.</p>
+              <p className="mt-2 text-xs text-slate-400">
+                A course already allocated to a teacher in this semester cannot be removed.
+              </p>
             </div>
           </div>
         )}

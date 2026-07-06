@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { GraduationCap, Loader2, Lock, Mail } from "lucide-react";
+import { GraduationCap, Lock, Mail } from "lucide-react";
+import { DataFetchLoader } from "@/components/ui/Loaders";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,15 +43,13 @@ export default function LoginPage() {
           <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
             <GraduationCap size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            City College
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">City College</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             University Campus &mdash; Campus Management System
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white/80 p-8 shadow-xl backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="glass-card p-8 shadow-xl">
           <h2 className="mb-6 text-lg font-semibold text-slate-900 dark:text-white">
             Sign in to your account
           </h2>
@@ -60,7 +59,10 @@ export default function LoginPage() {
                 Email address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Mail
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={18}
+                />
                 <input
                   type="email"
                   required
@@ -76,7 +78,10 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Lock
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={18}
+                />
                 <input
                   type="password"
                   required
@@ -92,7 +97,7 @@ export default function LoginPage() {
               disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : null}
+              {loading ? <DataFetchLoader /> : null}
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>

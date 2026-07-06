@@ -24,12 +24,20 @@ export default function Topbar({
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+    <header
+      className="sticky top-0 z-30 flex h-16 items-center justify-between px-4 glass-panel"
+      style={{
+        borderTop: "none",
+        borderLeft: "none",
+        borderRight: "none",
+        borderBottom: "1px solid var(--surface-border)",
+      }}
+    >
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onMenuClick}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
+          className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/10 lg:hidden"
         >
           <Menu size={20} />
         </button>
@@ -40,13 +48,13 @@ export default function Topbar({
           <span className="text-sm font-semibold text-slate-900 dark:text-white">{name}</span>
           <span className="text-xs text-slate-500 dark:text-slate-400">{roleLabel}</span>
         </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
-          <User size={18} />
+        <div className="icon-tile grad-primary h-9 w-9">
+          <User size={17} />
         </div>
         <button
           type="button"
           onClick={handleLogout}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-red-50 hover:text-red-600 dark:text-slate-300 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+          className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-red-500/10 hover:text-red-600 dark:text-slate-300 dark:hover:text-red-400"
           aria-label="Log out"
         >
           <LogOut size={18} />

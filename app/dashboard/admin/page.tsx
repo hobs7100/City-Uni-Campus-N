@@ -1,14 +1,28 @@
-import { Building2, GraduationCap, Landmark, Users, UsersRound } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { query, queryOne } from "@/lib/db";
+import StatCard from "@/components/adminDashboard/StatCard";
+import MiniCalendar from "@/components/adminDashboard/MiniCalendar";
+import AnnouncementsPanel from "@/components/adminDashboard/AnnouncementsPanel";
+import QuickActions from "@/components/adminDashboard/QuickActions";
+import RecentActivityCard from "@/components/adminDashboard/RecentActivityCard";
+import { DepartmentBarChart, StatusDonutChart } from "@/components/adminDashboard/AnalyticsCharts";
 
 async function getStats() {
   const [users, departments, classes, students, teachers, activeStudents] = await Promise.all([
-    queryOne<{ count: string }>(`select count(*)::text as count from users where deleted_at is null`),
+    queryOne<{ count: string }>(
+      `select count(*)::text as count from users where deleted_at is null`,
+    ),
     queryOne<{ count: string }>(`select count(*)::text as count from departments`),
     queryOne<{ count: string }>(`select count(*)::text as count from classes`),
-    queryOne<{ count: string }>(`select count(*)::text as count from students where deleted_at is null`),
-    queryOne<{ count: string }>(`select count(*)::text as count from teachers where deleted_at is null`),
-    queryOne<{ count: string }>(`select count(*)::text as count from students where deleted_at is null and status = 'active'`),
+    queryOne<{ count: string }>(
+      `select count(*)::text as count from students where deleted_at is null`,
+    ),
+    queryOne<{ count: string }>(
+      `select count(*)::text as count from teachers where deleted_at is null`,
+    ),
+    queryOne<{ count: string }>(
+      `select count(*)::text as count from students where deleted_at is null and status = 'active'`,
+    ),
   ]);
   return {
     users: Number(users?.count ?? 0),
@@ -22,71 +36,125 @@ async function getStats() {
 
 async function getRecentLogins() {
   return query<{ email: string; actor_type: string; logged_in_at: string }>(
-    `select email, actor_type, logged_in_at from login_activity order by logged_in_at desc limit 8`
+    `select email, actor_type, logged_in_at from login_activity order by logged_in_at desc limit 8`,
+  );
+}
+
+async function getDepartmentStudentCounts() {
+  return query<{ name: string; students: string }>(
+    `select d.name as name, count(s.id)::text as students
+ from departments d
+ left join students s on s.department_id = d.id and s.deleted_at is null and s.status = 'active'
+ group by d.id, d.name
+ order by count(s.id) desc
+ limit 8`,
+  );
+}
+
+async function getStudentStatusBreakdown() {
+  return query<{ status: string; count: string }>(
+    `select status, count(*)::text as count from students where deleted_at is null group by status`,
   );
 }
 
 export default async function AdminOverviewPage() {
-  const [stats, recentLogins] = await Promise.all([getStats(), getRecentLogins()]);
+  const [stats, recentLogins, deptCounts, statusBreakdown] = await Promise.all([
+    getStats(),
+    getRecentLogins(),
+    getDepartmentStudentCounts(),
+    getStudentStatusBreakdown(),
+  ]);
 
   const cards = [
-    { label: "System Users", value: stats.users, icon: Users, color: "bg-indigo-500" },
-    { label: "Departments", value: stats.departments, icon: Building2, color: "bg-sky-500" },
-    { label: "Classes", value: stats.classes, icon: Landmark, color: "bg-amber-500" },
-    { label: "Students (Active)", value: stats.activeStudents, icon: GraduationCap, color: "bg-emerald-500" },
-    { label: "Total Students", value: stats.students, icon: GraduationCap, color: "bg-emerald-600" },
-    { label: "Teachers", value: stats.teachers, icon: UsersRound, color: "bg-rose-500" },
+    {
+      label: "System Users",
+      value: stats.users,
+      icon: "Users" as const,
+      gradient: "grad-primary" as const,
+    },
+    {
+      label: "Departments",
+      value: stats.departments,
+      icon: "Building2" as const,
+      gradient: "grad-cyan" as const,
+    },
+    {
+      label: "Classes",
+      value: stats.classes,
+      icon: "Landmark" as const,
+      gradient: "grad-amber" as const,
+    },
+    {
+      label: "Active Students",
+      value: stats.activeStudents,
+      icon: "GraduationCap" as const,
+      gradient: "grad-emerald" as const,
+    },
+    {
+      label: "Total Students",
+      value: stats.students,
+      icon: "GraduationCap" as const,
+      gradient: "grad-emerald" as const,
+    },
+    {
+      label: "Teachers",
+      value: stats.teachers,
+      icon: "UsersRound" as const,
+      gradient: "grad-rose" as const,
+    },
   ];
+
+  const barData = deptCounts.map((d) => ({ name: d.name, students: Number(d.students) }));
+  const donutData = statusBreakdown.map((s) => ({
+    name: s.status.replace(/_/g, ""),
+    value: Number(s.count),
+  }));
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Welcome back</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Here&apos;s what&apos;s happening across City College</p>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="icon-tile grad-primary h-11 w-11">
+          <Sparkles size={20} />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Welcome back</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Here&apos;s what&apos;s happening across City College
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
-          <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-4">
-              <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${c.color} text-white`}>
-                <c.icon size={20} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{c.value}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{c.label}</p>
-              </div>
-            </div>
-          </div>
+          <StatCard
+            key={c.label}
+            label={c.label}
+            value={c.value}
+            icon={c.icon}
+            gradient={c.gradient}
+          />
         ))}
       </div>
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-          <h2 className="font-semibold text-slate-900 dark:text-white">Recent Login Activity</h2>
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <DepartmentBarChart data={barData} />
         </div>
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-            <tr>
-              <th className="px-5 py-3">Email</th>
-              <th className="px-5 py-3">Role</th>
-              <th className="px-5 py-3">Logged In At</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {recentLogins.length === 0 ? (
-              <tr><td colSpan={3} className="px-5 py-8 text-center text-slate-400">No login activity yet.</td></tr>
-            ) : (
-              recentLogins.map((l, idx) => (
-                <tr key={idx}>
-                  <td className="px-5 py-3 text-slate-700 dark:text-slate-200">{l.email}</td>
-                  <td className="px-5 py-3 capitalize text-slate-600 dark:text-slate-300">{l.actor_type}</td>
-                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{new Date(l.logged_in_at).toLocaleString()}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <StatusDonutChart data={donutData} />
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <RecentActivityCard logins={recentLogins} />
+        </div>
+        <div className="flex flex-col gap-4">
+          <QuickActions />
+          <MiniCalendar />
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <AnnouncementsPanel />
       </div>
     </div>
   );

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { FileDown, Layers, Loader2, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { FileDown, Layers, Pencil, Plus, Trash2, Users } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import { TableLoader } from "@/components/ui/Loaders";
 
 interface ClassOption {
   id: string;
@@ -92,7 +93,9 @@ export default function AllocationsPage() {
   const [courseId, setCourseId] = useState("");
   const [showAllTeachers, setShowAllTeachers] = useState(false);
   const [teacherId, setTeacherId] = useState("");
-  const [allocationType, setAllocationType] = useState<"workload" | "per_credit_hour" | "fixed">("workload");
+  const [allocationType, setAllocationType] = useState<"workload" | "per_credit_hour" | "fixed">(
+    "workload",
+  );
   const [rate, setRate] = useState("");
   const [isCombined, setIsCombined] = useState(false);
   const [combinedSemesterIds, setCombinedSemesterIds] = useState<string[]>([]);
@@ -101,7 +104,9 @@ export default function AllocationsPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editTeacherId, setEditTeacherId] = useState("");
-  const [editAllocationType, setEditAllocationType] = useState<"workload" | "per_credit_hour" | "fixed">("workload");
+  const [editAllocationType, setEditAllocationType] = useState<
+    "workload" | "per_credit_hour" | "fixed"
+  >("workload");
   const [editRate, setEditRate] = useState("");
   const [editSemesterIds, setEditSemesterIds] = useState<string[]>([]);
 
@@ -125,7 +130,13 @@ export default function AllocationsPage() {
       const teacherData = await teacherRes.json();
       const semData = await semRes.json();
       const allocData = await allocRes.json();
-      if (deptRes.ok) setDepartments(deptData.departments.map((d: { id: string; name: string }) => ({ value: d.id, label: d.name })));
+      if (deptRes.ok)
+        setDepartments(
+          deptData.departments.map((d: { id: string; name: string }) => ({
+            value: d.id,
+            label: d.name,
+          })),
+        );
       if (classRes.ok) setClasses(classData.classes);
       if (teacherRes.ok) setTeachers(teacherData.teachers);
       if (semRes.ok) setSemesters(semData.semesters);
@@ -140,9 +151,16 @@ export default function AllocationsPage() {
   }, [load]);
 
   function resetForm() {
-    setDepartmentId(""); setSession(""); setClassId(""); setCourseId("");
-    setShowAllTeachers(false); setTeacherId(""); setAllocationType("workload");
-    setRate(""); setIsCombined(false); setCombinedSemesterIds([]);
+    setDepartmentId("");
+    setSession("");
+    setClassId("");
+    setCourseId("");
+    setShowAllTeachers(false);
+    setTeacherId("");
+    setAllocationType("workload");
+    setRate("");
+    setIsCombined(false);
+    setCombinedSemesterIds([]);
   }
 
   function openCreate() {
@@ -151,16 +169,24 @@ export default function AllocationsPage() {
   }
 
   const sessionOptions = useMemo(() => {
-    const set = new Set(classes.filter((c) => c.department_id === departmentId).map((c) => c.session));
+    const set = new Set(
+      classes.filter((c) => c.department_id === departmentId).map((c) => c.session),
+    );
     return Array.from(set).map((s) => ({ value: s, label: s }));
   }, [classes, departmentId]);
 
   const classOptions = useMemo(
-    () => classes.filter((c) => c.department_id === departmentId && c.session === session).map((c) => ({ value: c.id, label: c.class_name })),
-    [classes, departmentId, session]
+    () =>
+      classes
+        .filter((c) => c.department_id === departmentId && c.session === session)
+        .map((c) => ({ value: c.id, label: c.class_name })),
+    [classes, departmentId, session],
   );
 
-  const primarySemester = useMemo(() => semesters.find((s) => s.class_id === classId && s.status === "active"), [semesters, classId]);
+  const primarySemester = useMemo(
+    () => semesters.find((s) => s.class_id === classId && s.status === "active"),
+    [semesters, classId],
+  );
 
   const allocatedCourseIdsBySemester = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -182,29 +208,42 @@ export default function AllocationsPage() {
   }, [primarySemester, allocatedCourseIdsBySemester]);
 
   const teacherOptions = useMemo(() => {
-    const pool = showAllTeachers ? teachers : teachers.filter((t) => t.department_id === departmentId);
-    return pool.filter((t) => t.status === "active").map((t) => ({ value: t.id, label: `${t.name} (${t.type})` }));
+    const pool = showAllTeachers
+      ? teachers
+      : teachers.filter((t) => t.department_id === departmentId);
+    return pool
+      .filter((t) => t.status === "active")
+      .map((t) => ({ value: t.id, label: `${t.name} (${t.type})` }));
   }, [teachers, showAllTeachers, departmentId]);
 
   const combinedOptions = useMemo(
     () =>
       semesters
         .filter((s) => s.id !== primarySemester?.id && s.status === "active")
-        .map((s) => ({ value: s.id, label: `${s.class_name} (${s.session}) — Sem ${s.semester_number} ${s.term_type}` })),
-    [semesters, primarySemester]
+        .map((s) => ({
+          value: s.id,
+          label: `${s.class_name} (${s.session}) — Sem ${s.semester_number} ${s.term_type}`,
+        })),
+    [semesters, primarySemester],
   );
 
   const allActiveSemesterOptions = useMemo(
     () =>
       semesters
         .filter((s) => s.status === "active")
-        .map((s) => ({ value: s.id, label: `${s.class_name} (${s.session}) — Sem ${s.semester_number} ${s.term_type}` })),
-    [semesters]
+        .map((s) => ({
+          value: s.id,
+          label: `${s.class_name} (${s.session}) — Sem ${s.semester_number} ${s.term_type}`,
+        })),
+    [semesters],
   );
 
   const allTeacherOptions = useMemo(
-    () => teachers.filter((t) => t.status === "active").map((t) => ({ value: t.id, label: `${t.name} (${t.type})` })),
-    [teachers]
+    () =>
+      teachers
+        .filter((t) => t.status === "active")
+        .map((t) => ({ value: t.id, label: `${t.name} (${t.type})` })),
+    [teachers],
   );
 
   async function handleSubmit(e: React.FormEvent) {
@@ -306,21 +345,30 @@ export default function AllocationsPage() {
   }
 
   const filterSessionOptions = useMemo(() => {
-    const set = new Set(classes.filter((c) => !filterDepartmentId || c.department_id === filterDepartmentId).map((c) => c.session));
+    const set = new Set(
+      classes
+        .filter((c) => !filterDepartmentId || c.department_id === filterDepartmentId)
+        .map((c) => c.session),
+    );
     return Array.from(set).map((s) => ({ value: s, label: s }));
   }, [classes, filterDepartmentId]);
 
   const filterClassOptions = useMemo(
     () =>
       classes
-        .filter((c) => (!filterDepartmentId || c.department_id === filterDepartmentId) && (!filterSession || c.session === filterSession))
+        .filter(
+          (c) =>
+            (!filterDepartmentId || c.department_id === filterDepartmentId) &&
+            (!filterSession || c.session === filterSession),
+        )
         .map((c) => ({ value: c.id, label: c.class_name })),
-    [classes, filterDepartmentId, filterSession]
+    [classes, filterDepartmentId, filterSession],
   );
 
   const filteredAllocations = useMemo(() => {
     return allocations.filter((a) => {
-      if (filterDepartmentId && !a.semesters.some((s) => s.department_id === filterDepartmentId)) return false;
+      if (filterDepartmentId && !a.semesters.some((s) => s.department_id === filterDepartmentId))
+        return false;
       if (filterSession && !a.semesters.some((s) => s.session === filterSession)) return false;
       if (filterClassId && !a.semesters.some((s) => s.class_id === filterClassId)) return false;
       if (filterTeacherId && a.teacher_id !== filterTeacherId) return false;
@@ -330,12 +378,27 @@ export default function AllocationsPage() {
 
   const activeFilterSummary = useMemo(() => {
     const parts: string[] = [];
-    if (filterDepartmentId) parts.push(`Department: ${departments.find((d) => d.value === filterDepartmentId)?.label ?? ""}`);
+    if (filterDepartmentId)
+      parts.push(
+        `Department: ${departments.find((d) => d.value === filterDepartmentId)?.label ?? ""}`,
+      );
     if (filterSession) parts.push(`Session: ${filterSession}`);
-    if (filterClassId) parts.push(`Class: ${filterClassOptions.find((c) => c.value === filterClassId)?.label ?? ""}`);
-    if (filterTeacherId) parts.push(`Teacher: ${teachers.find((t) => t.id === filterTeacherId)?.name ?? ""}`);
-    return parts.length ? parts.join(" · ") : "All allocations";
-  }, [filterDepartmentId, filterSession, filterClassId, filterTeacherId, departments, filterClassOptions, teachers]);
+    if (filterClassId)
+      parts.push(
+        `Class: ${filterClassOptions.find((c) => c.value === filterClassId)?.label ?? ""}`,
+      );
+    if (filterTeacherId)
+      parts.push(`Teacher: ${teachers.find((t) => t.id === filterTeacherId)?.name ?? ""}`);
+    return parts.length ? parts.join(" ·") : "All allocations";
+  }, [
+    filterDepartmentId,
+    filterSession,
+    filterClassId,
+    filterTeacherId,
+    departments,
+    filterClassOptions,
+    teachers,
+  ]);
 
   function handleExportPdf() {
     window.print();
@@ -345,40 +408,63 @@ export default function AllocationsPage() {
     <div>
       <div className="mb-6 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Allocation Management</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Assign teachers to courses for active semesters</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+            Allocation Management
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Assign teachers to courses for active semesters
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={handleExportPdf} className="flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+          <button
+            onClick={handleExportPdf}
+            className="flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
             <FileDown size={18} /> Export PDF
           </button>
-          <button onClick={openCreate} className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+          <button
+            onClick={openCreate}
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
             <Plus size={18} /> New Allocation
           </button>
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 print:hidden sm:grid-cols-2 lg:grid-cols-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 print:hidden sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Department</label>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+            Department
+          </label>
           <SearchableSelect
             options={departments}
             value={departments.find((d) => d.value === filterDepartmentId) || null}
-            onChange={(opt) => { setFilterDepartmentId(opt ? (opt as SelectOption).value : ""); setFilterSession(""); setFilterClassId(""); }}
+            onChange={(opt) => {
+              setFilterDepartmentId(opt ? (opt as SelectOption).value : "");
+              setFilterSession("");
+              setFilterClassId("");
+            }}
             placeholder="All departments"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Session</label>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+            Session
+          </label>
           <SearchableSelect
             options={filterSessionOptions}
             value={filterSessionOptions.find((s) => s.value === filterSession) || null}
-            onChange={(opt) => { setFilterSession(opt ? (opt as SelectOption).value : ""); setFilterClassId(""); }}
+            onChange={(opt) => {
+              setFilterSession(opt ? (opt as SelectOption).value : "");
+              setFilterClassId("");
+            }}
             placeholder="All sessions"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Class</label>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+            Class
+          </label>
           <SearchableSelect
             options={filterClassOptions}
             value={filterClassOptions.find((c) => c.value === filterClassId) || null}
@@ -387,7 +473,9 @@ export default function AllocationsPage() {
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Teacher</label>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+            Teacher
+          </label>
           <SearchableSelect
             options={allTeacherOptions}
             value={allTeacherOptions.find((t) => t.value === filterTeacherId) || null}
@@ -403,7 +491,7 @@ export default function AllocationsPage() {
         <p className="text-xs opacity-90">Generated on {new Date().toLocaleString()}</p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:rounded-none print:border-0">
+      <div className="overflow-hidden card-3d card-hover print:rounded-none print:border-0">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 print:bg-indigo-600 print:text-white">
             <tr>
@@ -417,33 +505,63 @@ export default function AllocationsPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+              <TableLoader colSpan={6} />
             ) : filteredAllocations.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No allocations found.</td></tr>
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                  No allocations found.
+                </td>
+              </tr>
             ) : (
               filteredAllocations.map((a, idx) => (
-                <tr key={a.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${idx % 2 === 0 ? "print:bg-indigo-50/60" : "print:bg-white"}`}>
+                <tr
+                  key={a.id}
+                  className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${idx % 2 === 0 ? "print:bg-indigo-50/60" : "print:bg-white"}`}
+                >
                   <td className="px-4 py-3 print:border print:border-indigo-200">
-                    <div className="font-medium text-slate-800 dark:text-slate-100 print:text-indigo-900">{a.course_code}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-700">{a.course_title}</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-100 print:text-indigo-900">
+                      {a.course_code}
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-700">
+                      {a.course_title}
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300 print:border print:border-indigo-200 print:text-slate-800">{a.teacher_name}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300 print:border print:border-indigo-200 print:text-slate-800">
+                    {a.teacher_name}
+                  </td>
                   <td className="px-4 py-3 print:border print:border-indigo-200">
                     <div className="flex flex-wrap gap-1.5">
                       {a.semesters.map((s) => (
-                        <span key={s.semester_id} className="flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 print:bg-transparent print:px-0 print:py-0">
+                        <span
+                          key={s.semester_id}
+                          className="flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 print:bg-transparent print:px-0 print:py-0"
+                        >
                           {a.is_combined && <Layers size={11} />}
                           {s.class_name} ({s.session}) Sem {s.semester_number}
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300 print:border print:border-indigo-200 print:text-slate-800">{allocationTypeLabel[a.allocation_type]}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300 print:border print:border-indigo-200 print:text-slate-800">{a.rate}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300 print:border print:border-indigo-200 print:text-slate-800">
+                    {allocationTypeLabel[a.allocation_type]}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300 print:border print:border-indigo-200 print:text-slate-800">
+                    {a.rate}
+                  </td>
                   <td className="px-4 py-3 print:hidden">
                     <div className="flex justify-end gap-1.5">
-                      <button onClick={() => openEdit(a)} className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"><Pencil size={16} /></button>
-                      <button onClick={() => setDeleteTarget(a)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 size={16} /></button>
+                      <button
+                        onClick={() => openEdit(a)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(a)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -453,24 +571,42 @@ export default function AllocationsPage() {
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Allocation" widthClass="max-w-xl">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="New Allocation"
+        widthClass="max-w-xl"
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Department
+              </label>
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === departmentId) || null}
-                onChange={(opt) => { setDepartmentId(opt ? (opt as SelectOption).value : ""); setSession(""); setClassId(""); setCourseId(""); setTeacherId(""); }}
+                onChange={(opt) => {
+                  setDepartmentId(opt ? (opt as SelectOption).value : "");
+                  setSession("");
+                  setClassId("");
+                  setCourseId("");
+                  setTeacherId("");
+                }}
                 placeholder="Select..."
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Session</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Session
+              </label>
               <SearchableSelect
                 options={sessionOptions}
                 value={sessionOptions.find((s) => s.value === session) || null}
-                onChange={(opt) => { setSession(opt ? (opt as SelectOption).value : ""); setClassId(""); }}
+                onChange={(opt) => {
+                  setSession(opt ? (opt as SelectOption).value : "");
+                  setClassId("");
+                }}
                 placeholder="Select..."
                 isDisabled={!departmentId}
               />
@@ -478,31 +614,50 @@ export default function AllocationsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Class</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Class
+              </label>
               <SearchableSelect
                 options={classOptions}
                 value={classOptions.find((c) => c.value === classId) || null}
-                onChange={(opt) => { setClassId(opt ? (opt as SelectOption).value : ""); setCourseId(""); }}
+                onChange={(opt) => {
+                  setClassId(opt ? (opt as SelectOption).value : "");
+                  setCourseId("");
+                }}
                 placeholder="Select..."
                 isDisabled={!session}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Active Semester</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Active Semester
+              </label>
               <input
                 readOnly
-                value={primarySemester ? `Semester ${primarySemester.semester_number} — ${primarySemester.term_type}` : classId ? "No active semester" : ""}
+                value={
+                  primarySemester
+                    ? `Semester ${primarySemester.semester_number} — ${primarySemester.term_type}`
+                    : classId
+                      ? "No active semester"
+                      : ""
+                }
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300"
               />
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Course</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Course
+            </label>
             <SearchableSelect
               options={availableCourseOptions}
               value={availableCourseOptions.find((c) => c.value === courseId) || null}
               onChange={(opt) => setCourseId(opt ? (opt as SelectOption).value : "")}
-              placeholder={primarySemester ? "Select course..." : "Select a class with an active semester first"}
+              placeholder={
+                primarySemester
+                  ? "Select course..."
+                  : "Select a class with an active semester first"
+              }
               isDisabled={!primarySemester}
             />
           </div>
@@ -511,15 +666,23 @@ export default function AllocationsPage() {
               id="showAllTeachers"
               type="checkbox"
               checked={showAllTeachers}
-              onChange={(e) => { setShowAllTeachers(e.target.checked); setTeacherId(""); }}
+              onChange={(e) => {
+                setShowAllTeachers(e.target.checked);
+                setTeacherId("");
+              }}
               className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
             />
-            <label htmlFor="showAllTeachers" className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+            <label
+              htmlFor="showAllTeachers"
+              className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300"
+            >
               <Users size={14} /> Show all teachers (not just this department)
             </label>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Teacher</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Teacher
+            </label>
             <SearchableSelect
               options={teacherOptions}
               value={teacherOptions.find((t) => t.value === teacherId) || null}
@@ -529,16 +692,22 @@ export default function AllocationsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Allocation Type</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Allocation Type
+              </label>
               <SearchableSelect
                 options={allocationTypeOptions}
                 value={allocationTypeOptions.find((t) => t.value === allocationType)}
-                onChange={(opt) => setAllocationType((opt as { value: string }).value as typeof allocationType)}
+                onChange={(opt) =>
+                  setAllocationType((opt as { value: string }).value as typeof allocationType)
+                }
                 isClearable={false}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Rate (PKR)</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Rate (PKR)
+              </label>
               <input
                 type="number"
                 required
@@ -555,47 +724,78 @@ export default function AllocationsPage() {
               id="isCombined"
               type="checkbox"
               checked={isCombined}
-              onChange={(e) => { setIsCombined(e.target.checked); if (!e.target.checked) setCombinedSemesterIds([]); }}
+              onChange={(e) => {
+                setIsCombined(e.target.checked);
+                if (!e.target.checked) setCombinedSemesterIds([]);
+              }}
               className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
             />
-            <label htmlFor="isCombined" className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+            <label
+              htmlFor="isCombined"
+              className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300"
+            >
               <Layers size={14} /> Combined with another class + semester
             </label>
           </div>
           {isCombined && (
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Combined Classes</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Combined Classes
+              </label>
               <SearchableSelect
                 options={combinedOptions}
                 value={combinedOptions.filter((o) => combinedSemesterIds.includes(o.value))}
-                onChange={(opts) => setCombinedSemesterIds((opts as SelectOption[] | null)?.map((o) => o.value) ?? [])}
+                onChange={(opts) =>
+                  setCombinedSemesterIds((opts as SelectOption[] | null)?.map((o) => o.value) ?? [])
+                }
                 placeholder="Select one or more active classes..."
                 isMulti
               />
             </div>
           )}
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {saving ? "Saving..." : "Create Allocation"}
             </button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Allocation" widthClass="max-w-xl">
+      <Modal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Edit Allocation"
+        widthClass="max-w-xl"
+      >
         <form onSubmit={handleEditSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Course</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Course
+            </label>
             <input
               readOnly
               value={editTarget ? `${editTarget.course_code} — ${editTarget.course_title}` : ""}
               className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300"
             />
-            <p className="mt-1 text-xs text-slate-400">Course cannot be changed after creation. Delete and re-create to switch course.</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Course cannot be changed after creation. Delete and re-create to switch course.
+            </p>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Teacher</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Teacher
+            </label>
             <SearchableSelect
               options={allTeacherOptions}
               value={allTeacherOptions.find((t) => t.value === editTeacherId) || null}
@@ -605,16 +805,24 @@ export default function AllocationsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Allocation Type</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Allocation Type
+              </label>
               <SearchableSelect
                 options={allocationTypeOptions}
                 value={allocationTypeOptions.find((t) => t.value === editAllocationType)}
-                onChange={(opt) => setEditAllocationType((opt as { value: string }).value as typeof editAllocationType)}
+                onChange={(opt) =>
+                  setEditAllocationType(
+                    (opt as { value: string }).value as typeof editAllocationType,
+                  )
+                }
                 isClearable={false}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Rate (PKR)</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Rate (PKR)
+              </label>
               <input
                 type="number"
                 required
@@ -628,20 +836,36 @@ export default function AllocationsPage() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              <span className="flex items-center gap-1.5"><Layers size={14} /> Classes / Semesters taught (select one or more)</span>
+              <span className="flex items-center gap-1.5">
+                <Layers size={14} /> Classes / Semesters taught (select one or more)
+              </span>
             </label>
             <SearchableSelect
               options={allActiveSemesterOptions}
               value={allActiveSemesterOptions.filter((o) => editSemesterIds.includes(o.value))}
-              onChange={(opts) => setEditSemesterIds((opts as SelectOption[] | null)?.map((o) => o.value) ?? [])}
+              onChange={(opts) =>
+                setEditSemesterIds((opts as SelectOption[] | null)?.map((o) => o.value) ?? [])
+              }
               placeholder="Select active classes..."
               isMulti
             />
-            <p className="mt-1 text-xs text-slate-400">Selecting more than one class marks this as a combined lecture.</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Selecting more than one class marks this as a combined lecture.
+            </p>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setEditModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={editSaving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setEditModalOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={editSaving}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {editSaving ? "Saving..." : "Save Changes"}
             </button>
           </div>
@@ -651,7 +875,7 @@ export default function AllocationsPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Remove Allocation"
-        message={`Remove the allocation for "${deleteTarget?.course_code}" — ${deleteTarget?.teacher_name}? This cannot be undone.`}
+        message={`Remove the allocation for"${deleteTarget?.course_code}" — ${deleteTarget?.teacher_name}? This cannot be undone.`}
         confirmLabel="Remove"
         loading={deleting}
         onConfirm={handleDelete}

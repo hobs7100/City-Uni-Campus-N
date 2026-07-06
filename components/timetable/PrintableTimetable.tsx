@@ -46,7 +46,13 @@ function formatTime(t: string) {
   return `${hour}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-export default function PrintableTimetable({ data, isLast }: { data: PrintableTimetableData; isLast: boolean }) {
+export default function PrintableTimetable({
+  data,
+  isLast,
+}: {
+  data: PrintableTimetableData;
+  isLast: boolean;
+}) {
   const { timetable: info, days, periods, cells } = data;
   const cellMap = new Map(cells.map((c) => [`${c.day_id}:${c.period_id}`, c]));
 
@@ -55,7 +61,8 @@ export default function PrintableTimetable({ data, isLast }: { data: PrintableTi
       <div className="mb-4 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-4 text-center text-white">
         <h2 className="text-xl font-extrabold tracking-wide">City College (University Campus)</h2>
         <p className="text-sm font-semibold">
-          Class Timetable — {info.class_name} ({info.session}) — Sem {info.semester_number} {info.term_type} — {info.shift} Shift
+          Class Timetable — {info.class_name} ({info.session}) — Sem {info.semester_number}{" "}
+          {info.term_type} — {info.shift} Shift
         </p>
         <p className="text-xs opacity-90">
           {info.department_name} · W.e.f {new Date(info.wef_date).toLocaleDateString()}
@@ -77,7 +84,9 @@ export default function PrintableTimetable({ data, isLast }: { data: PrintableTi
           <tbody>
             {days.map((day, idx) => (
               <tr key={day.id} className={idx % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
-                <td className="border border-indigo-200 px-3 py-2 font-semibold text-indigo-900">{day.day_name}</td>
+                <td className="border border-indigo-200 px-3 py-2 font-semibold text-indigo-900">
+                  {day.day_name}
+                </td>
                 {periods.map((p) => {
                   const cell = cellMap.get(`${day.id}:${p.id}`);
                   return (
@@ -87,12 +96,19 @@ export default function PrintableTimetable({ data, isLast }: { data: PrintableTi
                           <div className="flex items-center gap-1 text-xs font-semibold text-indigo-800">
                             {cell.is_combined && <Layers size={11} />} {cell.course_title}
                           </div>
-                          <div className="text-[11px] font-medium text-slate-700">{cell.teacher_name}</div>
-                          {cell.is_combined && cell.combined_with && cell.combined_with.length > 0 && (
-                            <div className="mt-0.5 text-[10px] italic text-sky-700">
-                              Combined: {cell.combined_with.map((c) => `${c.class_name} (${c.session})`).join(", ")}
-                            </div>
-                          )}
+                          <div className="text-[11px] font-medium text-slate-700">
+                            {cell.teacher_name}
+                          </div>
+                          {cell.is_combined &&
+                            cell.combined_with &&
+                            cell.combined_with.length > 0 && (
+                              <div className="mt-0.5 text-[10px] italic text-sky-700">
+                                Combined:{" "}
+                                {cell.combined_with
+                                  .map((c) => `${c.class_name} (${c.session})`)
+                                  .join(",")}
+                              </div>
+                            )}
                         </div>
                       ) : null}
                     </td>

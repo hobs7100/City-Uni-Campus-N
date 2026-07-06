@@ -28,22 +28,38 @@ export default function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-md" onClick={onClose} />
       <div
-        className={`relative z-10 w-full ${widthClass} max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900`}
+        className={`relative z-10 w-full ${widthClass} max-h-[90vh] animate-[modal-pop_220ms_cubic-bezier(0.22,1,0.36,1)] overflow-y-auto rounded-2xl glass-card`}
+        style={{ background: "var(--surface-solid)" }}
       >
-        <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between border-b px-6 py-4"
+          style={{ borderColor: "var(--surface-border)", background: "var(--surface-solid)" }}
+        >
           <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+            className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-900/5 hover:text-slate-600 dark:hover:bg-white/10"
           >
             <X size={18} />
           </button>
         </div>
         <div className="px-6 py-5">{children}</div>
       </div>
+      <style jsx global>{`
+        @keyframes modal-pop {
+          0% {
+            opacity: 0;
+            transform: scale(0.96) translateY(8px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

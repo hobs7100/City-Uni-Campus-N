@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { CalendarDays, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, FileDown, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
-import PrintableTimetable, { PrintableTimetableData } from "@/components/timetable/PrintableTimetable";
+import PrintableTimetable, {
+  PrintableTimetableData,
+} from "@/components/timetable/PrintableTimetable";
+import { TableLoader } from "@/components/ui/Loaders";
 
 interface ClassOption {
   id: string;
@@ -85,7 +88,13 @@ export default function TimetablesPage() {
       const classData = await classRes.json();
       const semData = await semRes.json();
       const ttData = await ttRes.json();
-      if (deptRes.ok) setDepartments(deptData.departments.map((d: { id: string; name: string }) => ({ value: d.id, label: d.name })));
+      if (deptRes.ok)
+        setDepartments(
+          deptData.departments.map((d: { id: string; name: string }) => ({
+            value: d.id,
+            label: d.name,
+          })),
+        );
       if (classRes.ok) setClasses(classData.classes);
       if (semRes.ok) setSemesters(semData.semesters);
       if (ttRes.ok) setTimetables(ttData.timetables);
@@ -99,7 +108,11 @@ export default function TimetablesPage() {
   }, [load]);
 
   function resetForm() {
-    setDepartmentId(""); setSession(""); setClassId(""); setShift("morning"); setWefDate("");
+    setDepartmentId("");
+    setSession("");
+    setClassId("");
+    setShift("morning");
+    setWefDate("");
   }
 
   function openCreate() {
@@ -108,18 +121,23 @@ export default function TimetablesPage() {
   }
 
   const sessionOptions = useMemo(() => {
-    const set = new Set(classes.filter((c) => c.department_id === departmentId).map((c) => c.session));
+    const set = new Set(
+      classes.filter((c) => c.department_id === departmentId).map((c) => c.session),
+    );
     return Array.from(set).map((s) => ({ value: s, label: s }));
   }, [classes, departmentId]);
 
   const classOptions = useMemo(
-    () => classes.filter((c) => c.department_id === departmentId && c.session === session).map((c) => ({ value: c.id, label: c.class_name })),
-    [classes, departmentId, session]
+    () =>
+      classes
+        .filter((c) => c.department_id === departmentId && c.session === session)
+        .map((c) => ({ value: c.id, label: c.class_name })),
+    [classes, departmentId, session],
   );
 
   const activeSemester = useMemo(
     () => semesters.find((s) => s.class_id === classId && s.status === "active"),
-    [semesters, classId]
+    [semesters, classId],
   );
 
   async function handleSubmit(e: React.FormEvent) {
@@ -177,7 +195,11 @@ export default function TimetablesPage() {
   }
 
   const filterSessionOptions = useMemo(() => {
-    const set = new Set(classes.filter((c) => !filterDepartmentId || c.department_id === filterDepartmentId).map((c) => c.session));
+    const set = new Set(
+      classes
+        .filter((c) => !filterDepartmentId || c.department_id === filterDepartmentId)
+        .map((c) => c.session),
+    );
     return Array.from(set).map((s) => ({ value: s, label: s }));
   }, [classes, filterDepartmentId]);
 
@@ -189,8 +211,14 @@ export default function TimetablesPage() {
     });
   }, [timetables, filterDepartmentId, filterSession]);
 
-  const filteredIdSet = useMemo(() => new Set(filteredTimetables.map((tt) => tt.id)), [filteredTimetables]);
-  const visibleSelectedIds = useMemo(() => selectedIds.filter((id) => filteredIdSet.has(id)), [selectedIds, filteredIdSet]);
+  const filteredIdSet = useMemo(
+    () => new Set(filteredTimetables.map((tt) => tt.id)),
+    [filteredTimetables],
+  );
+  const visibleSelectedIds = useMemo(
+    () => selectedIds.filter((id) => filteredIdSet.has(id)),
+    [selectedIds, filteredIdSet],
+  );
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -200,7 +228,9 @@ export default function TimetablesPage() {
     if (visibleSelectedIds.length === filteredTimetables.length) {
       setSelectedIds((prev) => prev.filter((id) => !filteredIdSet.has(id)));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredTimetables.map((tt) => tt.id)])));
+      setSelectedIds((prev) =>
+        Array.from(new Set([...prev, ...filteredTimetables.map((tt) => tt.id)])),
+      );
     }
   }
 
@@ -217,7 +247,7 @@ export default function TimetablesPage() {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Failed to load a timetable.");
           return data as PrintableTimetableData;
-        })
+        }),
       );
       setPrintData(results);
       setTimeout(() => window.print(), 100);
@@ -233,7 +263,9 @@ export default function TimetablesPage() {
       <div className="mb-6 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Timetable Management</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Create and manage class timetables with teacher clash detection</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Create and manage class timetables with teacher clash detection
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -243,24 +275,34 @@ export default function TimetablesPage() {
           >
             <FileDown size={18} /> Export Selected ({visibleSelectedIds.length})
           </button>
-          <button onClick={openCreate} className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+          <button
+            onClick={openCreate}
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
             <Plus size={18} /> New Timetable
           </button>
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 print:hidden sm:grid-cols-2">
+      <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 print:hidden sm:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Department</label>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+            Department
+          </label>
           <SearchableSelect
             options={departments}
             value={departments.find((d) => d.value === filterDepartmentId) || null}
-            onChange={(opt) => { setFilterDepartmentId(opt ? (opt as SelectOption).value : ""); setFilterSession(""); }}
+            onChange={(opt) => {
+              setFilterDepartmentId(opt ? (opt as SelectOption).value : "");
+              setFilterSession("");
+            }}
             placeholder="All departments"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Session</label>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+            Session
+          </label>
           <SearchableSelect
             options={filterSessionOptions}
             value={filterSessionOptions.find((s) => s.value === filterSession) || null}
@@ -270,14 +312,17 @@ export default function TimetablesPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:hidden">
+      <div className="overflow-hidden card-3d card-hover print:hidden">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3">
                 <input
                   type="checkbox"
-                  checked={filteredTimetables.length > 0 && visibleSelectedIds.length === filteredTimetables.length}
+                  checked={
+                    filteredTimetables.length > 0 &&
+                    visibleSelectedIds.length === filteredTimetables.length
+                  }
                   onChange={toggleSelectAll}
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
@@ -292,9 +337,13 @@ export default function TimetablesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+              <TableLoader colSpan={7} />
             ) : filteredTimetables.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No timetables found.</td></tr>
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                  No timetables found.
+                </td>
+              </tr>
             ) : (
               filteredTimetables.map((tt) => (
                 <tr key={tt.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -307,13 +356,23 @@ export default function TimetablesPage() {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-800 dark:text-slate-100">{tt.class_name}</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-100">
+                      {tt.class_name}
+                    </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">{tt.session}</div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{tt.department_name}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">Sem {tt.semester_number} — {tt.term_type}</td>
-                  <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">{tt.shift}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{new Date(tt.wef_date).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {tt.department_name}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    Sem {tt.semester_number} — {tt.term_type}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">
+                    {tt.shift}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {new Date(tt.wef_date).toLocaleDateString()}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
                       <Link
@@ -323,7 +382,12 @@ export default function TimetablesPage() {
                       >
                         <CalendarDays size={16} />
                       </Link>
-                      <button onClick={() => setDeleteTarget(tt)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 size={16} /></button>
+                      <button
+                        onClick={() => setDeleteTarget(tt)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -336,29 +400,49 @@ export default function TimetablesPage() {
       {printData.length > 0 && (
         <div className="hidden print:block">
           {printData.map((d, idx) => (
-            <PrintableTimetable key={d.timetable.id} data={d} isLast={idx === printData.length - 1} />
+            <PrintableTimetable
+              key={d.timetable.id}
+              data={d}
+              isLast={idx === printData.length - 1}
+            />
           ))}
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Timetable" widthClass="max-w-lg">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="New Timetable"
+        widthClass="max-w-lg"
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Department
+              </label>
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === departmentId) || null}
-                onChange={(opt) => { setDepartmentId(opt ? (opt as SelectOption).value : ""); setSession(""); setClassId(""); }}
+                onChange={(opt) => {
+                  setDepartmentId(opt ? (opt as SelectOption).value : "");
+                  setSession("");
+                  setClassId("");
+                }}
                 placeholder="Select..."
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Session</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Session
+              </label>
               <SearchableSelect
                 options={sessionOptions}
                 value={sessionOptions.find((s) => s.value === session) || null}
-                onChange={(opt) => { setSession(opt ? (opt as SelectOption).value : ""); setClassId(""); }}
+                onChange={(opt) => {
+                  setSession(opt ? (opt as SelectOption).value : "");
+                  setClassId("");
+                }}
                 placeholder="Select..."
                 isDisabled={!departmentId}
               />
@@ -366,7 +450,9 @@ export default function TimetablesPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Class</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Class
+              </label>
               <SearchableSelect
                 options={classOptions}
                 value={classOptions.find((c) => c.value === classId) || null}
@@ -376,16 +462,26 @@ export default function TimetablesPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Active Semester</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Active Semester
+              </label>
               <input
                 readOnly
-                value={activeSemester ? `Semester ${activeSemester.semester_number} — ${activeSemester.term_type}` : classId ? "No active semester" : ""}
+                value={
+                  activeSemester
+                    ? `Semester ${activeSemester.semester_number} — ${activeSemester.term_type}`
+                    : classId
+                      ? "No active semester"
+                      : ""
+                }
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300"
               />
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Shift</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Shift
+            </label>
             <SearchableSelect
               options={shiftOptions}
               value={shiftOptions.find((s) => s.value === shift)}
@@ -394,7 +490,9 @@ export default function TimetablesPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">W.e.f. Date</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              W.e.f. Date
+            </label>
             <input
               type="date"
               required
@@ -404,8 +502,18 @@ export default function TimetablesPage() {
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {saving ? "Creating..." : "Create Timetable"}
             </button>
           </div>
@@ -415,7 +523,7 @@ export default function TimetablesPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Timetable"
-        message={`Delete the timetable for "${deleteTarget?.class_name}" (${deleteTarget?.session})? This cannot be undone.`}
+        message={`Delete the timetable for"${deleteTarget?.class_name}" (${deleteTarget?.session})? This cannot be undone.`}
         confirmLabel="Delete"
         loading={deleting}
         onConfirm={handleDelete}

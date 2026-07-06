@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, FileDown, GraduationCap, Loader2, UsersRound } from "lucide-react";
+import { Building2, FileDown, GraduationCap, UsersRound } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
+import { PageLoader } from "@/components/ui/Loaders";
 
 interface Department {
   id: string;
@@ -48,18 +49,48 @@ export default function HodDashboardManager() {
 
   const cards = counters
     ? [
-        { label: "Total Classes", value: Number(counters.total_classes), icon: Building2, color: "bg-sky-500" },
-        { label: "Total Students", value: Number(counters.total_students), icon: GraduationCap, color: "bg-emerald-500" },
-        { label: "Active", value: Number(counters.active), icon: UsersRound, color: "bg-indigo-500" },
+        {
+          label: "Total Classes",
+          value: Number(counters.total_classes),
+          icon: Building2,
+          color: "bg-sky-500",
+        },
+        {
+          label: "Total Students",
+          value: Number(counters.total_students),
+          icon: GraduationCap,
+          color: "bg-emerald-500",
+        },
+        {
+          label: "Active",
+          value: Number(counters.active),
+          icon: UsersRound,
+          color: "bg-indigo-500",
+        },
         { label: "Left", value: Number(counters.left), icon: UsersRound, color: "bg-slate-500" },
-        { label: "Dropped", value: Number(counters.dropped), icon: UsersRound, color: "bg-amber-500" },
-        { label: "Freezed", value: Number(counters.freezed), icon: UsersRound, color: "bg-cyan-500" },
-        { label: "Struck Off", value: Number(counters.struck_off), icon: UsersRound, color: "bg-red-500" },
+        {
+          label: "Dropped",
+          value: Number(counters.dropped),
+          icon: UsersRound,
+          color: "bg-amber-500",
+        },
+        {
+          label: "Freezed",
+          value: Number(counters.freezed),
+          icon: UsersRound,
+          color: "bg-cyan-500",
+        },
+        {
+          label: "Struck Off",
+          value: Number(counters.struck_off),
+          icon: UsersRound,
+          color: "bg-red-500",
+        },
       ]
     : [];
 
   if (loading) {
-    return <Loader2 className="mx-auto mt-20 animate-spin text-slate-400" />;
+    return <PageLoader />;
   }
 
   if (departments.length === 0) {
@@ -67,7 +98,8 @@ export default function HodDashboardManager() {
       <div>
         <h1 className="text-xl font-bold text-slate-900 dark:text-white">Welcome</h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          You are not yet assigned as Head of Department for any department. Please contact the administrator.
+          You are not yet assigned as Head of Department for any department. Please contact the
+          administrator.
         </p>
       </div>
     );
@@ -78,7 +110,7 @@ export default function HodDashboardManager() {
       <div className="mb-6 flex flex-col gap-2 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-            {departments.map((d) => d.name).join(", ")}
+            {departments.map((d) => d.name).join(",")}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Department overview</p>
         </div>
@@ -92,9 +124,11 @@ export default function HodDashboardManager() {
 
       <div className="mb-6 grid grid-cols-2 gap-4 print:hidden sm:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div key={c.label} className="card-3d card-hover p-5">
             <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${c.color} text-white`}>
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-xl ${c.color} text-white`}
+              >
                 <c.icon size={18} />
               </div>
               <div>
@@ -106,7 +140,7 @@ export default function HodDashboardManager() {
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden card-3d print:hidden">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
@@ -120,11 +154,17 @@ export default function HodDashboardManager() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {classes.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No classes found.</td></tr>
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                  No classes found.
+                </td>
+              </tr>
             ) : (
               classes.map((c) => (
                 <tr key={c.id}>
-                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{c.class_name}</td>
+                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                    {c.class_name}
+                  </td>
                   <td className="px-4 py-3">{c.session}</td>
                   <td className="px-4 py-3">{c.university_name || "—"}</td>
                   <td className="px-4 py-3">{c.active_students}</td>
@@ -140,8 +180,12 @@ export default function HodDashboardManager() {
       <div className="hidden print:block">
         <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-center text-white">
           <h2 className="text-lg font-extrabold tracking-wide">City College (University Campus)</h2>
-          <p className="text-xs font-semibold opacity-90">Department Overview — {departments.map((d) => d.name).join(", ")}</p>
-          <p className="text-[10px] opacity-80">Generated: {formatDateOnly(new Date().toISOString())}</p>
+          <p className="text-xs font-semibold opacity-90">
+            Department Overview — {departments.map((d) => d.name).join(",")}
+          </p>
+          <p className="text-[10px] opacity-80">
+            Generated: {formatDateOnly(new Date().toISOString())}
+          </p>
         </div>
         <table className="w-full border-collapse text-left text-[11px]">
           <thead className="bg-indigo-600 text-white">
@@ -159,7 +203,9 @@ export default function HodDashboardManager() {
               <tr key={c.id} className={idx % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
                 <td className="border border-indigo-200 px-1.5 py-0.5">{c.class_name}</td>
                 <td className="border border-indigo-200 px-1.5 py-0.5">{c.session}</td>
-                <td className="border border-indigo-200 px-1.5 py-0.5">{c.university_name || "—"}</td>
+                <td className="border border-indigo-200 px-1.5 py-0.5">
+                  {c.university_name || "—"}
+                </td>
                 <td className="border border-indigo-200 px-1.5 py-0.5">{c.active_students}</td>
                 <td className="border border-indigo-200 px-1.5 py-0.5">{c.struck_off}</td>
                 <td className="border border-indigo-200 px-1.5 py-0.5">{c.total_students}</td>

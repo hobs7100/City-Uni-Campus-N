@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { FileDown, Loader2, Save } from "lucide-react";
+import { FileDown, Save } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { formatDateOnly } from "@/lib/format";
+import { TableLoader, ButtonLoader } from "@/components/ui/Loaders";
 
 interface ClassOption {
   id: string;
@@ -48,7 +49,11 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const flagLabels: Record<string, string> = { ok: "OK", warning: "Warning", struck_off: "Struck Off" };
+const flagLabels: Record<string, string> = {
+  ok: "OK",
+  warning: "Warning",
+  struck_off: "Struck Off",
+};
 const flagStyles: Record<string, string> = {
   ok: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
   warning: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
@@ -80,7 +85,14 @@ export default function StudentAttendanceManager() {
   useEffect(() => {
     fetch("/api/admin/departments")
       .then((r) => r.json())
-      .then((d) => setDepartments((d.departments ?? []).map((x: { id: string; name: string }) => ({ value: x.id, label: x.name }))));
+      .then((d) =>
+        setDepartments(
+          (d.departments ?? []).map((x: { id: string; name: string }) => ({
+            value: x.id,
+            label: x.name,
+          })),
+        ),
+      );
     fetch("/api/admin/classes")
       .then((r) => r.json())
       .then((d) => setAllClasses(d.classes ?? []));
@@ -94,7 +106,7 @@ export default function StudentAttendanceManager() {
       allClasses
         .filter((c) => !departmentId || c.department_id === departmentId)
         .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` })),
-    [allClasses, departmentId]
+    [allClasses, departmentId],
   );
 
   const reportClassOptions = useMemo(
@@ -102,15 +114,18 @@ export default function StudentAttendanceManager() {
       allClasses
         .filter((c) => !reportDepartmentId || c.department_id === reportDepartmentId)
         .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` })),
-    [allClasses, reportDepartmentId]
+    [allClasses, reportDepartmentId],
   );
 
   const reportSemesterOptions = useMemo(
     () =>
       allSemesters
         .filter((s) => !reportClassId || s.class_id === reportClassId)
-        .map((s) => ({ value: s.id, label: `Sem ${s.semester_number} — ${s.term_type} (${s.status})` })),
-    [allSemesters, reportClassId]
+        .map((s) => ({
+          value: s.id,
+          label: `Sem ${s.semester_number} — ${s.term_type} (${s.status})`,
+        })),
+    [allSemesters, reportClassId],
   );
 
   const loadRoster = useCallback(async () => {
@@ -200,12 +215,24 @@ export default function StudentAttendanceManager() {
 
   const reportSummary = useMemo(() => {
     const parts: string[] = [];
-    if (reportDepartmentId) parts.push(departments.find((d) => d.value === reportDepartmentId)?.label ?? "");
-    if (reportClassId) parts.push(reportClassOptions.find((c) => c.value === reportClassId)?.label ?? "");
-    if (reportSemesterId) parts.push(reportSemesterOptions.find((s) => s.value === reportSemesterId)?.label ?? "");
+    if (reportDepartmentId)
+      parts.push(departments.find((d) => d.value === reportDepartmentId)?.label ?? "");
+    if (reportClassId)
+      parts.push(reportClassOptions.find((c) => c.value === reportClassId)?.label ?? "");
+    if (reportSemesterId)
+      parts.push(reportSemesterOptions.find((s) => s.value === reportSemesterId)?.label ?? "");
     if (reportFrom || reportTo) parts.push(`${reportFrom || "…"} to ${reportTo || "…"}`);
-    return parts.join(" · ");
-  }, [reportDepartmentId, reportClassId, reportSemesterId, reportFrom, reportTo, departments, reportClassOptions, reportSemesterOptions]);
+    return parts.join(" ·");
+  }, [
+    reportDepartmentId,
+    reportClassId,
+    reportSemesterId,
+    reportFrom,
+    reportTo,
+    departments,
+    reportClassOptions,
+    reportSemesterOptions,
+  ]);
 
   function handleExportPdf() {
     window.print();
@@ -216,7 +243,9 @@ export default function StudentAttendanceManager() {
       <div className="mb-6 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Student Attendance</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Mark daily class attendance and review history</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Mark daily class attendance and review history
+          </p>
         </div>
         <div className="flex gap-2 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
           <button
@@ -236,9 +265,11 @@ export default function StudentAttendanceManager() {
 
       {tab === "mark" && (
         <div className="print:hidden">
-          <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 sm:grid-cols-3">
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Date</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Date
+              </label>
               <input
                 type="date"
                 value={date}
@@ -247,7 +278,9 @@ export default function StudentAttendanceManager() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Department</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Department
+              </label>
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === departmentId) || null}
@@ -259,7 +292,9 @@ export default function StudentAttendanceManager() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Class + Session</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Class + Session
+              </label>
               <SearchableSelect
                 options={classOptions}
                 value={classOptions.find((c) => c.value === classId) || null}
@@ -271,11 +306,12 @@ export default function StudentAttendanceManager() {
 
           {semesterInfo && (
             <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-              Active Semester: {String(semesterInfo.semester_number)} — {String(semesterInfo.term_type)}
+              Active Semester: {String(semesterInfo.semester_number)} —{" "}
+              {String(semesterInfo.term_type)}
             </p>
           )}
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-hidden card-3d card-hover">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
@@ -288,23 +324,41 @@ export default function StudentAttendanceManager() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+                  <TableLoader colSpan={5} />
                 ) : !classId ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">Select a department and class to load the roster.</td></tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                      Select a department and class to load the roster.
+                    </td>
+                  </tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No active students found for this class.</td></tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                      No active students found for this class.
+                    </td>
+                  </tr>
                 ) : (
                   rows.map((r) => (
                     <tr key={r.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{r.roll_no || "—"}</div>
+                        <div className="font-medium text-slate-800 dark:text-slate-100">
+                          {r.name}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {r.roll_no || "—"}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.contact || "—"}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                        {r.contact || "—"}
+                      </td>
                       <td className="px-4 py-3">
                         <select
                           value={r.status}
-                          onChange={(e) => updateRow(r.student_id, { status: e.target.value as RosterRow["status"] })}
+                          onChange={(e) =>
+                            updateRow(r.student_id, {
+                              status: e.target.value as RosterRow["status"],
+                            })
+                          }
                           className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                         >
                           <option value="present">Present</option>
@@ -326,7 +380,9 @@ export default function StudentAttendanceManager() {
                         <input
                           type="text"
                           value={r.call_remarks}
-                          onChange={(e) => updateRow(r.student_id, { call_remarks: e.target.value })}
+                          onChange={(e) =>
+                            updateRow(r.student_id, { call_remarks: e.target.value })
+                          }
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                           placeholder="Optional"
                         />
@@ -345,7 +401,7 @@ export default function StudentAttendanceManager() {
                 disabled={saving}
                 className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {saving ? <ButtonLoader /> : <Save size={16} />}
                 Save Attendance
               </button>
             </div>
@@ -355,9 +411,11 @@ export default function StudentAttendanceManager() {
 
       {tab === "report" && (
         <div>
-          <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 print:hidden sm:grid-cols-3 lg:grid-cols-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 print:hidden sm:grid-cols-3 lg:grid-cols-5">
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Department</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Department
+              </label>
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === reportDepartmentId) || null}
@@ -371,7 +429,9 @@ export default function StudentAttendanceManager() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Class + Session</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Class + Session
+              </label>
               <SearchableSelect
                 options={reportClassOptions}
                 value={reportClassOptions.find((c) => c.value === reportClassId) || null}
@@ -384,7 +444,9 @@ export default function StudentAttendanceManager() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Semester</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Semester
+              </label>
               <SearchableSelect
                 options={reportSemesterOptions}
                 value={reportSemesterOptions.find((s) => s.value === reportSemesterId) || null}
@@ -393,21 +455,38 @@ export default function StudentAttendanceManager() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">From (optional)</label>
-              <input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                From (optional)
+              </label>
+              <input
+                type="date"
+                value={reportFrom}
+                onChange={(e) => setReportFrom(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">To (optional)</label>
-              <input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                To (optional)
+              </label>
+              <input
+                type="date"
+                value={reportTo}
+                onChange={(e) => setReportTo(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
             <div className="flex items-end lg:col-span-5">
-              <button onClick={handleExportPdf} className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+              <button
+                onClick={handleExportPdf}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
                 <FileDown size={18} /> Export PDF
               </button>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-hidden card-3d print:hidden">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
@@ -422,25 +501,41 @@ export default function StudentAttendanceManager() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {reportLoading ? (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+                  <TableLoader colSpan={7} />
                 ) : !reportSemesterId ? (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">Select a semester to load the report.</td></tr>
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                      Select a semester to load the report.
+                    </td>
+                  </tr>
                 ) : reportRows.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No students found.</td></tr>
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                      No students found.
+                    </td>
+                  </tr>
                 ) : (
                   reportRows.map((r) => (
                     <tr key={r.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{r.roll_no || "—"}</div>
+                        <div className="font-medium text-slate-800 dark:text-slate-100">
+                          {r.name}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {r.roll_no || "—"}
+                        </div>
                       </td>
                       <td className="px-4 py-3">{r.contact || "—"}</td>
                       <td className="px-4 py-3">{r.presents}</td>
                       <td className="px-4 py-3">{r.absents}</td>
                       <td className="px-4 py-3">{r.leaves}</td>
-                      <td className="px-4 py-3">{r.percentage !== null ? `${r.percentage}%` : "—"}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[r.flag]}`}>
+                        {r.percentage !== null ? `${r.percentage}%` : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[r.flag]}`}
+                        >
                           {flagLabels[r.flag]}
                         </span>
                       </td>
@@ -453,10 +548,14 @@ export default function StudentAttendanceManager() {
 
           <div className="hidden print:block">
             <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-center text-white">
-              <h2 className="text-lg font-extrabold tracking-wide">City College (University Campus)</h2>
+              <h2 className="text-lg font-extrabold tracking-wide">
+                City College (University Campus)
+              </h2>
               <p className="text-xs font-semibold opacity-90">Student Attendance Report</p>
               <p className="text-sm font-bold">{reportSummary || "All Students"}</p>
-              <p className="text-[10px] opacity-80">Generated: {formatDateOnly(new Date().toISOString())}</p>
+              <p className="text-[10px] opacity-80">
+                Generated: {formatDateOnly(new Date().toISOString())}
+              </p>
             </div>
             <table className="w-full border-collapse text-left text-[11px]">
               <thead className="bg-indigo-600 text-white">
@@ -474,14 +573,30 @@ export default function StudentAttendanceManager() {
               <tbody>
                 {reportRows.map((r, idx) => (
                   <tr key={r.student_id} className={idx % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.roll_no || "—"}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.name}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.contact || "—"}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.presents}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.absents}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.leaves}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.percentage !== null ? `${r.percentage}%` : "—"}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{flagLabels[r.flag]}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {r.roll_no || "—"}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {r.name}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {r.contact || "—"}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {r.presents}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {r.absents}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {r.leaves}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {r.percentage !== null ? `${r.percentage}%` : "—"}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                      {flagLabels[r.flag]}
+                    </td>
                   </tr>
                 ))}
               </tbody>

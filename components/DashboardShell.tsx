@@ -19,11 +19,11 @@ export default function DashboardShell({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="app-canvas flex min-h-screen">
       <Sidebar items={items} open={open} onNavigate={() => setOpen(false)} />
       {open && (
         <div
-          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
           onClick={() => setOpen(false)}
         />
       )}

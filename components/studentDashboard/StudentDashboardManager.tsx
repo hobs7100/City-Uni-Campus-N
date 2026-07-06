@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Bell, CalendarClock, ClipboardList, FileDown, GraduationCap, Loader2, Save, User } from "lucide-react";
+import {
+  Bell,
+  CalendarClock,
+  ClipboardList,
+  FileDown,
+  GraduationCap,
+  Save,
+  User,
+} from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
+import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 
 interface Profile {
   id: string;
@@ -81,7 +90,11 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]["id"];
 
-const flagLabels: Record<string, string> = { ok: "OK", warning: "Warning", struck_off: "Struck Off" };
+const flagLabels: Record<string, string> = {
+  ok: "OK",
+  warning: "Warning",
+  struck_off: "Struck Off",
+};
 const flagStyles: Record<string, string> = {
   ok: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
   warning: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
@@ -254,7 +267,9 @@ export default function StudentDashboardManager() {
       <div className="mb-6 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Student Dashboard</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Your timetable, attendance, and results</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Your timetable, attendance, and results
+          </p>
         </div>
         <div className="flex flex-wrap gap-2 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
           {tabs.map((t) => (
@@ -268,7 +283,9 @@ export default function StudentDashboardManager() {
               <t.icon size={14} />
               {t.label}
               {t.id === "notifications" && unreadCount > 0 && (
-                <span className="ml-0.5 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{unreadCount}</span>
+                <span className="ml-0.5 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                  {unreadCount}
+                </span>
               )}
             </button>
           ))}
@@ -277,18 +294,24 @@ export default function StudentDashboardManager() {
 
       {tab === "overview" && profile && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="card-3d card-hover p-5">
             <p className="text-lg font-bold text-slate-900 dark:text-white">{profile.class_name}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Class ({profile.session})</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-lg font-bold capitalize text-slate-900 dark:text-white">{profile.status}</p>
+          <div className="card-3d card-hover p-5">
+            <p className="text-lg font-bold capitalize text-slate-900 dark:text-white">
+              {profile.status}
+            </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Status</p>
           </div>
           {attendanceSummary && (
-            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{attendanceSummary.percentage}%</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Attendance ({flagLabels[attendanceSummary.flag]})</p>
+            <div className="card-3d card-hover p-5">
+              <p className="text-lg font-bold text-slate-900 dark:text-white">
+                {attendanceSummary.percentage}%
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Attendance ({flagLabels[attendanceSummary.flag]})
+              </p>
             </div>
           )}
         </div>
@@ -297,17 +320,22 @@ export default function StudentDashboardManager() {
       {tab === "timetable" && (
         <div>
           {timetableLoading ? (
-            <Loader2 className="mx-auto animate-spin text-slate-400" />
+            <DataFetchLoader />
           ) : !timetableDetail ? (
-            <p className="py-8 text-center text-sm text-slate-400">No timetable available for your class's active semester yet.</p>
+            <p className="py-8 text-center text-sm text-slate-400">
+              No timetable available for your class's active semester yet.
+            </p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="overflow-x-auto card-3d p-4">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr>
                     <th className="border border-slate-200 px-2 py-2 dark:border-slate-700">Day</th>
                     {timetableDetail.periods.map((p) => (
-                      <th key={p.id} className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700">
+                      <th
+                        key={p.id}
+                        className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700"
+                      >
                         {p.start_time.slice(0, 5)}–{p.end_time.slice(0, 5)}
                       </th>
                     ))}
@@ -316,15 +344,24 @@ export default function StudentDashboardManager() {
                 <tbody>
                   {timetableDetail.days.map((d) => (
                     <tr key={d.id}>
-                      <td className="border border-slate-200 px-2 py-2 font-medium dark:border-slate-700">{d.day_name}</td>
+                      <td className="border border-slate-200 px-2 py-2 font-medium dark:border-slate-700">
+                        {d.day_name}
+                      </td>
                       {timetableDetail.periods.map((p) => {
                         const cell = cellFor(d.id, p.id);
                         return (
-                          <td key={p.id} className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700">
+                          <td
+                            key={p.id}
+                            className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700"
+                          >
                             {cell?.allocation_id ? (
                               <div>
-                                <div className="font-medium text-slate-800 dark:text-slate-100">{cell.course_title}</div>
-                                <div className="text-[10px] text-slate-400">{cell.teacher_name}</div>
+                                <div className="font-medium text-slate-800 dark:text-slate-100">
+                                  {cell.course_title}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {cell.teacher_name}
+                                </div>
                               </div>
                             ) : (
                               <span className="text-slate-300">—</span>
@@ -343,38 +380,62 @@ export default function StudentDashboardManager() {
 
       {tab === "attendance" && (
         <div>
-          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 flex flex-wrap items-end gap-3 card-3d p-4">
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">From</label>
-              <input type="date" value={attendanceFrom} onChange={(e) => setAttendanceFrom(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                From
+              </label>
+              <input
+                type="date"
+                value={attendanceFrom}
+                onChange={(e) => setAttendanceFrom(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">To</label>
-              <input type="date" value={attendanceTo} onChange={(e) => setAttendanceTo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                To
+              </label>
+              <input
+                type="date"
+                value={attendanceTo}
+                onChange={(e) => setAttendanceTo(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
           </div>
 
           {attendanceLoading ? (
-            <Loader2 className="mx-auto animate-spin text-slate-400" />
+            <DataFetchLoader />
           ) : !attendanceSummary ? (
             <p className="py-8 text-center text-sm text-slate-400">No active semester found.</p>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">{attendanceSummary.presents}</p>
+              <div className="card-3d card-hover p-5">
+                <p className="text-xl font-bold text-slate-900 dark:text-white">
+                  {attendanceSummary.presents}
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Presents</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">{attendanceSummary.absents}</p>
+              <div className="card-3d card-hover p-5">
+                <p className="text-xl font-bold text-slate-900 dark:text-white">
+                  {attendanceSummary.absents}
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Absents</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">{attendanceSummary.leaves}</p>
+              <div className="card-3d card-hover p-5">
+                <p className="text-xl font-bold text-slate-900 dark:text-white">
+                  {attendanceSummary.leaves}
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Leaves</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">{attendanceSummary.percentage}%</p>
-                <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[attendanceSummary.flag]}`}>
+              <div className="card-3d card-hover p-5">
+                <p className="text-xl font-bold text-slate-900 dark:text-white">
+                  {attendanceSummary.percentage}%
+                </p>
+                <span
+                  className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[attendanceSummary.flag]}`}
+                >
                   {flagLabels[attendanceSummary.flag]}
                 </span>
               </div>
@@ -386,18 +447,21 @@ export default function StudentDashboardManager() {
       {tab === "results" && (
         <div>
           <div className="mb-3 flex justify-end print:hidden">
-            <button onClick={() => window.print()} className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
               <FileDown size={16} /> Export PDF
             </button>
           </div>
           {resultsLoading ? (
-            <Loader2 className="mx-auto animate-spin text-slate-400" />
+            <DataFetchLoader />
           ) : results.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-400">No results uploaded yet.</p>
           ) : (
             <div className="space-y-6">
               {results.map((sem) => (
-                <div key={sem.semester_number} className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div key={sem.semester_number} className="overflow-hidden card-3d card-hover">
                   <div className="bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
                     Semester {sem.semester_number} — {sem.term_type}
                   </div>
@@ -416,7 +480,9 @@ export default function StudentDashboardManager() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {sem.courses.map((c) => (
                         <tr key={c.course_code}>
-                          <td className="px-4 py-2">{c.course_title} ({c.course_code})</td>
+                          <td className="px-4 py-2">
+                            {c.course_title} ({c.course_code})
+                          </td>
                           <td className="px-4 py-2">{c.mid}</td>
                           <td className="px-4 py-2">{c.sessional}</td>
                           <td className="px-4 py-2">{c.final}</td>
@@ -437,11 +503,16 @@ export default function StudentDashboardManager() {
       {tab === "notifications" && (
         <div>
           <div className="mb-3 flex justify-end">
-            <button onClick={markAllRead} className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">Mark all as read</button>
+            <button
+              onClick={markAllRead}
+              className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              Mark all as read
+            </button>
           </div>
           <div className="space-y-2">
             {notifLoading ? (
-              <Loader2 className="mx-auto animate-spin text-slate-400" />
+              <DataFetchLoader />
             ) : notifications.length === 0 ? (
               <p className="py-8 text-center text-sm text-slate-400">No notifications yet.</p>
             ) : (
@@ -450,7 +521,9 @@ export default function StudentDashboardManager() {
                   key={n.id}
                   onClick={() => !n.is_read && markNotificationRead(n.id)}
                   className={`block w-full rounded-xl border p-4 text-left ${
-                    n.is_read ? "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" : "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-500/10"
+                    n.is_read
+                      ? "border-slate-200 bg-white"
+                      : "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-500/10"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -468,27 +541,43 @@ export default function StudentDashboardManager() {
 
       {tab === "profile" && profile && (
         <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">Profile</h2>
+          <div className="card-3d card-hover p-5">
+            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Profile
+            </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Name</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Name
+                </label>
                 <p className="text-sm text-slate-800 dark:text-slate-100">{profile.name}</p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Father Name</label>
-                <p className="text-sm text-slate-800 dark:text-slate-100">{profile.father_name || "—"}</p>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Father Name
+                </label>
+                <p className="text-sm text-slate-800 dark:text-slate-100">
+                  {profile.father_name || "—"}
+                </p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Email</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Email
+                </label>
                 <p className="text-sm text-slate-800 dark:text-slate-100">{profile.email || "—"}</p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Department</label>
-                <p className="text-sm text-slate-800 dark:text-slate-100">{profile.department_name}</p>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Department
+                </label>
+                <p className="text-sm text-slate-800 dark:text-slate-100">
+                  {profile.department_name}
+                </p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Contact</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Contact
+                </label>
                 <input
                   type="text"
                   value={profileForm.contact}
@@ -497,7 +586,9 @@ export default function StudentDashboardManager() {
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Address</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Address
+                </label>
                 <input
                   type="text"
                   value={profileForm.address}
@@ -507,27 +598,39 @@ export default function StudentDashboardManager() {
               </div>
             </div>
             <div className="mt-4 flex justify-end">
-              <button onClick={handleSaveProfile} disabled={saving} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              <button
+                onClick={handleSaveProfile}
+                disabled={saving}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? <ButtonLoader /> : <Save size={16} />}
                 Save Profile
               </button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">Change Password</h2>
+          <div className="card-3d card-hover p-5">
+            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Change Password
+            </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Current Password</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Current Password
+                </label>
                 <input
                   type="password"
                   value={passwordForm.current_password}
-                  onChange={(e) => setPasswordForm((p) => ({ ...p, current_password: e.target.value }))}
+                  onChange={(e) =>
+                    setPasswordForm((p) => ({ ...p, current_password: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">New Password</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  New Password
+                </label>
                 <input
                   type="password"
                   value={passwordForm.new_password}
@@ -537,7 +640,11 @@ export default function StudentDashboardManager() {
               </div>
             </div>
             <div className="mt-4 flex justify-end">
-              <button onClick={handleChangePassword} disabled={saving} className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+              <button
+                onClick={handleChangePassword}
+                disabled={saving}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
                 Change Password
               </button>
             </div>

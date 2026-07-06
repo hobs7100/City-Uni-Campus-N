@@ -2,8 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Bell, BookOpen, CalendarClock, CheckCircle2, ClipboardList, FileDown, Loader2, Save, User } from "lucide-react";
+import {
+  Bell,
+  BookOpen,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  FileDown,
+  Save,
+  User,
+} from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
+import { TableLoader, ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 
 interface CourseRow {
   allocation_id: string;
@@ -122,7 +132,9 @@ export default function TeacherDashboardManager() {
   const [timetableDetail, setTimetableDetail] = useState<TimetableDetail | null>(null);
   const [timetableLoading, setTimetableLoading] = useState(false);
 
-  const [classOptions, setClassOptions] = useState<{ id: string; class_name: string; session: string }[]>([]);
+  const [classOptions, setClassOptions] = useState<
+    { id: string; class_name: string; session: string }[]
+  >([]);
   const [markClassId, setMarkClassId] = useState("");
   const [markDate, setMarkDate] = useState(todayStr());
   const [rosterRows, setRosterRows] = useState<RosterRow[]>([]);
@@ -141,7 +153,12 @@ export default function TeacherDashboardManager() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
-  const [profileForm, setProfileForm] = useState({ phone: "", bank_name: "", account_title: "", account_number: "" });
+  const [profileForm, setProfileForm] = useState({
+    phone: "",
+    bank_name: "",
+    account_title: "",
+    account_number: "",
+  });
   const [passwordForm, setPasswordForm] = useState({ current_password: "", new_password: "" });
 
   const loadCourses = useCallback(async () => {
@@ -177,7 +194,8 @@ export default function TeacherDashboardManager() {
       const data = await res.json();
       if (res.ok) {
         setTimetables(data.timetables);
-        if (data.timetables.length > 0 && !selectedTimetableId) setSelectedTimetableId(data.timetables[0].id);
+        if (data.timetables.length > 0 && !selectedTimetableId)
+          setSelectedTimetableId(data.timetables[0].id);
       }
     } finally {
       setTimetableLoading(false);
@@ -368,7 +386,10 @@ export default function TeacherDashboardManager() {
     }
   }
 
-  const unreadCount = useMemo(() => notifications.filter((n) => !n.is_read).length, [notifications]);
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.is_read).length,
+    [notifications],
+  );
   const totalStudentsTaught = useMemo(() => classOptions.length, [classOptions]);
 
   function cellFor(dayId: string, periodId: string) {
@@ -380,7 +401,9 @@ export default function TeacherDashboardManager() {
       <div className="mb-6 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Teacher Dashboard</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Your courses, timetable, and attendance</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Your courses, timetable, and attendance
+          </p>
         </div>
         <div className="flex flex-wrap gap-2 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
           {tabs.map((t) => (
@@ -394,7 +417,9 @@ export default function TeacherDashboardManager() {
               <t.icon size={14} />
               {t.label}
               {t.id === "notifications" && unreadCount > 0 && (
-                <span className="ml-0.5 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{unreadCount}</span>
+                <span className="ml-0.5 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                  {unreadCount}
+                </span>
               )}
             </button>
           ))}
@@ -403,15 +428,17 @@ export default function TeacherDashboardManager() {
 
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="card-3d card-hover p-5">
             <p className="text-2xl font-bold text-slate-900 dark:text-white">{active.length}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Active Courses</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">{totalStudentsTaught}</p>
+          <div className="card-3d card-hover p-5">
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">
+              {totalStudentsTaught}
+            </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Classes Taught</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="card-3d card-hover p-5">
             <p className="text-2xl font-bold text-slate-900 dark:text-white">
               {inactive.filter((c) => c.payment_status === "pending").length}
             </p>
@@ -423,8 +450,10 @@ export default function TeacherDashboardManager() {
       {tab === "courses" && (
         <div className="space-y-6">
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Active Courses</h2>
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Active Courses
+            </h2>
+            <div className="overflow-hidden card-3d card-hover">
               <table className="w-full border-collapse text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                   <tr>
@@ -437,19 +466,33 @@ export default function TeacherDashboardManager() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {coursesLoading ? (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center"><Loader2 className="mx-auto animate-spin text-slate-400" /></td></tr>
+                    <TableLoader colSpan={5} />
                   ) : active.length === 0 ? (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No active courses.</td></tr>
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                        No active courses.
+                      </td>
+                    </tr>
                   ) : (
                     active.map((c) => (
                       <tr key={`${c.allocation_id}-${c.class_name}-${c.semester_number}`}>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-slate-800 dark:text-slate-100">{c.course_title}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">{c.course_code} {c.is_combined && "· Combined"}</div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            {c.course_title}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            {c.course_code} {c.is_combined && "· Combined"}
+                          </div>
                         </td>
-                        <td className="px-4 py-3">{c.class_name} ({c.session})</td>
-                        <td className="px-4 py-3">Sem {c.semester_number} — {c.term_type}</td>
-                        <td className="px-4 py-3 capitalize">{c.allocation_type.replace("_", " ")}</td>
+                        <td className="px-4 py-3">
+                          {c.class_name} ({c.session})
+                        </td>
+                        <td className="px-4 py-3">
+                          Sem {c.semester_number} — {c.term_type}
+                        </td>
+                        <td className="px-4 py-3 capitalize">
+                          {c.allocation_type.replace("_", "")}
+                        </td>
                         <td className="px-4 py-3">PKR {c.rate}</td>
                       </tr>
                     ))
@@ -460,8 +503,10 @@ export default function TeacherDashboardManager() {
           </div>
 
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Inactive Courses</h2>
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Inactive Courses
+            </h2>
+            <div className="overflow-hidden card-3d card-hover">
               <table className="w-full border-collapse text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                   <tr>
@@ -473,16 +518,28 @@ export default function TeacherDashboardManager() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {inactive.length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">No inactive courses.</td></tr>
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                        No inactive courses.
+                      </td>
+                    </tr>
                   ) : (
                     inactive.map((c) => (
                       <tr key={`${c.allocation_id}-${c.class_name}-${c.semester_number}`}>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-slate-800 dark:text-slate-100">{c.course_title}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">{c.course_code}</div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            {c.course_title}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            {c.course_code}
+                          </div>
                         </td>
-                        <td className="px-4 py-3">{c.class_name} ({c.session})</td>
-                        <td className="px-4 py-3">Sem {c.semester_number} — {c.term_type}</td>
+                        <td className="px-4 py-3">
+                          {c.class_name} ({c.session})
+                        </td>
+                        <td className="px-4 py-3">
+                          Sem {c.semester_number} — {c.term_type}
+                        </td>
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -508,9 +565,11 @@ export default function TeacherDashboardManager() {
         <div>
           <div className="mb-4 flex flex-wrap gap-2">
             {timetableLoading ? (
-              <Loader2 className="animate-spin text-slate-400" />
+              <DataFetchLoader />
             ) : timetables.length === 0 ? (
-              <p className="text-sm text-slate-400">No timetable entries found for your active courses.</p>
+              <p className="text-sm text-slate-400">
+                No timetable entries found for your active courses.
+              </p>
             ) : (
               timetables.map((t) => (
                 <button
@@ -529,13 +588,16 @@ export default function TeacherDashboardManager() {
           </div>
 
           {timetableDetail && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="overflow-x-auto card-3d p-4">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr>
                     <th className="border border-slate-200 px-2 py-2 dark:border-slate-700">Day</th>
                     {timetableDetail.periods.map((p) => (
-                      <th key={p.id} className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700">
+                      <th
+                        key={p.id}
+                        className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700"
+                      >
                         {p.start_time.slice(0, 5)}–{p.end_time.slice(0, 5)}
                       </th>
                     ))}
@@ -544,17 +606,27 @@ export default function TeacherDashboardManager() {
                 <tbody>
                   {timetableDetail.days.map((d) => (
                     <tr key={d.id}>
-                      <td className="border border-slate-200 px-2 py-2 font-medium dark:border-slate-700">{d.day_name}</td>
+                      <td className="border border-slate-200 px-2 py-2 font-medium dark:border-slate-700">
+                        {d.day_name}
+                      </td>
                       {timetableDetail.periods.map((p) => {
                         const cell = cellFor(d.id, p.id);
                         return (
-                          <td key={p.id} className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700">
+                          <td
+                            key={p.id}
+                            className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700"
+                          >
                             {cell?.allocation_id ? (
                               <div>
-                                <div className="font-medium text-slate-800 dark:text-slate-100">{cell.course_title}</div>
+                                <div className="font-medium text-slate-800 dark:text-slate-100">
+                                  {cell.course_title}
+                                </div>
                                 {cell.combined_with && cell.combined_with.length > 0 && (
                                   <div className="text-[10px] text-slate-400">
-                                    Combined: {cell.combined_with.map((cw) => `${cw.class_name} (${cw.session})`).join(", ")}
+                                    Combined:{" "}
+                                    {cell.combined_with
+                                      .map((cw) => `${cw.class_name} (${cw.session})`)
+                                      .join(",")}
                                   </div>
                                 )}
                               </div>
@@ -575,9 +647,11 @@ export default function TeacherDashboardManager() {
 
       {tab === "mark" && (
         <div>
-          <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
+          <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Class</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Class
+              </label>
               <select
                 value={markClassId}
                 onChange={(e) => setMarkClassId(e.target.value)}
@@ -585,12 +659,16 @@ export default function TeacherDashboardManager() {
               >
                 <option value="">Select a class</option>
                 {classOptions.map((c) => (
-                  <option key={c.id} value={c.id}>{c.class_name} ({c.session})</option>
+                  <option key={c.id} value={c.id}>
+                    {c.class_name} ({c.session})
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Date</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Date
+              </label>
               <input
                 type="date"
                 value={markDate}
@@ -606,7 +684,7 @@ export default function TeacherDashboardManager() {
             </p>
           )}
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-hidden card-3d card-hover">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
@@ -619,23 +697,41 @@ export default function TeacherDashboardManager() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {rosterLoading ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center"><Loader2 className="mx-auto animate-spin text-slate-400" /></td></tr>
+                  <TableLoader colSpan={5} />
                 ) : !markClassId ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">Select a class and date.</td></tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                      Select a class and date.
+                    </td>
+                  </tr>
                 ) : rosterRows.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No students found.</td></tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                      No students found.
+                    </td>
+                  </tr>
                 ) : (
                   rosterRows.map((r) => (
                     <tr key={r.student_id}>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{r.roll_no || "—"}</div>
+                        <div className="font-medium text-slate-800 dark:text-slate-100">
+                          {r.name}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {r.roll_no || "—"}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{r.class_name} ({r.session})</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">
+                        {r.class_name} ({r.session})
+                      </td>
                       <td className="px-4 py-3">
                         <select
                           value={r.status}
-                          onChange={(e) => updateRosterRow(r.student_id, { status: e.target.value as RosterRow["status"] })}
+                          onChange={(e) =>
+                            updateRosterRow(r.student_id, {
+                              status: e.target.value as RosterRow["status"],
+                            })
+                          }
                           className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                         >
                           <option value="present">Present</option>
@@ -648,7 +744,9 @@ export default function TeacherDashboardManager() {
                           type="text"
                           disabled={r.status === "present"}
                           value={r.reason}
-                          onChange={(e) => updateRosterRow(r.student_id, { reason: e.target.value })}
+                          onChange={(e) =>
+                            updateRosterRow(r.student_id, { reason: e.target.value })
+                          }
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
                         />
                       </td>
@@ -656,7 +754,9 @@ export default function TeacherDashboardManager() {
                         <input
                           type="text"
                           value={r.call_remarks}
-                          onChange={(e) => updateRosterRow(r.student_id, { call_remarks: e.target.value })}
+                          onChange={(e) =>
+                            updateRosterRow(r.student_id, { call_remarks: e.target.value })
+                          }
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                         />
                       </td>
@@ -674,7 +774,7 @@ export default function TeacherDashboardManager() {
                 disabled={rosterSaving}
                 className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {rosterSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {rosterSaving ? <ButtonLoader /> : <Save size={16} />}
                 Save Attendance
               </button>
             </div>
@@ -684,21 +784,38 @@ export default function TeacherDashboardManager() {
 
       {tab === "report" && (
         <div>
-          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 print:hidden dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 flex flex-wrap items-end gap-3 card-3d p-4 print:hidden">
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">From</label>
-              <input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                From
+              </label>
+              <input
+                type="date"
+                value={reportFrom}
+                onChange={(e) => setReportFrom(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">To</label>
-              <input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                To
+              </label>
+              <input
+                type="date"
+                value={reportTo}
+                onChange={(e) => setReportTo(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
-            <button onClick={() => window.print()} className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
               <FileDown size={16} /> Export PDF
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-hidden card-3d print:hidden">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
@@ -712,15 +829,23 @@ export default function TeacherDashboardManager() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {reportLoading ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center"><Loader2 className="mx-auto animate-spin text-slate-400" /></td></tr>
+                  <TableLoader colSpan={6} />
                 ) : reportRows.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No attendance records found.</td></tr>
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                      No attendance records found.
+                    </td>
+                  </tr>
                 ) : (
                   reportRows.map((r) => (
                     <tr key={r.id}>
                       <td className="px-4 py-3">{formatDateOnly(r.attendance_date)}</td>
-                      <td className="px-4 py-3">{r.course_title} ({r.course_code})</td>
-                      <td className="px-4 py-3 text-xs">{r.classes.map((c) => `${c.class_name} (${c.session})`).join(", ")}</td>
+                      <td className="px-4 py-3">
+                        {r.course_title} ({r.course_code})
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {r.classes.map((c) => `${c.class_name} (${c.session})`).join(",")}
+                      </td>
                       <td className="px-4 py-3">{r.lecture_count}</td>
                       <td className="px-4 py-3">{r.late_minutes}</td>
                       <td className="px-4 py-3 uppercase">{r.status}</td>
@@ -733,9 +858,13 @@ export default function TeacherDashboardManager() {
 
           <div className="hidden print:block">
             <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-center text-white">
-              <h2 className="text-lg font-extrabold tracking-wide">City College (University Campus)</h2>
+              <h2 className="text-lg font-extrabold tracking-wide">
+                City College (University Campus)
+              </h2>
               <p className="text-xs font-semibold opacity-90">My Attendance Record</p>
-              <p className="text-[10px] opacity-80">Generated: {formatDateOnly(new Date().toISOString())}</p>
+              <p className="text-[10px] opacity-80">
+                Generated: {formatDateOnly(new Date().toISOString())}
+              </p>
             </div>
             <table className="w-full border-collapse text-left text-[11px]">
               <thead className="bg-indigo-600 text-white">
@@ -751,9 +880,15 @@ export default function TeacherDashboardManager() {
               <tbody>
                 {reportRows.map((r, idx) => (
                   <tr key={r.id} className={idx % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
-                    <td className="border border-indigo-200 px-1.5 py-0.5">{formatDateOnly(r.attendance_date)}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5">{r.course_title} ({r.course_code})</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5">{r.classes.map((c) => `${c.class_name} (${c.session})`).join(", ")}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5">
+                      {formatDateOnly(r.attendance_date)}
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5">
+                      {r.course_title} ({r.course_code})
+                    </td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5">
+                      {r.classes.map((c) => `${c.class_name} (${c.session})`).join(",")}
+                    </td>
                     <td className="border border-indigo-200 px-1.5 py-0.5">{r.lecture_count}</td>
                     <td className="border border-indigo-200 px-1.5 py-0.5">{r.late_minutes}</td>
                     <td className="border border-indigo-200 px-1.5 py-0.5 uppercase">{r.status}</td>
@@ -768,11 +903,16 @@ export default function TeacherDashboardManager() {
       {tab === "notifications" && (
         <div>
           <div className="mb-3 flex justify-end">
-            <button onClick={markAllRead} className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">Mark all as read</button>
+            <button
+              onClick={markAllRead}
+              className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              Mark all as read
+            </button>
           </div>
           <div className="space-y-2">
             {notifLoading ? (
-              <Loader2 className="mx-auto animate-spin text-slate-400" />
+              <DataFetchLoader />
             ) : notifications.length === 0 ? (
               <p className="py-8 text-center text-sm text-slate-400">No notifications yet.</p>
             ) : (
@@ -781,7 +921,9 @@ export default function TeacherDashboardManager() {
                   key={n.id}
                   onClick={() => !n.is_read && markNotificationRead(n.id)}
                   className={`block w-full rounded-xl border p-4 text-left ${
-                    n.is_read ? "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" : "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-500/10"
+                    n.is_read
+                      ? "border-slate-200 bg-white"
+                      : "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-500/10"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -799,27 +941,43 @@ export default function TeacherDashboardManager() {
 
       {tab === "profile" && profile && (
         <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">Profile</h2>
+          <div className="card-3d card-hover p-5">
+            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Profile
+            </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Name</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Name
+                </label>
                 <p className="text-sm text-slate-800 dark:text-slate-100">{profile.name}</p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Email</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Email
+                </label>
                 <p className="text-sm text-slate-800 dark:text-slate-100">{profile.email}</p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Department</label>
-                <p className="text-sm text-slate-800 dark:text-slate-100">{profile.department_name}</p>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Department
+                </label>
+                <p className="text-sm text-slate-800 dark:text-slate-100">
+                  {profile.department_name}
+                </p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Type</label>
-                <p className="text-sm capitalize text-slate-800 dark:text-slate-100">{profile.type}</p>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Type
+                </label>
+                <p className="text-sm capitalize text-slate-800 dark:text-slate-100">
+                  {profile.type}
+                </p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Phone</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Phone
+                </label>
                 <input
                   type="text"
                   value={profileForm.phone}
@@ -828,7 +986,9 @@ export default function TeacherDashboardManager() {
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Bank Name</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Bank Name
+                </label>
                 <input
                   type="text"
                   value={profileForm.bank_name}
@@ -837,7 +997,9 @@ export default function TeacherDashboardManager() {
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Account Title</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Account Title
+                </label>
                 <input
                   type="text"
                   value={profileForm.account_title}
@@ -846,37 +1008,53 @@ export default function TeacherDashboardManager() {
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Account Number</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Account Number
+                </label>
                 <input
                   type="text"
                   value={profileForm.account_number}
-                  onChange={(e) => setProfileForm((p) => ({ ...p, account_number: e.target.value }))}
+                  onChange={(e) =>
+                    setProfileForm((p) => ({ ...p, account_number: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
             </div>
             <div className="mt-4 flex justify-end">
-              <button onClick={handleSaveProfile} disabled={profileSaving} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-                {profileSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              <button
+                onClick={handleSaveProfile}
+                disabled={profileSaving}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {profileSaving ? <ButtonLoader /> : <Save size={16} />}
                 Save Profile
               </button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">Change Password</h2>
+          <div className="card-3d card-hover p-5">
+            <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Change Password
+            </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">Current Password</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Current Password
+                </label>
                 <input
                   type="password"
                   value={passwordForm.current_password}
-                  onChange={(e) => setPasswordForm((p) => ({ ...p, current_password: e.target.value }))}
+                  onChange={(e) =>
+                    setPasswordForm((p) => ({ ...p, current_password: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">New Password</label>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  New Password
+                </label>
                 <input
                   type="password"
                   value={passwordForm.new_password}
@@ -886,7 +1064,11 @@ export default function TeacherDashboardManager() {
               </div>
             </div>
             <div className="mt-4 flex justify-end">
-              <button onClick={handleChangePassword} disabled={profileSaving} className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+              <button
+                onClick={handleChangePassword}
+                disabled={profileSaving}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
                 Change Password
               </button>
             </div>

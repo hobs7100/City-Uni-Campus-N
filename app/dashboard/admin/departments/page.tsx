@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import { TableLoader } from "@/components/ui/Loaders";
 
 interface Department {
   id: string;
@@ -55,9 +56,17 @@ export default function DepartmentsPage() {
       const hodData = await hodRes.json();
       const coordData = await coordRes.json();
       if (deptRes.ok) setItems(deptData.departments);
-      if (hodRes.ok) setHods(hodData.users.map((u: { id: string; name: string }) => ({ value: u.id, label: u.name })));
+      if (hodRes.ok)
+        setHods(
+          hodData.users.map((u: { id: string; name: string }) => ({ value: u.id, label: u.name })),
+        );
       if (coordRes.ok)
-        setCoordinators(coordData.users.map((u: { id: string; name: string }) => ({ value: u.id, label: u.name })));
+        setCoordinators(
+          coordData.users.map((u: { id: string; name: string }) => ({
+            value: u.id,
+            label: u.name,
+          })),
+        );
     } finally {
       setLoading(false);
     }
@@ -131,15 +140,22 @@ export default function DepartmentsPage() {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Department Management</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Assign HoDs and Coordinators to departments</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+            Department Management
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Assign HoDs and Coordinators to departments
+          </p>
         </div>
-        <button onClick={openCreate} className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+        <button
+          onClick={openCreate}
+          className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+        >
           <Plus size={18} /> Add Department
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden card-3d card-hover">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
@@ -152,20 +168,42 @@ export default function DepartmentsPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+              <TableLoader colSpan={5} />
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No departments found.</td></tr>
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                  No departments found.
+                </td>
+              </tr>
             ) : (
               items.map((d) => (
                 <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{d.name}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{d.hod_name || "-"}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{d.coordinator_name || "-"}</td>
-                  <td className="px-4 py-3"><StatusBadge status={d.status} /></td>
+                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                    {d.name}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {d.hod_name || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {d.coordinator_name || "-"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={d.status} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => openEdit(d)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Pencil size={16} /></button>
-                      <button onClick={() => setDeleteTarget(d)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"><Trash2 size={16} /></button>
+                      <button
+                        onClick={() => openEdit(d)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(d)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -175,10 +213,16 @@ export default function DepartmentsPage() {
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Department" : "Add Department"}>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit Department" : "Add Department"}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Department Name</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Department Name
+            </label>
             <input
               required
               value={form.name}
@@ -187,35 +231,60 @@ export default function DepartmentsPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Head of Department</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Head of Department
+            </label>
             <SearchableSelect
               options={hods}
               value={hods.find((h) => h.value === form.hod_id) || null}
-              onChange={(opt) => setForm({ ...form, hod_id: opt ? (opt as SelectOption).value : null })}
+              onChange={(opt) =>
+                setForm({ ...form, hod_id: opt ? (opt as SelectOption).value : null })
+              }
               placeholder="Select HoD..."
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Coordinator</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Coordinator
+            </label>
             <SearchableSelect
               options={coordinators}
               value={coordinators.find((c) => c.value === form.coordinator_id) || null}
-              onChange={(opt) => setForm({ ...form, coordinator_id: opt ? (opt as SelectOption).value : null })}
+              onChange={(opt) =>
+                setForm({ ...form, coordinator_id: opt ? (opt as SelectOption).value : null })
+              }
               placeholder="Select Coordinator..."
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Status
+            </label>
             <SearchableSelect
               options={statusOptions}
               value={statusOptions.find((s) => s.value === form.status)}
-              onChange={(opt) => setForm({ ...form, status: (opt as { value: string }).value as "active" | "blocked" })}
+              onChange={(opt) =>
+                setForm({
+                  ...form,
+                  status: (opt as { value: string }).value as "active" | "blocked",
+                })
+              }
               isClearable={false}
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {saving ? "Saving..." : editing ? "Save Changes" : "Create"}
             </button>
           </div>
@@ -225,7 +294,7 @@ export default function DepartmentsPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Department"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This cannot be undone.`}
+        message={`Are you sure you want to delete"${deleteTarget?.name}"? This cannot be undone.`}
         confirmLabel="Delete"
         loading={deleting}
         onConfirm={handleDelete}

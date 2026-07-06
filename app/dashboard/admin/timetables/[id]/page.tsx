@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ArrowLeft, Layers, Loader2, Plus, Printer, X } from "lucide-react";
+import { ArrowLeft, Layers, Plus, Printer, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import { DataFetchLoader } from "@/components/ui/Loaders";
 
 interface TimetableInfo {
   id: string;
@@ -106,17 +107,27 @@ export default function TimetableGridPage() {
       setCells(data.cells);
 
       if (data.timetable?.semester_id) {
-        const allocRes = await fetch(`/api/admin/allocations?semester_id=${data.timetable.semester_id}`);
+        const allocRes = await fetch(
+          `/api/admin/allocations?semester_id=${data.timetable.semester_id}`,
+        );
         const allocData = await allocRes.json();
         if (allocRes.ok) {
           setAllocations(
-            allocData.allocations.map((a: { id: string; course_code: string; course_title: string; teacher_name: string; is_combined: boolean }) => ({
-              id: a.id,
-              course_code: a.course_code,
-              course_title: a.course_title,
-              teacher_name: a.teacher_name,
-              is_combined: a.is_combined,
-            }))
+            allocData.allocations.map(
+              (a: {
+                id: string;
+                course_code: string;
+                course_title: string;
+                teacher_name: string;
+                is_combined: boolean;
+              }) => ({
+                id: a.id,
+                course_code: a.course_code,
+                course_title: a.course_title,
+                teacher_name: a.teacher_name,
+                is_combined: a.is_combined,
+              }),
+            ),
           );
         }
       }
@@ -141,7 +152,7 @@ export default function TimetableGridPage() {
         value: a.id,
         label: `${a.course_code} — ${a.course_title} (${a.teacher_name})${a.is_combined ? " · Combined" : ""}`,
       })),
-    [allocations]
+    [allocations],
   );
 
   function openCell(cell: CellRow) {
@@ -231,7 +242,9 @@ export default function TimetableGridPage() {
     if (!removePeriodTarget) return;
     setRemoving(true);
     try {
-      const res = await fetch(`/api/admin/timetables/${id}/periods/${removePeriodTarget.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/timetables/${id}/periods/${removePeriodTarget.id}`, {
+        method: "DELETE",
+      });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Something went wrong.");
@@ -249,7 +262,9 @@ export default function TimetableGridPage() {
     if (!removeDayTarget) return;
     setRemoving(true);
     try {
-      const res = await fetch(`/api/admin/timetables/${id}/days/${removeDayTarget.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/timetables/${id}/days/${removeDayTarget.id}`, {
+        method: "DELETE",
+      });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Something went wrong.");
@@ -264,7 +279,11 @@ export default function TimetableGridPage() {
   }
 
   if (loading) {
-    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-400" size={28} /></div>;
+    return (
+      <div className="flex justify-center py-20">
+        <DataFetchLoader />
+      </div>
+    );
   }
   if (!info) {
     return <div className="py-10 text-center text-slate-400">Timetable not found.</div>;
@@ -274,24 +293,40 @@ export default function TimetableGridPage() {
     <div>
       <div className="mb-6 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/dashboard/admin/timetables")} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+          <button
+            onClick={() => router.push("/dashboard/admin/timetables")}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{info.class_name} ({info.session})</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+              {info.class_name} ({info.session})
+            </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {info.department_name} · Sem {info.semester_number} {info.term_type} · <span className="capitalize">{info.shift}</span> Shift · W.e.f {new Date(info.wef_date).toLocaleDateString()}
+              {info.department_name} · Sem {info.semester_number} {info.term_type} ·{" "}
+              <span className="capitalize">{info.shift}</span> Shift · W.e.f{" "}
+              {new Date(info.wef_date).toLocaleDateString()}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setAddDayOpen(true)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+          <button
+            onClick={() => setAddDayOpen(true)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
             + Day
           </button>
-          <button onClick={() => setAddPeriodOpen(true)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+          <button
+            onClick={() => setAddPeriodOpen(true)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
             + Time Slot
           </button>
-          <button onClick={() => window.print()} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
             <Printer size={16} /> Print / PDF
           </button>
         </div>
@@ -299,19 +334,29 @@ export default function TimetableGridPage() {
 
       <div className="hidden print:mb-4 print:block print:rounded-lg print:border-2 print:border-indigo-600 print:bg-gradient-to-r print:from-indigo-600 print:to-sky-500 print:p-4 print:text-center print:text-white">
         <h2 className="text-xl font-extrabold tracking-wide">City College (University Campus)</h2>
-        <p className="text-sm font-semibold">Class Timetable — {info.class_name} ({info.session}) — Sem {info.semester_number} {info.term_type} — {info.shift} Shift</p>
+        <p className="text-sm font-semibold">
+          Class Timetable — {info.class_name} ({info.session}) — Sem {info.semester_number}{" "}
+          {info.term_type} — {info.shift} Shift
+        </p>
         <p className="text-xs opacity-90">W.e.f {new Date(info.wef_date).toLocaleDateString()}</p>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:rounded-none print:border-0">
+      <div className="overflow-x-auto card-3d card-hover print:rounded-none print:border-0">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 print:bg-indigo-600 print:text-white">
             <tr>
-              <th className="border border-slate-200 px-3 py-2 dark:border-slate-800 print:border-indigo-400">Day</th>
+              <th className="border border-slate-200 px-3 py-2 dark:border-slate-800 print:border-indigo-400">
+                Day
+              </th>
               {periods.map((p) => (
-                <th key={p.id} className="border border-slate-200 px-3 py-2 dark:border-slate-800 print:border-indigo-400">
+                <th
+                  key={p.id}
+                  className="border border-slate-200 px-3 py-2 dark:border-slate-800 print:border-indigo-400"
+                >
                   <div className="flex items-center justify-between gap-1">
-                    <span>{formatTime(p.start_time)} – {formatTime(p.end_time)}</span>
+                    <span>
+                      {formatTime(p.start_time)} – {formatTime(p.end_time)}
+                    </span>
                     <button
                       onClick={() => setRemovePeriodTarget(p)}
                       className="print:hidden flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
@@ -326,7 +371,10 @@ export default function TimetableGridPage() {
           </thead>
           <tbody>
             {days.map((day, idx) => (
-              <tr key={day.id} className={idx % 2 === 0 ? "print:bg-indigo-50/60" : "print:bg-white"}>
+              <tr
+                key={day.id}
+                className={idx % 2 === 0 ? "print:bg-indigo-50/60" : "print:bg-white"}
+              >
                 <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700 dark:border-slate-800 dark:text-slate-200 print:border-indigo-200 print:font-bold print:text-indigo-800">
                   <div className="flex items-center justify-between gap-1">
                     <span>{day.day_name}</span>
@@ -342,7 +390,10 @@ export default function TimetableGridPage() {
                 {periods.map((p) => {
                   const cell = cellMap.get(`${day.id}:${p.id}`);
                   return (
-                    <td key={p.id} className="border border-slate-200 px-2 py-2 align-top dark:border-slate-800 print:border-indigo-200">
+                    <td
+                      key={p.id}
+                      className="border border-slate-200 px-2 py-2 align-top dark:border-slate-800 print:border-indigo-200"
+                    >
                       {cell?.allocation_id ? (
                         <button
                           onClick={() => openCell(cell)}
@@ -351,12 +402,19 @@ export default function TimetableGridPage() {
                           <div className="flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 print:text-indigo-800">
                             {cell.is_combined && <Layers size={11} />} {cell.course_title}
                           </div>
-                          <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400 print:text-slate-700">{cell.teacher_name}</div>
-                          {cell.is_combined && cell.combined_with && cell.combined_with.length > 0 && (
-                            <div className="mt-0.5 text-[10px] italic text-sky-600 dark:text-sky-400 print:text-sky-700">
-                              Combined: {cell.combined_with.map((c) => `${c.class_name} (${c.session})`).join(", ")}
-                            </div>
-                          )}
+                          <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400 print:text-slate-700">
+                            {cell.teacher_name}
+                          </div>
+                          {cell.is_combined &&
+                            cell.combined_with &&
+                            cell.combined_with.length > 0 && (
+                              <div className="mt-0.5 text-[10px] italic text-sky-600 dark:text-sky-400 print:text-sky-700">
+                                Combined:{" "}
+                                {cell.combined_with
+                                  .map((c) => `${c.class_name} (${c.session})`)
+                                  .join(",")}
+                              </div>
+                            )}
                         </button>
                       ) : (
                         <button
@@ -383,7 +441,9 @@ export default function TimetableGridPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Course & Teacher</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Course & Teacher
+            </label>
             <SearchableSelect
               options={allocationOptions}
               value={allocationOptions.find((o) => o.value === selectedAllocationId) || null}
@@ -397,44 +457,110 @@ export default function TimetableGridPage() {
             )}
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setCellModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="button" disabled={savingCell} onClick={handleSaveCell} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setCellModalOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={savingCell}
+              onClick={handleSaveCell}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {savingCell ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
       </Modal>
 
-      <Modal open={addPeriodOpen} onClose={() => setAddPeriodOpen(false)} title="Add Time Slot" widthClass="max-w-sm">
+      <Modal
+        open={addPeriodOpen}
+        onClose={() => setAddPeriodOpen(false)}
+        title="Add Time Slot"
+        widthClass="max-w-sm"
+      >
         <form onSubmit={handleAddPeriod} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Start Time</label>
-              <input type="time" required value={newStart} onChange={(e) => setNewStart(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Start Time
+              </label>
+              <input
+                type="time"
+                required
+                value={newStart}
+                onChange={(e) => setNewStart(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">End Time</label>
-              <input type="time" required value={newEnd} onChange={(e) => setNewEnd(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                End Time
+              </label>
+              <input
+                type="time"
+                required
+                value={newEnd}
+                onChange={(e) => setNewEnd(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setAddPeriodOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={savingPeriod} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setAddPeriodOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={savingPeriod}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {savingPeriod ? "Adding..." : "Add"}
             </button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={addDayOpen} onClose={() => setAddDayOpen(false)} title="Add Day" widthClass="max-w-sm">
+      <Modal
+        open={addDayOpen}
+        onClose={() => setAddDayOpen(false)}
+        title="Add Day"
+        widthClass="max-w-sm"
+      >
         <form onSubmit={handleAddDay} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Day Name</label>
-            <input type="text" required placeholder="e.g. Saturday" value={newDayName} onChange={(e) => setNewDayName(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Day Name
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Saturday"
+              value={newDayName}
+              onChange={(e) => setNewDayName(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setAddDayOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={savingDay} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={() => setAddDayOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={savingDay}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {savingDay ? "Adding..." : "Add"}
             </button>
           </div>
@@ -444,7 +570,11 @@ export default function TimetableGridPage() {
       <ConfirmDialog
         open={!!removePeriodTarget}
         title="Remove Time Slot"
-        message={removePeriodTarget ? `Remove the ${formatTime(removePeriodTarget.start_time)} – ${formatTime(removePeriodTarget.end_time)} slot across all days? Any assigned lectures in this slot will be lost.` : ""}
+        message={
+          removePeriodTarget
+            ? `Remove the ${formatTime(removePeriodTarget.start_time)} – ${formatTime(removePeriodTarget.end_time)} slot across all days? Any assigned lectures in this slot will be lost.`
+            : ""
+        }
         confirmLabel="Remove"
         loading={removing}
         onConfirm={handleRemovePeriod}
@@ -454,7 +584,11 @@ export default function TimetableGridPage() {
       <ConfirmDialog
         open={!!removeDayTarget}
         title="Remove Day"
-        message={removeDayTarget ? `Remove "${removeDayTarget.day_name}" from this timetable? Any assigned lectures on this day will be lost.` : ""}
+        message={
+          removeDayTarget
+            ? `Remove"${removeDayTarget.day_name}" from this timetable? Any assigned lectures on this day will be lost.`
+            : ""
+        }
         confirmLabel="Remove"
         loading={removing}
         onConfirm={handleRemoveDay}

@@ -10,7 +10,7 @@ export interface SelectOption {
 }
 
 export default function SearchableSelect(
-  props: SelectProps<SelectOption, boolean, GroupBase<SelectOption>>
+  props: SelectProps<SelectOption, boolean, GroupBase<SelectOption>>,
 ) {
   const { theme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -45,10 +45,10 @@ export default function SearchableSelect(
           backgroundColor: state.isSelected
             ? "#6366f1"
             : state.isFocused
-            ? isDark
-              ? "#334155"
-              : "#eef2ff"
-            : "transparent",
+              ? isDark
+                ? "#334155"
+                : "#eef2ff"
+              : "transparent",
           color: state.isSelected ? "#ffffff" : isDark ? "#f1f5f9" : "#0f172a",
         }),
       }}
