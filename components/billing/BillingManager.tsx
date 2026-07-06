@@ -5,12 +5,20 @@ import toast from "react-hot-toast";
 import { Banknote, FileDown, Loader2, Trash2, Wallet } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { formatDateOnly } from "@/lib/format";
 
 interface TeacherOption {
   id: string;
   name: string;
   department_id: string;
   type: "permanent" | "visiting";
+}
+
+interface AttendanceRow {
+  attendance_date: string;
+  lecture_count: string;
+  late_minutes: number;
+  status: string;
 }
 
 interface BillItem {
@@ -24,6 +32,21 @@ interface BillItem {
   total_lectures: string;
   rate: string;
   amount: string;
+  attendance?: AttendanceRow[];
+}
+
+interface VisitingBillPrintItem {
+  course_code: string;
+  course_title: string;
+  class_name: string;
+  session: string;
+  semester_number: number | null;
+  teacher_name: string;
+  allocation_type: string;
+  total_lectures: string;
+  rate: string;
+  amount: string;
+  attendance: AttendanceRow[];
 }
 
 interface Bill {
@@ -69,6 +92,98 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function VisitingBillDocument({
+  items,
+  docTitle,
+  billNumbersLabel,
+  dateLabel,
+}: {
+  items: VisitingBillPrintItem[];
+  docTitle: string;
+  billNumbersLabel: string;
+  dateLabel: string;
+}) {
+  const sessionsLabel = Array.from(new Set(items.map((it) => `${it.class_name} (${it.session}) Sem ${it.semester_number ?? "-"}`))).join(", ");
+  const total = items.reduce((sum, it) => sum + Number(it.amount), 0);
+  return (
+    <>
+      <div className="mb-4 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-4 text-center text-white">
+        <h2 className="text-xl font-extrabold tracking-wide">City College (University Campus)</h2>
+        <p className="text-sm font-semibold">{docTitle}</p>
+      </div>
+      <div className="mb-4 grid grid-cols-1 gap-1 text-sm sm:grid-cols-3">
+        <div><strong>Bill No(s):</strong> {billNumbersLabel}</div>
+        <div><strong>Sessions Included In Bill:</strong> {sessionsLabel}</div>
+        <div><strong>Date:</strong> {dateLabel}</div>
+      </div>
+      <table className="w-full border-collapse text-left text-sm">
+        <thead className="bg-indigo-600 text-white">
+          <tr>
+            <th className="border border-indigo-400 px-3 py-2">Teacher</th>
+            <th className="border border-indigo-400 px-3 py-2">Course</th>
+            <th className="border border-indigo-400 px-3 py-2">Class</th>
+            <th className="border border-indigo-400 px-3 py-2">Type</th>
+            <th className="border border-indigo-400 px-3 py-2">Lectures</th>
+            <th className="border border-indigo-400 px-3 py-2">Rate</th>
+            <th className="border border-indigo-400 px-3 py-2">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, idx) => (
+            <tr key={idx}>
+              <td className="border border-indigo-200 px-3 py-2">{it.teacher_name}</td>
+              <td className="border border-indigo-200 px-3 py-2">{it.course_code} — {it.course_title}</td>
+              <td className="border border-indigo-200 px-3 py-2">{it.class_name} ({it.session}) Sem {it.semester_number ?? "-"}</td>
+              <td className="border border-indigo-200 px-3 py-2">{allocTypeLabel[it.allocation_type]}</td>
+              <td className="border border-indigo-200 px-3 py-2">{it.total_lectures}</td>
+              <td className="border border-indigo-200 px-3 py-2">{it.rate}</td>
+              <td className="border border-indigo-200 px-3 py-2">{Number(it.amount).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-4 text-right text-base font-bold">Total Amount: PKR {total.toLocaleString()}</p>
+
+      <div className="print-page-break-before" />
+      {items.map((it, idx) => (
+        <div key={idx} className={idx > 0 ? "print-page-break-before" : ""}>
+          <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-white">
+            <h3 className="text-base font-bold">Attendance Record</h3>
+            <p className="text-sm"><strong>Course:</strong> {it.course_code} — {it.course_title}</p>
+            <p className="text-sm"><strong>Class:</strong> {it.class_name} &nbsp; <strong>Session:</strong> {it.session} &nbsp; <strong>Teacher:</strong> {it.teacher_name}</p>
+          </div>
+          <table className="w-full border-collapse text-left text-[11px]">
+            <thead className="bg-indigo-600 text-white">
+              <tr>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Date</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Lecture #</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Lectures</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Late (min)</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {it.attendance.length === 0 ? (
+                <tr><td colSpan={5} className="border border-indigo-200 px-1.5 py-2 text-center text-slate-500">No attendance records.</td></tr>
+              ) : (
+                it.attendance.map((a, ai) => (
+                  <tr key={ai} className={ai % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
+                    <td className="border border-indigo-200 px-1.5 py-0.5">{formatDateOnly(a.attendance_date)}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5">{ai + 1}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{a.lecture_count}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{a.late_minutes}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 capitalize text-slate-800">{a.status}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </>
+  );
+}
+
 const allocTypeLabel: Record<string, string> = {
   workload: "Workload",
   per_credit_hour: "Per Credit Hour",
@@ -90,6 +205,7 @@ export default function BillingManager() {
   const [deleteTarget, setDeleteTarget] = useState<Bill | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
+  const [combinedVisitingBill, setCombinedVisitingBill] = useState<{ items: VisitingBillPrintItem[]; billNumbersLabel: string; dateLabel: string } | null>(null);
 
   const [visDepartmentId, setVisDepartmentId] = useState("");
   const [visItems, setVisItems] = useState<VisitingPreviewItem[]>([]);
@@ -194,7 +310,12 @@ export default function BillingManager() {
         toast.error(data.error || "Something went wrong.");
         return;
       }
-      toast.success(`${data.bills.length} bill(s) generated.`);
+      const generatedBills = data.bills as { bill_number: string; items: VisitingBillPrintItem[] }[];
+      const items = generatedBills.flatMap((b) => b.items);
+      const billNumbersLabel = generatedBills.map((b) => b.bill_number).join(", ");
+      toast.success(`${generatedBills.length} bill(s) generated.`);
+      setCombinedVisitingBill({ items, billNumbersLabel, dateLabel: new Date().toLocaleDateString() });
+      setTimeout(() => window.print(), 150);
       loadVisPreview();
       setTab("find");
     } finally {
@@ -566,7 +687,30 @@ export default function BillingManager() {
         </div>
       )}
 
-      {selectedBill && (
+      {selectedBill && selectedBill.bill_type === "visiting" && (
+        <div className="hidden print:block">
+          <VisitingBillDocument
+            docTitle={`Visiting Faculty Bill — ${selectedBill.bill_number}`}
+            billNumbersLabel={selectedBill.bill_number}
+            dateLabel={formatDateOnly(selectedBill.created_at)}
+            items={selectedBill.items.map((it) => ({
+              course_code: it.course_code ?? "",
+              course_title: it.course_title ?? "",
+              class_name: it.class_name ?? "",
+              session: it.session ?? "",
+              semester_number: it.semester_number,
+              teacher_name: selectedBill.teacher_name,
+              allocation_type: it.allocation_type,
+              total_lectures: it.total_lectures,
+              rate: it.rate,
+              amount: it.amount,
+              attendance: it.attendance ?? [],
+            }))}
+          />
+        </div>
+      )}
+
+      {selectedBill && selectedBill.bill_type === "permanent" && (
         <div className="hidden print:block">
           <div className="mb-4 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-4 text-center text-white">
             <h2 className="text-xl font-extrabold tracking-wide">City College (University Campus)</h2>
@@ -604,6 +748,17 @@ export default function BillingManager() {
             </tbody>
           </table>
           <p className="mt-4 text-right text-base font-bold">Total: PKR {Number(selectedBill.total_amount).toLocaleString()}</p>
+        </div>
+      )}
+
+      {combinedVisitingBill && (
+        <div className="hidden print:block">
+          <VisitingBillDocument
+            docTitle="Visiting Faculty Bill"
+            billNumbersLabel={combinedVisitingBill.billNumbersLabel}
+            dateLabel={combinedVisitingBill.dateLabel}
+            items={combinedVisitingBill.items}
+          />
         </div>
       )}
 

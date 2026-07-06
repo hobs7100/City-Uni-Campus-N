@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { CalendarCheck, CheckCircle2, FileDown, Loader2, Users } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import Modal from "@/components/ui/Modal";
+import { formatDateOnly } from "@/lib/format";
 
 interface Lecture {
   allocation_id: string;
@@ -224,6 +225,21 @@ export default function AttendanceManager() {
     return parts.join(" · ");
   }, [reportFrom, reportTo, reportDepartmentId, reportClassId, reportSemesterId, reportTeacherId, departments, classOptions, semesterOptions, teacherOptions]);
 
+  const groupedReport = useMemo(() => {
+    const map = new Map<string, ReportRow[]>();
+    for (const r of reportRows) {
+      const key = `${r.course_code} — ${r.course_title}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([course, rows]) => ({
+        course,
+        rows: [...rows].sort((a, b) => new Date(a.attendance_date).getTime() - new Date(b.attendance_date).getTime()),
+      }));
+  }, [reportRows]);
+
   function handleExportPdf() {
     window.print();
   }
@@ -403,23 +419,17 @@ export default function AttendanceManager() {
             </div>
           </div>
 
-          <div className="hidden print:mb-4 print:block print:rounded-lg print:border-2 print:border-indigo-600 print:bg-gradient-to-r print:from-indigo-600 print:to-sky-500 print:p-4 print:text-center print:text-white">
-            <h2 className="text-xl font-extrabold tracking-wide">City College (University Campus)</h2>
-            <p className="text-sm font-semibold">Teacher Attendance Report — {reportSummary}</p>
-            <p className="text-xs opacity-90">Generated on {new Date().toLocaleString()}</p>
-          </div>
-
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:rounded-none print:border-0">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
             <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 print:bg-indigo-600 print:text-white">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-3 print:border print:border-indigo-400">Date</th>
-                  <th className="px-4 py-3 print:border print:border-indigo-400">Course</th>
-                  <th className="px-4 py-3 print:border print:border-indigo-400">Teacher</th>
-                  <th className="px-4 py-3 print:border print:border-indigo-400">Class</th>
-                  <th className="px-4 py-3 print:border print:border-indigo-400">Lectures</th>
-                  <th className="px-4 py-3 print:border print:border-indigo-400">Late (min)</th>
-                  <th className="px-4 py-3 print:border print:border-indigo-400">Status</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Course</th>
+                  <th className="px-4 py-3">Teacher</th>
+                  <th className="px-4 py-3">Class</th>
+                  <th className="px-4 py-3">Lectures</th>
+                  <th className="px-4 py-3">Late (min)</th>
+                  <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -428,23 +438,61 @@ export default function AttendanceManager() {
                 ) : reportRows.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No attendance records found.</td></tr>
                 ) : (
-                  reportRows.map((r, idx) => (
-                    <tr key={r.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${idx % 2 === 0 ? "print:bg-indigo-50/60" : "print:bg-white"}`}>
-                      <td className="px-4 py-3 print:border print:border-indigo-200">{r.attendance_date}</td>
-                      <td className="px-4 py-3 print:border print:border-indigo-200">
-                        <div className="font-medium text-slate-800 dark:text-slate-100 print:text-indigo-900">{r.course_code}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-700">{r.course_title}</div>
+                  reportRows.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="px-4 py-3">{formatDateOnly(r.attendance_date)}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_code}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">{r.course_title}</div>
                       </td>
-                      <td className="px-4 py-3 print:border print:border-indigo-200 print:text-slate-800">{r.teacher_name}</td>
-                      <td className="px-4 py-3 print:border print:border-indigo-200 print:text-slate-800">{r.class_name} ({r.session}) Sem {r.semester_number}</td>
-                      <td className="px-4 py-3 print:border print:border-indigo-200 print:text-slate-800">{r.lecture_count}</td>
-                      <td className="px-4 py-3 print:border print:border-indigo-200 print:text-slate-800">{r.late_minutes}</td>
-                      <td className="px-4 py-3 capitalize print:border print:border-indigo-200 print:text-slate-800">{r.status}</td>
+                      <td className="px-4 py-3">{r.teacher_name}</td>
+                      <td className="px-4 py-3">{r.class_name} ({r.session}) Sem {r.semester_number}</td>
+                      <td className="px-4 py-3">{r.lecture_count}</td>
+                      <td className="px-4 py-3">{r.late_minutes}</td>
+                      <td className="px-4 py-3 capitalize">{r.status}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="hidden print:block">
+            {groupedReport.length === 0 ? (
+              <p className="text-center text-slate-500">No attendance records found.</p>
+            ) : (
+              groupedReport.map((group, gi) => (
+                <div key={group.course} className={gi > 0 ? "print-page-break-before" : ""}>
+                  <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-center text-white">
+                    <h2 className="text-lg font-extrabold tracking-wide">City College (University Campus)</h2>
+                    <p className="text-xs font-semibold opacity-90">Teacher Attendance Report — {reportSummary}</p>
+                    <p className="text-sm font-bold">{group.course}</p>
+                  </div>
+                  <table className="w-full border-collapse text-left text-[11px]">
+                    <thead className="bg-indigo-600 text-white">
+                      <tr>
+                        <th className="border border-indigo-400 px-1.5 py-0.5">Date</th>
+                        <th className="border border-indigo-400 px-1.5 py-0.5">Lecture #</th>
+                        <th className="border border-indigo-400 px-1.5 py-0.5">Lectures</th>
+                        <th className="border border-indigo-400 px-1.5 py-0.5">Late (min)</th>
+                        <th className="border border-indigo-400 px-1.5 py-0.5">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.rows.map((r, idx) => (
+                        <tr key={r.id} className={idx % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
+                          <td className="border border-indigo-200 px-1.5 py-0.5">{formatDateOnly(r.attendance_date)}</td>
+                          <td className="border border-indigo-200 px-1.5 py-0.5">{idx + 1}</td>
+                          <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.lecture_count}</td>
+                          <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{r.late_minutes}</td>
+                          <td className="border border-indigo-200 px-1.5 py-0.5 capitalize text-slate-800">{r.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

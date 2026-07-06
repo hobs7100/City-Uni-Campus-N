@@ -84,7 +84,37 @@ export async function POST(request: NextRequest) {
         [item.id, allocationId]
       );
 
-      createdBills.push({ ...bill, items: [item] });
+      const detailsRes = await client.query(
+        `select c.code as course_code, c.title as course_title,
+                cl.class_name, cl.session,
+                te.name as teacher_name
+         from courses c, classes cl, teachers te
+         where c.id = $1 and cl.id = $2 and te.id = $3`,
+        [alloc.course_id, semester.class_id, alloc.teacher_id]
+      );
+      const details = detailsRes.rows[0];
+
+      const attendanceRowsRes = await client.query(
+        `select attendance_date, lecture_count, late_minutes, status
+         from attendance_records where bill_item_id = $1 order by attendance_date, start_time`,
+        [item.id]
+      );
+
+      createdBills.push({
+        ...bill,
+        items: [
+          {
+            ...item,
+            course_code: details.course_code,
+            course_title: details.course_title,
+            class_name: details.class_name,
+            session: details.session,
+            semester_number: semester.semester_number,
+            teacher_name: details.teacher_name,
+            attendance: attendanceRowsRes.rows,
+          },
+        ],
+      });
     }
 
     await client.query("commit");

@@ -34,7 +34,17 @@ export async function GET(request: NextRequest) {
                   'allocation_type', bi.allocation_type,
                   'total_lectures', bi.total_lectures,
                   'rate', bi.rate,
-                  'amount', bi.amount
+                  'amount', bi.amount,
+                  'attendance', coalesce(
+                    (select json_agg(json_build_object(
+                        'attendance_date', ar.attendance_date,
+                        'lecture_count', ar.lecture_count,
+                        'late_minutes', ar.late_minutes,
+                        'status', ar.status
+                      ) order by ar.attendance_date, ar.start_time)
+                     from attendance_records ar where ar.bill_item_id = bi.id),
+                    '[]'
+                  )
                 ))
                from bill_items bi
                left join courses c on c.id = bi.course_id

@@ -53,3 +53,8 @@ body {
   break-after: page;
   page-break-after: always;
 }
+
+.print-page-break-before {
+  break-before: page;
+  page-break-before: always;
+}
