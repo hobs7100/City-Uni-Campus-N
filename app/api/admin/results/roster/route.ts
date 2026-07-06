@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     mid: st.mid !== null && st.mid !== undefined ? Number(st.mid) : Number(semester.mid_marks ?? 0),
     sessional: st.sessional !== null && st.sessional !== undefined ? Number(st.sessional) : Number(semester.sessional_marks ?? 0),
     final: st.final !== null && st.final !== undefined ? Number(st.final) : 0,
-    practical: st.practical !== null && st.practical !== undefined ? Number(st.practical) : Number(semester.practical_marks ?? 0),
+    practical: st.practical !== null && st.practical !== undefined ? Number(st.practical) : 0,
     total: st.total !== null && st.total !== undefined ? Number(st.total) : null,
     status: st.result_status ?? "pass",
   }));
