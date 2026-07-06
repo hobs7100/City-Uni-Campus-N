@@ -1,7 +1,7 @@
 # City College Campus Management System
 
 ## Overview
-A full-stack Campus Management System for City College (University Campus), built in phases. Phase 1 covers Authentication and core academic structure management: Users, Affiliations, Departments, Classes, Students, and Teachers. Phase 2 adds Course Catalog and Semester Management. Phase 3 adds Allocation Management (assigning teachers to courses within active semesters, including combined-class allocations). Phase 4 adds Timetable Management with teacher clash detection.
+A full-stack Campus Management System for City College (University Campus), built in phases. Phase 1 covers Authentication and core academic structure management: Users, Affiliations, Departments, Classes, Students, and Teachers. Phase 2 adds Course Catalog and Semester Management. Phase 3 adds Allocation Management (assigning teachers to courses within active semesters, including combined-class allocations). Phase 4 adds Timetable Management with teacher clash detection. Phase 5 adds Teacher Attendance marking. Phase 6 adds Billing generation for visiting and permanent faculty.
 
 ## Tech Stack
 - **Framework**: Next.js (App Router, TypeScript) — frontend and backend (API routes) in one app
@@ -49,7 +49,11 @@ A full-stack Campus Management System for City College (University Campus), buil
 
 **Post-Phase-4 enhancements (complete)**: Allocations are now editable (teacher, rate, allocation type, and combined-class semester membership); Allocation Management has Department/Session/Class/Teacher filters plus a colorful landscape-A4 PDF export with report metadata. Timetable grid cells for combined lectures show which other class+session the lecture is shared with, right under the teacher's name. Timetable Management has Department/Session filters, lists timetables sorted by most-recently-edited, and supports bulk export — select multiple timetables via checkboxes and export them all as one multi-page PDF via a button beside "+ New Timetable".
 
-Not yet built (future phases): teacher/student attendance, billing, exams/results, and the remaining modules from the full 18-module spec in `attached_assets/`.
+**Phase 5 (complete)**: Teacher Attendance — a Mark tab lists the day's lectures (derived from timetable cells, deduped by allocation+time so a combined lecture appears once even though it lives in multiple timetables) with a one-click mark-present form (lecture count, late minutes, status ok/fixture, remarks); a Report tab lists marked attendance history with Department/Class/Semester/Teacher/date-range filters. An attendance record already attached to a bill (`bill_item_id` set) cannot be edited — the API returns 409.
+
+**Phase 6 (complete)**: Billing — Find tab lists generated bills (Department/Teacher/status/date filters) with a colorful landscape-A4 PDF export. Visiting tab previews unbilled attendance per visiting-faculty allocation (only from *closed* semesters) and generates one bill per selected allocation (fixed type ⇒ amount = rate; otherwise amount = rate × total unbilled lectures). Permanent tab previews unbilled attendance per allocation for a chosen permanent teacher and period, letting the admin pick Workload/Extra/Fixed per item at bill time and generating one bill with multiple line items (Workload ⇒ amount = rate × lectures; Extra/Fixed ⇒ amount = rate). Generating a bill atomically stamps the covered `attendance_records` rows with the new `bill_items.id`, so they're excluded from future previews/generation; deleting a bill sets that FK back to null (cascade unlink) making the attendance billable again. Bill numbers are sequential (`BILL-000001`, ...) via `bill_number_seq`.
+
+Not yet built (future phases): exams/results and the remaining modules from the full 18-module spec in `attached_assets/`.
 
 ## User Preferences
 None recorded yet.

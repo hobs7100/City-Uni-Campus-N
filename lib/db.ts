@@ -32,3 +32,7 @@ export async function queryOne<T = unknown>(text: string, params?: unknown[]) {
   const rows = await query<T>(text, params);
   return rows[0] ?? null;
 }
+
+export async function getClient() {
+  return pool.connect();
+}
