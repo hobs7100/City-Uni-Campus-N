@@ -1,0 +1,243 @@
+🔷 1. General System Requirements
+Create a complete Campus Management System for City College (University Campus) using Next.js full stack and Supabase database, cloudnary for documents uploads (image, pdf, docs etc.). The system must be fully responsive with all screen types UI and designed with best UX practices, including modern layouts, loaders, spinners,Alerts and animations. All dropdowns must be searchable (e.g., Select2) and dynamically auto-populated from the database. System must keep track of users who perform actions like (Struck off, allocations,billings etc). All dependent fields must be synchronized across modules (Department → Session → Class → Semester → Course → Teacher). Reports must be beautifully designed and printable. Deliverables must include full project code, database.sql with schema and seed data, and README.md with setup instructions, all backend APIs list with explanation  and role-based login credentials. No feature, workflow, or constraint should be skipped or simplified.
+Clean UI/UX Dashboards  with Sidebar and Main Sections Layouts. Modern Themes with Dark/Light theme toggle button. 
+Institute Name: CITY COLLEGE(UNIVERSITY CAMPUS)
+NOTE:
+For this System Which Secrets/Environment Variables/Api Keys are required Ask These in Replit and Also Create a .env file for these variables. Which Migrations we have to run, give steps also. 
+
+🔷 2. Authentication & Role-Based Access Control
+Implement secure login using sessions and password_hash. Roles include Admin, HoD, Coordinator, Teacher, and Student.
+Workflow:
+1.	User logs in via email/password 
+2.	System verifies credentials 
+3.	Redirect to role-specific dashboard 
+4.	Restrict access to unauthorized pages 
+Strict Rules:
+•	Passwords must be hashed 
+•	Block login if status = blocked 
+•	Coordinators/HoD can ONLY access assigned departments 
+•	Unauthorized access must redirect to login 
+  🔷 3. User Management (Admin, HoD Only)
+Admin manages users (Admin, HoD, Coordinator, Teacher).
+Fields:
+•	Name 
+•	Email 
+•	Password 
+•	Cellno
+•	Role 
+•	Status (Active/Blocked) 
+Workflow:
+•	Create → Assign role → Save 
+•	Edit → Update role/status 
+•	Delete → Soft delete preferred 
+Strict Rules:
+•	Email must be unique 
+•	Password must be hashed 
+•	Cannot delete own account 
+HoD/Coordinator must later map to department
+🔷 4. Affiliations Management [Admin Only]
+Fields:
+•	University Name 
+•	Mid Marks 
+•	Sessional Marks 
+•	Final Marks 
+•	Practical Marks 
+Strict Rules:
+•	Marks structure must be reused in Results module 
+No duplicate university names
+
+🔷 5. Department Management
+Fields:
+•	Department Name 
+•	HoD (All Hod dropdown from users) 
+•	Coordinator (All coordinators dropdown from users) 
+•	Status 
+Workflow:
+•	Select HoD & Coordinator from users table 
+•	Save department 
+Strict Rules:
+•	One HoD can be assigned single/multiple department 
+•	One Coordinator can be assigned single/Multiple department 
+•	Dropdown must show only relevant roles 
+Changes must reflect across system instantly
+🔷 6. Class Management
+Fields:
+•	Department 
+•	Class Name 
+•	Session (2021–25) 
+•	University 
+•	Type (ADP/BS/DIT/LLB) 
+•	Semesters (Auto: ADP/DIT=1-4, BS=1-8, LLB=1-8) 
+•	Status 
+Workflow:
+•	Select department → session → type → auto semesters 
+Strict Rules:
+•	Session must be reused system-wide 
+•	Class must belong to one department 
+Prevent duplicate class+session entries
+🔷 7. Student Management[CRUD]
+Fields:
+•	Name, Father Name, CNIC, Contact, Address 
+•	Email, Password [Auto Generated and emailed to the user for login]
+•	Department(auto loads from department according to user role) → Session → Class (dependent) 
+•	Profile Image (Optional)
+•	Select Status (Active/Struck Off/Left/Dropped/Freez) [If status is Left/Dropped/Freezed then 2 new fields Date and textfield(Select Semester) appears which shows List of semesters upto active semester for that class and will be stored/updated in db with date]
+Workflow:
+1.	Select Department 
+2.	Session auto-loads 
+3.	Class dropdown updates dynamically 
+4.	Save student 
+Strict Rules:
+•	CNIC must be unique 
+•	Email must be unique 
+•	Struck Off / Freezed students:
+→ cannot mark attendance
+→ cannot access dashboard 
+•	Class dropdown MUST be dependent (AJAX) 
+🔷 8. Teacher Management (CRUD)
+Fields:
+•	Name, Department, Phone 
+•	Email, Password[ Auto Generated and emailed to the Teacher]
+•	Type (Permanent/Visiting) 
+•	Workload Cr. Hours (ONLY if Permanent) 
+•	Rate Per Hour 
+•	Bank Name(optional)
+•	Account Title(optional)
+•	Account#(optional)
+•	Status 
+Strict Rules:
+•	Workload only visible if Permanent 
+•	Teacher must belong to department 
+•	Email unique 
+🔷 9. Semester Management (VERY STRICT CORE LOGIC)
+➤ Start Semester
+Fields:
+•	Department → Session → Class ( Synched automatically)
+•	Select Semester  (Auto: ADP/DIT=1-4, BS=1-8, LLB=1-8) 
+•	Type (Fall/Spring)
+•	Add Courses [ Search(by course name or course code) & Select Multiple courses from course Catalog dropdown here and add them to the current semester], Show the selected courses List with their course codes + Credit Hours ,  below the above field. 
+•	Start Date 
+•	Status
+Workflow:
+1.	Select class 
+2.	Check DB → active semester exists? 
+3.	If YES → block 
+If NO → create active semester
+4.	No more that 1 active semester Per class. 
+5.	No Duplicate course in current semester
+➤ Close Semester
+Workflow:
+1.	Auto-fetch active semester 
+2.	Enter Close Date 
+3.	Update status = CLOSED 
+4.	Deactivate courses and semester for Teachers and Students. 
+________________________________________
+Strict Rules:
+•	ONLY ONE active semester per class 
+•	Cannot close already closed semester 
+All modules must fetch ONLY active semester
+🔷 10. Catalog Management
+➤ Course Catalog Fields(Add Courses to Catalog):
+•	Code, Title, Department, Credit Hours 
+🔷 11. Allocation Management (CRITICAL ENGINE)
+Fields:
+•	Department → Session → Class 
+•	Semester (auto populate active semester) 
+•	Course select box (list of auto populated available courses with credit hours for the relevant class and active semester  from semester details)
+•	A checkbox that shows all teachers in Teachers select box when checked other wise department wise teachers view. 
+•	Teacher select box(Searchable) [auto populate the teachers name synched with above checkbox]
+•	Allocation Type (Workload/Per Credit Hour/Fixed) 
+•	Rate(PKR)
+•	Is Combined with another class+ Semester (checkbox) 
+•	If Combined then show select Combined Classes field (multi-select from all auto populated active classes +semester) 
+
+Workflow Logic:
+IF NOT combined:
+→ one teacher → one course → one class
+IF combined:
+→ one teacher → one course → multiple classes
+
+Strict Rules:
+•	Prevent duplicate allocation 
+•	Combined classes must have active semester 
+•	Store combined classes properly
+•	In case of combined classes One Teacher-> one course-multiple classes- Single lecture count. And students of all combined classes of a course shown collectively in single table for attendance on Teacher Dashboard.
+
+
+
+🔷 12. Timetable (With CLASH DETECTION SYSTEM)
+Workflow
+1.	Create New Timetable → Open modal with:
+o	Shift (Morning/Evening)
+o	Department (DB)
+o	Active Class + Session + Semester (DB)
+o	Semester (auto-filled, read-only)
+o	W.e.f Date
+2.	On create, generate an A4 Landscape editable timetable with institute header.
+3.	Default grid:
+o	Rows: Monday–Friday
+o	Morning: 8 AM–1 PM (1-hour slots)
+o	Evening: 11 AM–5 PM (1-hour slots)
+4.	Allow adding/removing/editing rows, columns, and time slots.
+5.	Each empty cell shows a "+" button. Clicking it opens a modal listing courses with assigned teacher for the selected class/semester.
+6.	Save the selected course into the cell.
+7.	Before saving, check teacher clashes across all timetables. If the same teacher is already assigned on the same day and time in another class, block the save and show a clear error using modern popup style.
+8.	BUT NO CHECK FOR COMBINED CLASSES/COURSE, ALLOW IT TO SAVE IF CLASSES ARE COMBINED FOR SOME COURSE DURING ALLOCATIONS
+9.	Support Edit, Delete, Print, PDF Export, and Auto Save.
+Strict Rules
+•	Never allow duplicate or conflicting timetable entries.
+•	Allow duplicate or Conflicting timetable entries ONLY for COMBINED CLASSES/COURSES. 
+•	Only active departments/classes/semesters can be selected.
+•	Use normalized database tables, proper foreign keys, and transactions.
+•	Keep code modular, reusable, and production-ready.
+•	Reuse existing components instead of creating duplicates.
+•	Maintain responsive, modern UI/UX consistent with the rest of the ERP.
+•	No hardcoded values; fetch everything from the database.
+•	Add proper validation, loading states, toast notifications, and error handling.
+•	Do not change existing APIs or database structures unless required; create migrations if schema changes are needed.
+🔷 13. Teacher Attendance [ ADMIN, COORDINATOR]
+Workflow:
+1.	Select Date, Department then extract day from selected date automatically and fetch selected day list of lectured according to timetable. If No date/Department is selected then fetch today’s lectures by default.  
+2.	Display list in the Table with last column Action[Mark Attendance, Edit ) 
+Table Fields:
+•	Course, Teacher, Class+Semester, Time, Late Minutes( Text Field), Lecture Count(selectbox) [ Full=>1 , Half=>0.5, Absent=>0], Status ( OK/Fixture), Remarks ( Textfield and are optional), Action [Mark Attendance, Edit )
+•	Add Print Attendance Record module/Tab also, to print the attendance record Teacher wise. Select department=>all class+semester(searchable selectbox)=> all Teachers+course in that relevant class+semesters. Then fetch attendance record and printable with institute headers. 
+
+Strict Rules:
+•	One lecture = one attendance 
+•	Half Lecture = half attendance
+•	Prevent duplicate marking 
+•	Combined lecture = one record=> one attendance=>one lecture 
+•	Must link to timetable 
+•	Add all necessary filters to fetch single teacher attendance course-wise 
+ 🔷 13. Billing System [ Admin, Coordinator]
+•	Billing must include “Find Bill” and “Create Bill” tabs. “Find Bill” searches and fetches for all previously generated bills for all teachers/ selected teachers through filteres ( select department=> Teacher etc.) then print/Edit Status(paid/pending)/Edit bill/Delete bill and export options. 
+•	Create Bill
+o	For Visiting Faculty: It must fetch attendance records by selecting some fields i.e select Department,  only for closed semesters and unpaid courses of all teachers, calculate payments based on allocation type (Per Hour = lectures × rate, Fixed = fixed), and prevent duplicate payments. Fields include Course Title, Class(es), Allocation Type, Total Lectures, Rate, Total Amount, and Status. Calculate all amounts Bills must include metadata (College Name, “Remuneration Bill”, Class, Session, Semester, Date) and must be printable and exportable. When a generate bill button is clicked then a bill is generated at once and saved in database with bill status unpaid. 
+o	For Permanent Faculty: Select Department => Select Teacher(relevant to that department) => Select Billing Dates (From – To ) then all allocated courses attendance record fetched between these two dates in a table having fields are: Course code, Title, Class+ Session + Semester, Total Lectures Delivered, Allocation Type (dropdown: WorkLoad/Extra/Fixed), Rate(TextField), Amount( calculate: if allocationtype=extra then Amount=rate otherwise amount=rate*total_lectures_delivered), At the end of the table then calculate Total Amount Payable. Calculate all amounts Bills must include metadata (College Name, “Remuneration Bill”, teacher name, Account#, Class, Session, Semester, Date, Billing Month, Bill ID, Status (Paid/Unpaid) and must be printable and exportable. 
+Strict Rules:
+•	Avoid duplicate billings both for visiting and permanent faculty.
+•	Professional and colorful Billing Invoices for best UX. 
+•	Keep track of billing record for each class+session+semester. 
+🔷 14. Exams & Results
+o	The system must include counters (Total Students, Pass, Failed), result checking, and result by course. 
+o	Tab1=>Failed Students: It must also generate a failed students list with filters (All, Department, Department+Session, Class+Semester) showing Student Name, Department, University, Class, Session, and Failed Courses list with semesters for each faild student. 
+o	Tab2=>Upload Result: select department=> class+session+semester( auto populated related to dept from db)=> select available courses registered in that relevant semester (auto populated from semester record) then all students of that class fetched and shown in a table having format: Rollno(editable), Name, Mid(editable cell but default value in each cell fetched from university affiliation setup associated with that  class+semester), Sessional(editable cell but default value in each cell fetched from university affiliation setup associated with that  class+semester), Final(editable cell), Practical(editable cell but optional), Total (Mid+Sessional+Final), Status(selectbox with default value=pass, options => Pass, Fail, Freezed , Drop), and Action(Edit/Update). This resultsheet will be saved/updated at once. 
+o	Tab3=>Freezed Students: Fetched list of freezed students with semester record( In which semester he get freezed)=> Printable to pdf
+o	Tab4=> Droped Students: Fetch List of students with drop status, date and semester.=> Printable to Pdf.
+o	Tab5=> Search Result: Search and select student name with class+session+semesters fetched auto, then his result sheet will be prepared grouped by Semesters. Exportable to PDF. 
+
+🔷 15. Student Attendance 
+•	Overall [On Coordinator Dashboard]
+o	Tab1=> Mark Attendance: Select Department=>class+ session=> Active semester then  all students list fetched and shown in a table for attendance with table structure: Student name, cellno, Status ( present(default)/Absent/Leave), Reason for Absent/Leave, Call Remarks(Optional), Then Select Date and Mark Attendance for selected date,Departmetn+Class+Session+semester at once. 
+o	Tab2=> Attendance Report: Select Department=>class+ session=> semester then Attendance record for whole class for slected semester will be shown in a table having structure: Student name, Cellno, Total Presents, Absents, leaves, Percentage( [total_presents/(total_presents+absents)]*100). DON’T INCLUDE LEAVES IN PERCENTAGE. Report should be exportable to pdf with all metdata. 
+•	Strict Rules: Prcentage<75% = Warning, <50% = Struck Off, Warning for 3 weeks = Struck Off. Maintain full attendance history with date-wise tracking and allow exporting individual student history.
+Admin must be able to view student attendance (marked by coordinator) filtered by Department, Class, and Semester. The table must include Student Name, Presents, Absents, Leaves, Percentage, and Status. Reports must be printable with metadata (College Name, Attendance Report, Class, Semester).
+🔷 16. Teacher Dashboard
+Teacher Dashboard must include Active Courses (course code, title, class(es), session, semester, allocation type, rate), Inactive Courses (with payment status (Pai/pending)), Student Attendance marking (excluding struck off/left students and handling combined classes), personal timetable, own attendance records, notifications (read/unread), profile management, and attendance reports with printable output.
+
+🔷 17. HoD Dashboard
+HoD must see counters (Total Classes, Total Students, Active, Left, Struck Off) and class-wise reports (Class Name, University, Session, Active Students, Struck Off, Total). Reports must be printable/exportable with metadata. Access must be restricted to assigned departments only.
+
+🔷 18. Student Dashboard
+Student Dashboard must show profile with status (disable system if struck off with notification), active semester timetable, course-wise attendance (Course, Teacher, Total Lectures, Present, Absent, Percentage, Remarks), notifications, results grouped by semester, and profile settings.
