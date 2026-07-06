@@ -92,6 +92,58 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+interface AttendanceAppendixItem {
+  course_code: string;
+  course_title: string;
+  class_name: string;
+  session: string;
+  teacher_name: string;
+  attendance: AttendanceRow[];
+}
+
+function BillAttendanceAppendix({ items }: { items: AttendanceAppendixItem[] }) {
+  return (
+    <>
+      <div className="print-page-break-before" />
+      {items.map((it, idx) => (
+        <div key={idx} className={idx > 0 ? "print-page-break-before" : ""}>
+          <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-white">
+            <h3 className="text-base font-bold">Attendance Record</h3>
+            <p className="text-sm"><strong>Course:</strong> {it.course_code} — {it.course_title}</p>
+            <p className="text-sm"><strong>Class:</strong> {it.class_name} &nbsp; <strong>Session:</strong> {it.session} &nbsp; <strong>Teacher:</strong> {it.teacher_name}</p>
+          </div>
+          <table className="w-full border-collapse text-left text-[11px]">
+            <thead className="bg-indigo-600 text-white">
+              <tr>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Date</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Lecture #</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Lectures</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Late (min)</th>
+                <th className="border border-indigo-400 px-1.5 py-0.5">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {it.attendance.length === 0 ? (
+                <tr><td colSpan={5} className="border border-indigo-200 px-1.5 py-2 text-center text-slate-500">No attendance records.</td></tr>
+              ) : (
+                it.attendance.map((a, ai) => (
+                  <tr key={ai} className={ai % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
+                    <td className="border border-indigo-200 px-1.5 py-0.5">{formatDateOnly(a.attendance_date)}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5">{ai + 1}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{a.lecture_count}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{a.late_minutes}</td>
+                    <td className="border border-indigo-200 px-1.5 py-0.5 capitalize text-slate-800">{a.status}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function VisitingBillDocument({
   items,
   docTitle,
@@ -144,42 +196,16 @@ function VisitingBillDocument({
       </table>
       <p className="mt-4 text-right text-base font-bold">Total Amount: PKR {total.toLocaleString()}</p>
 
-      <div className="print-page-break-before" />
-      {items.map((it, idx) => (
-        <div key={idx} className={idx > 0 ? "print-page-break-before" : ""}>
-          <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-white">
-            <h3 className="text-base font-bold">Attendance Record</h3>
-            <p className="text-sm"><strong>Course:</strong> {it.course_code} — {it.course_title}</p>
-            <p className="text-sm"><strong>Class:</strong> {it.class_name} &nbsp; <strong>Session:</strong> {it.session} &nbsp; <strong>Teacher:</strong> {it.teacher_name}</p>
-          </div>
-          <table className="w-full border-collapse text-left text-[11px]">
-            <thead className="bg-indigo-600 text-white">
-              <tr>
-                <th className="border border-indigo-400 px-1.5 py-0.5">Date</th>
-                <th className="border border-indigo-400 px-1.5 py-0.5">Lecture #</th>
-                <th className="border border-indigo-400 px-1.5 py-0.5">Lectures</th>
-                <th className="border border-indigo-400 px-1.5 py-0.5">Late (min)</th>
-                <th className="border border-indigo-400 px-1.5 py-0.5">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {it.attendance.length === 0 ? (
-                <tr><td colSpan={5} className="border border-indigo-200 px-1.5 py-2 text-center text-slate-500">No attendance records.</td></tr>
-              ) : (
-                it.attendance.map((a, ai) => (
-                  <tr key={ai} className={ai % 2 === 0 ? "bg-indigo-50/60" : "bg-white"}>
-                    <td className="border border-indigo-200 px-1.5 py-0.5">{formatDateOnly(a.attendance_date)}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5">{ai + 1}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{a.lecture_count}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">{a.late_minutes}</td>
-                    <td className="border border-indigo-200 px-1.5 py-0.5 capitalize text-slate-800">{a.status}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      ))}
+      <BillAttendanceAppendix
+        items={items.map((it) => ({
+          course_code: it.course_code,
+          course_title: it.course_title,
+          class_name: it.class_name,
+          session: it.session,
+          teacher_name: it.teacher_name,
+          attendance: it.attendance,
+        }))}
+      />
     </>
   );
 }
@@ -205,7 +231,6 @@ export default function BillingManager() {
   const [deleteTarget, setDeleteTarget] = useState<Bill | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
-  const [combinedVisitingBill, setCombinedVisitingBill] = useState<{ items: VisitingBillPrintItem[]; billNumbersLabel: string; dateLabel: string } | null>(null);
 
   const [visDepartmentId, setVisDepartmentId] = useState("");
   const [visItems, setVisItems] = useState<VisitingPreviewItem[]>([]);
@@ -310,12 +335,14 @@ export default function BillingManager() {
         toast.error(data.error || "Something went wrong.");
         return;
       }
-      const generatedBills = data.bills as { bill_number: string; items: VisitingBillPrintItem[] }[];
-      const items = generatedBills.flatMap((b) => b.items);
-      const billNumbersLabel = generatedBills.map((b) => b.bill_number).join(", ");
-      toast.success(`${generatedBills.length} bill(s) generated.`);
-      setCombinedVisitingBill({ items, billNumbersLabel, dateLabel: new Date().toLocaleDateString() });
-      setTimeout(() => window.print(), 150);
+      const generatedBills = data.bills as Bill[];
+      if (generatedBills.length === 1) {
+        toast.success("Bill generated.");
+        setSelectedBill(generatedBills[0]);
+        setTimeout(() => window.print(), 150);
+      } else {
+        toast.success(`${generatedBills.length} bills generated (one per teacher). Print each from Find Bill.`);
+      }
       loadVisPreview();
       setTab("find");
     } finally {
@@ -748,16 +775,16 @@ export default function BillingManager() {
             </tbody>
           </table>
           <p className="mt-4 text-right text-base font-bold">Total: PKR {Number(selectedBill.total_amount).toLocaleString()}</p>
-        </div>
-      )}
 
-      {combinedVisitingBill && (
-        <div className="hidden print:block">
-          <VisitingBillDocument
-            docTitle="Visiting Faculty Bill"
-            billNumbersLabel={combinedVisitingBill.billNumbersLabel}
-            dateLabel={combinedVisitingBill.dateLabel}
-            items={combinedVisitingBill.items}
+          <BillAttendanceAppendix
+            items={selectedBill.items.map((it) => ({
+              course_code: it.course_code ?? "",
+              course_title: it.course_title ?? "",
+              class_name: it.class_name ?? "",
+              session: it.session ?? "",
+              teacher_name: selectedBill.teacher_name,
+              attendance: it.attendance ?? [],
+            }))}
           />
         </div>
       )}

@@ -3,3 +3,4 @@
 - [Auto-provision vs. reject for combined-entity validation](auto-provision-combined-catalog.md) — when a user action logically implies a missing prerequisite record, create it instead of blocking with an error.
 - [timetable_periods are scoped per-timetable](timetable-periods-per-timetable-scoping.md) — dedup/aggregate combined-lecture rows by allocation_id (+time), never by per-timetable day_id/period_id.
 - [Attendance/booking record identity must match display grouping key](attendance-identity-granularity.md) — a state table's unique key must include every field the read API dedupes instances by, or same-day double slots collide.
+- [Single source of truth for browser-print views](print-view-single-source-of-truth.md) — two independent "hidden print:block" state flags will co-render into one PDF if both are non-null; reuse one state, don't add a second.
