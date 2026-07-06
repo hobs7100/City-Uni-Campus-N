@@ -18,6 +18,7 @@ import {
   ClipboardCheck,
   Wallet,
   Award,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem, NavIconName } from "@/lib/nav";
@@ -39,6 +40,7 @@ const iconMap: Record<NavIconName, LucideIcon> = {
   ClipboardCheck,
   Wallet,
   Award,
+  UserCog,
 };
 
 export default function Sidebar({

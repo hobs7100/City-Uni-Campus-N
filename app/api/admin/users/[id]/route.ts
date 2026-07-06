@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
-import { hashPassword } from "@/lib/auth";
 import { requireRole } from "@/lib/requireRole";
 
 const updateSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
-  password: z.string().min(6).optional().or(z.literal("")),
   cellno: z.string().optional().nullable(),
   role: z.enum(["admin", "hod", "coordinator"]).optional(),
   status: z.enum(["active", "blocked"]).optional(),
@@ -44,7 +42,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (data.cellno !== undefined) { sets.push(`cellno = $${i++}`); values.push(data.cellno); }
   if (data.role) { sets.push(`role = $${i++}`); values.push(data.role); }
   if (data.status) { sets.push(`status = $${i++}`); values.push(data.status); }
-  if (data.password) { sets.push(`password_hash = $${i++}`); values.push(await hashPassword(data.password)); }
   sets.push(`updated_at = now()`);
 
   values.push(id);

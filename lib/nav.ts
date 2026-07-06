@@ -15,7 +15,8 @@ export type NavIconName =
   | "UserCheck"
   | "ClipboardCheck"
   | "Wallet"
-  | "Award";
+  | "Award"
+  | "UserCog";
 
 export interface NavItem {
   label: string;
@@ -44,8 +45,12 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     },
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
     { label: "Exams & Results", href: "/dashboard/admin/results", icon: "Award" },
+    { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
   ],
-  hod: [{ label: "Overview", href: "/dashboard/hod", icon: "LayoutDashboard" }],
+  hod: [
+    { label: "Overview", href: "/dashboard/hod", icon: "LayoutDashboard" },
+    { label: "Profile", href: "/dashboard/hod/profile", icon: "UserCog" },
+  ],
   coordinator: [
     { label: "Overview", href: "/dashboard/coordinator", icon: "LayoutDashboard" },
     { label: "Classes", href: "/dashboard/coordinator/classes", icon: "School" },
@@ -57,6 +62,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
       icon: "ClipboardCheck",
     },
     { label: "Billing", href: "/dashboard/coordinator/billing", icon: "Wallet" },
+    { label: "Profile", href: "/dashboard/coordinator/profile", icon: "UserCog" },
   ],
   teacher: [{ label: "Overview", href: "/dashboard/teacher", icon: "LayoutDashboard" }],
   student: [{ label: "Overview", href: "/dashboard/student", icon: "LayoutDashboard" }],

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { KeyRound, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -34,7 +34,6 @@ const emptyForm = {
   id: "",
   name: "",
   email: "",
-  password: "",
   cellno: "",
   role: "coordinator" as UserRow["role"],
   status: "active" as UserRow["status"],
@@ -50,6 +49,8 @@ export default function UsersPage() {
   const [editing, setEditing] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [regenTarget, setRegenTarget] = useState<UserRow | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,7 +79,6 @@ export default function UsersPage() {
       id: user.id,
       name: user.name,
       email: user.email,
-      password: "",
       cellno: user.cellno || "",
       role: user.role,
       status: user.status,
@@ -100,8 +100,6 @@ export default function UsersPage() {
         role: form.role,
         status: form.status,
       };
-      if (form.password) payload.password = form.password;
-      if (!editing) payload.password = form.password;
 
       const res = await fetch(url, {
         method,
@@ -113,7 +111,20 @@ export default function UsersPage() {
         toast.error(data.error || "Something went wrong.");
         return;
       }
-      toast.success(editing ? "User updated." : "User created.");
+      if (!editing) {
+        if (data.emailSent) {
+          toast.success("User created and welcome email sent.");
+        } else {
+          toast.error(
+            `User created, but the welcome email failed to send${
+              data.generatedPassword ? ` (password: ${data.generatedPassword})` : ""
+            }. ${data.emailError || ""}`,
+            { duration: 10000 },
+          );
+        }
+      } else {
+        toast.success("User updated.");
+      }
       setModalOpen(false);
       load();
     } finally {
@@ -136,6 +147,32 @@ export default function UsersPage() {
       load();
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleRegeneratePassword() {
+    if (!regenTarget) return;
+    setRegenerating(true);
+    try {
+      const res = await fetch(`/api/admin/users/${regenTarget.id}/regenerate-password`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to regenerate password.");
+        return;
+      }
+      if (data.emailSent) {
+        toast.success("Password regenerated and emailed to the user.");
+      } else {
+        toast.error(
+          `Password regenerated, but the email failed to send${
+            data.generatedPassword ? ` (password: ${data.generatedPassword})` : ""
+          }. ${data.emailError || ""}`,
+          { duration: 10000 },
+        );
+      }
+      setRegenTarget(null);
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -217,12 +254,21 @@ export default function UsersPage() {
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => openEdit(u)}
+                        title="Edit user"
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
                         <Pencil size={16} />
                       </button>
                       <button
+                        onClick={() => setRegenTarget(u)}
+                        title="Regenerate password"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                      >
+                        <KeyRound size={16} />
+                      </button>
+                      <button
                         onClick={() => setDeleteTarget(u)}
+                        title="Remove user"
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
                       >
                         <Trash2 size={16} />
@@ -265,22 +311,11 @@ export default function UsersPage() {
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
           </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Password{" "}
-              {editing && (
-                <span className="text-xs text-slate-400">(leave blank to keep unchanged)</span>
-              )}
-            </label>
-            <input
-              type="password"
-              required={!editing}
-              minLength={6}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
-          </div>
+          {!editing && (
+            <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+              A password will be auto-generated and emailed to this user. They can change it after logging in.
+            </p>
+          )}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
               Cell No
@@ -349,6 +384,16 @@ export default function UsersPage() {
         loading={deleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!regenTarget}
+        title="Regenerate Password"
+        message={`A new password will be generated for ${regenTarget?.name} and emailed to ${regenTarget?.email}. Continue?`}
+        confirmLabel="Regenerate & Send"
+        loading={regenerating}
+        onConfirm={handleRegeneratePassword}
+        onCancel={() => setRegenTarget(null)}
       />
     </div>
   );
