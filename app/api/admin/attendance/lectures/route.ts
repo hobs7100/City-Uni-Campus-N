@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
      join teachers te on te.id = al.teacher_id
      join departments dept on dept.id = te.department_id
      left join attendance_records ar on ar.allocation_id = al.id and ar.attendance_date = $${dateParamIndex}
+       and ar.start_time = tp.start_time and ar.end_time = tp.end_time
      where td.day_name = $1
        ${departmentId ? `and exists (
          select 1 from timetable_cells tc3

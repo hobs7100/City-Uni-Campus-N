@@ -2,3 +2,4 @@
 - [Combined-lecture clash exemption pattern](combined-lecture-clash-exemption.md) — exempt "same physical lecture in two places" by matching a shared row id, not a boolean flag.
 - [Auto-provision vs. reject for combined-entity validation](auto-provision-combined-catalog.md) — when a user action logically implies a missing prerequisite record, create it instead of blocking with an error.
 - [timetable_periods are scoped per-timetable](timetable-periods-per-timetable-scoping.md) — dedup/aggregate combined-lecture rows by allocation_id (+time), never by per-timetable day_id/period_id.
+- [Attendance/booking record identity must match display grouping key](attendance-identity-granularity.md) — a state table's unique key must include every field the read API dedupes instances by, or same-day double slots collide.

@@ -150,6 +150,8 @@ export default function AttendanceManager() {
         body: JSON.stringify({
           allocation_id: markTarget.allocation_id,
           attendance_date: date,
+          start_time: markTarget.start_time,
+          end_time: markTarget.end_time,
           lecture_count: Number(lectureCount),
           late_minutes: Number(lateMinutes),
           status,
@@ -291,7 +293,7 @@ export default function AttendanceManager() {
                   <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No lectures scheduled on this day.</td></tr>
                 ) : (
                   lectures.map((l) => (
-                    <tr key={l.allocation_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <tr key={`${l.allocation_id}-${l.start_time}-${l.end_time}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{l.start_time?.slice(0, 5)} - {l.end_time?.slice(0, 5)}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-800 dark:text-slate-100">{l.course_code}</div>
