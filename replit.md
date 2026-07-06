@@ -1,7 +1,7 @@
 # City College Campus Management System
 
 ## Overview
-A full-stack Campus Management System for City College (University Campus), built in phases. Phase 1 covers Authentication and core academic structure management: Users, Affiliations, Departments, Classes, Students, and Teachers.
+A full-stack Campus Management System for City College (University Campus), built in phases. Phase 1 covers Authentication and core academic structure management: Users, Affiliations, Departments, Classes, Students, and Teachers. Phase 2 adds Course Catalog and Semester Management.
 
 ## Tech Stack
 - **Framework**: Next.js (App Router, TypeScript) — frontend and backend (API routes) in one app
@@ -18,12 +18,13 @@ A full-stack Campus Management System for City College (University Campus), buil
 - **Class semesters**: Auto-calculated from class type — ADP/DIT = 4 semesters, BS/LLB = 8 semesters (see `typeToSemesters` in `app/api/admin/classes/route.ts`).
 - **Generated credentials**: When a student or teacher is created, a random password is generated and returned once in the API response (shown to the admin via toast) since there is no email delivery configured yet.
 - **Soft deletes**: Students, teachers, and users use `deleted_at` for soft deletion; departments/classes/affiliations are hard-deleted (with FK-safety checks, e.g. a class can't be deleted while it has students).
+- **Semesters**: Only one `active` semester per class is allowed at a time (enforced by a partial unique index on `semesters(class_id) where status = 'active'`, plus an app-level check). Starting a semester requires selecting courses from the department's catalog (`semester_courses` junction table); a course already used in any semester cannot be deleted from the catalog.
 
 ## Project Structure
 - `db/migrations/` — SQL migrations; run via `node scripts/migrate.mjs`
 - `scripts/seed-admin.mjs` — seeds the initial admin account
 - `lib/` — shared server logic: `db.ts` (pg pool), `auth.ts` (hashing, unified login lookup), `session.ts` (iron-session config), `requireRole.ts` (API route guards), `cloudinary.ts`, `nav.ts` (role-based nav)
-- `app/api/admin/*` — CRUD API routes for users, affiliations, departments, classes, students, teachers
+- `app/api/admin/*` — CRUD API routes for users, affiliations, departments, classes, students, teachers, courses, semesters
 - `app/dashboard/<role>/*` — role-specific pages (admin has full management pages; hod/coordinator/teacher/student currently have overview pages, to be expanded in later phases)
 - `components/ui/` — shared UI primitives (Modal, SearchableSelect, ConfirmDialog, StatusBadge)
 
@@ -31,8 +32,10 @@ A full-stack Campus Management System for City College (University Campus), buil
 - Email: `admin@citycollege.edu.pk`
 - Password: `Admin@12345`
 
-## Current Status (Phase 1)
-Completed: Auth flow, dashboard shell, User/Affiliation/Department/Class/Student/Teacher management (full CRUD) for Admin, per-role dashboard overview pages, Cloudinary photo upload for students.
+## Current Status
+**Phase 1 (complete)**: Auth flow, dashboard shell, User/Affiliation/Department/Class/Student/Teacher management (full CRUD) for Admin, per-role dashboard overview pages, Cloudinary photo upload for students.
+
+**Phase 2 (complete)**: Course Catalog management (full CRUD, scoped to department, blocked from deletion once used in a semester) and Semester Management (Start Semester with course selection, Close Semester, history view; one active semester per class enforced at DB and app level).
 
 Not yet built (future phases): attendance, exams/results, fee management, timetables, and the other modules from the full 18-module spec in `attached_assets/`.
 

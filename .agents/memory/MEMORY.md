@@ -1,0 +1,1 @@
+- [Partial unique index for "one active X per Y"](partial-unique-active-status.md) — DB pattern for enforcing single-active-record constraints, paired with app-level pre-check for clean error messages.
