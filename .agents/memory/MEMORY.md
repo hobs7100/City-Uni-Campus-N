@@ -6,3 +6,4 @@
 - [Single source of truth for browser-print views](print-view-single-source-of-truth.md) — two independent "hidden print:block" state flags will co-render into one PDF if both are non-null; reuse one state, don't add a second.
 - [Next.js Server->Client icon props](nav-icon-serialization.md) — never pass Lucide/component values as props from a Server Component into a Client Component; pass a string key and map to the component inside the client file.
 - [Bulk regex file edits](bulk-regex-file-edits.md) — never chain a generic whitespace-cleanup regex onto a targeted find/replace sweep across many files; verify with git diff / prettier before trusting bulk edits.
+- [SSR client component + Date() hydration mismatches](ssr-date-hydration.md) — server/client clock or locale differences break hydration when a client component renders raw dates/"today" on first render.

@@ -1,6 +1,7 @@
 "use client";
 
 import { History } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 
 export default function RecentActivityCard({
   logins,
@@ -58,7 +59,7 @@ export default function RecentActivityCard({
                   </span>
                 </td>
                 <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
-                  {new Date(l.logged_in_at).toLocaleString()}
+                  {formatDateTime(l.logged_in_at)}
                 </td>
               </tr>
             ))

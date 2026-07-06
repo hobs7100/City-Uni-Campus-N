@@ -1,17 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 export default function MiniCalendar() {
-  const today = useMemo(() => new Date(), []);
-  const [cursor, setCursor] = useState(
-    new Date(today.getFullYear(), today.getMonth(), 1),
-  );
+  const [today, setToday] = useState<Date | null>(null);
+  const [cursor, setCursor] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const now = new Date();
+    setToday(now);
+    setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+  }, []);
 
   const days = useMemo(() => {
+    if (!cursor) return [];
     const year = cursor.getFullYear();
     const month = cursor.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
@@ -23,6 +28,34 @@ export default function MiniCalendar() {
     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
     return cells;
   }, [cursor]);
+
+  if (!cursor || !today) {
+    return (
+      <div className="card-3d card-hover p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="icon-tile grad-cyan h-9 w-9">
+            <CalendarDays size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">
+              Calendar
+            </p>
+            <p className="text-[11px] text-slate-400">Loading…</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center">
+          {WEEKDAYS.map((w, i) => (
+            <span
+              key={i}
+              className="py-1 text-[11px] font-semibold text-slate-400"
+            >
+              {w}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const monthLabel = cursor.toLocaleDateString("en-US", {
     month: "long",
