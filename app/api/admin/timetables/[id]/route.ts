@@ -35,13 +35,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const cells = await query(
     `select tc.id, tc.day_id, tc.period_id, tc.allocation_id,
             c.code as course_code, c.title as course_title,
-            t.name as teacher_name, a.is_combined
+            t.name as teacher_name, a.is_combined,
+            coalesce(
+              (select json_agg(json_build_object('class_name', cl2.class_name, 'session', cl2.session) order by cl2.class_name)
+               from allocation_semesters als2
+               join semesters s2 on s2.id = als2.semester_id
+               join classes cl2 on cl2.id = s2.class_id
+               where als2.allocation_id = tc.allocation_id and cl2.id != $2),
+              '[]'
+            ) as combined_with
      from timetable_cells tc
      left join allocations a on a.id = tc.allocation_id
      left join courses c on c.id = a.course_id
      left join teachers t on t.id = a.teacher_id
      where tc.timetable_id = $1`,
-    [id]
+    [id, (timetable as { class_id: string }).class_id]
   );
 
   return NextResponse.json({ timetable, days, periods, cells });

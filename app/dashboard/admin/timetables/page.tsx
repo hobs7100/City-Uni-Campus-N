@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { CalendarDays, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import PrintableTimetable, { PrintableTimetableData } from "@/components/timetable/PrintableTimetable";
 
 interface ClassOption {
   id: string;
@@ -63,6 +64,13 @@ export default function TimetablesPage() {
   const [classId, setClassId] = useState("");
   const [shift, setShift] = useState<"morning" | "evening">("morning");
   const [wefDate, setWefDate] = useState("");
+
+  const [filterDepartmentId, setFilterDepartmentId] = useState("");
+  const [filterSession, setFilterSession] = useState("");
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [printData, setPrintData] = useState<PrintableTimetableData[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,22 +176,112 @@ export default function TimetablesPage() {
     }
   }
 
+  const filterSessionOptions = useMemo(() => {
+    const set = new Set(classes.filter((c) => !filterDepartmentId || c.department_id === filterDepartmentId).map((c) => c.session));
+    return Array.from(set).map((s) => ({ value: s, label: s }));
+  }, [classes, filterDepartmentId]);
+
+  const filteredTimetables = useMemo(() => {
+    return timetables.filter((tt) => {
+      if (filterDepartmentId && tt.department_id !== filterDepartmentId) return false;
+      if (filterSession && tt.session !== filterSession) return false;
+      return true;
+    });
+  }, [timetables, filterDepartmentId, filterSession]);
+
+  const filteredIdSet = useMemo(() => new Set(filteredTimetables.map((tt) => tt.id)), [filteredTimetables]);
+  const visibleSelectedIds = useMemo(() => selectedIds.filter((id) => filteredIdSet.has(id)), [selectedIds, filteredIdSet]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function toggleSelectAll() {
+    if (visibleSelectedIds.length === filteredTimetables.length) {
+      setSelectedIds((prev) => prev.filter((id) => !filteredIdSet.has(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredTimetables.map((tt) => tt.id)])));
+    }
+  }
+
+  async function handleBulkExport() {
+    if (visibleSelectedIds.length === 0) {
+      toast.error("Select at least one timetable to export.");
+      return;
+    }
+    setExporting(true);
+    try {
+      const results = await Promise.all(
+        visibleSelectedIds.map(async (id) => {
+          const res = await fetch(`/api/admin/timetables/${id}`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Failed to load a timetable.");
+          return data as PrintableTimetableData;
+        })
+      );
+      setPrintData(results);
+      setTimeout(() => window.print(), 100);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to export timetables.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Timetable Management</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Create and manage class timetables with teacher clash detection</p>
         </div>
-        <button onClick={openCreate} className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
-          <Plus size={18} /> New Timetable
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleBulkExport}
+            disabled={exporting || visibleSelectedIds.length === 0}
+            className="flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <FileDown size={18} /> Export Selected ({visibleSelectedIds.length})
+          </button>
+          <button onClick={openCreate} className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+            <Plus size={18} /> New Timetable
+          </button>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 print:hidden sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Department</label>
+          <SearchableSelect
+            options={departments}
+            value={departments.find((d) => d.value === filterDepartmentId) || null}
+            onChange={(opt) => { setFilterDepartmentId(opt ? (opt as SelectOption).value : ""); setFilterSession(""); }}
+            placeholder="All departments"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Session</label>
+          <SearchableSelect
+            options={filterSessionOptions}
+            value={filterSessionOptions.find((s) => s.value === filterSession) || null}
+            onChange={(opt) => setFilterSession(opt ? (opt as SelectOption).value : "")}
+            placeholder="All sessions"
+          />
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:hidden">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
+              <th className="px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={filteredTimetables.length > 0 && visibleSelectedIds.length === filteredTimetables.length}
+                  onChange={toggleSelectAll}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+              </th>
               <th className="px-4 py-3">Class</th>
               <th className="px-4 py-3">Department</th>
               <th className="px-4 py-3">Semester</th>
@@ -194,12 +292,20 @@ export default function TimetablesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
-            ) : timetables.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No timetables found.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
+            ) : filteredTimetables.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No timetables found.</td></tr>
             ) : (
-              timetables.map((tt) => (
+              filteredTimetables.map((tt) => (
                 <tr key={tt.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={visibleSelectedIds.includes(tt.id)}
+                      onChange={() => toggleSelect(tt.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-800 dark:text-slate-100">{tt.class_name}</div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">{tt.session}</div>
@@ -226,6 +332,14 @@ export default function TimetablesPage() {
           </tbody>
         </table>
       </div>
+
+      {printData.length > 0 && (
+        <div className="hidden print:block">
+          {printData.map((d, idx) => (
+            <PrintableTimetable key={d.timetable.id} data={d} isLast={idx === printData.length - 1} />
+          ))}
+        </div>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Timetable" widthClass="max-w-lg">
         <form onSubmit={handleSubmit} className="space-y-4">

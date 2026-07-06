@@ -17,5 +17,6 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ error: "Day not found." }, { status: 404 });
 
   await query(`delete from timetable_days where id = $1`, [dayId]);
+  await query(`update timetables set updated_at = now() where id = $1`, [id]);
   return NextResponse.json({ success: true });
 }

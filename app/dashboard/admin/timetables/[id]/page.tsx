@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ArrowLeft, Layers, Loader2, Plus, Printer, Trash2, X } from "lucide-react";
+import { ArrowLeft, Layers, Loader2, Plus, Printer, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
@@ -43,6 +43,7 @@ interface CellRow {
   course_title: string | null;
   teacher_name: string | null;
   is_combined: boolean | null;
+  combined_with: { class_name: string; session: string }[] | null;
 }
 
 interface AllocationOption {
@@ -351,6 +352,11 @@ export default function TimetableGridPage() {
                             {cell.is_combined && <Layers size={11} />} {cell.course_title}
                           </div>
                           <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400 print:text-slate-700">{cell.teacher_name}</div>
+                          {cell.is_combined && cell.combined_with && cell.combined_with.length > 0 && (
+                            <div className="mt-0.5 text-[10px] italic text-sky-600 dark:text-sky-400 print:text-sky-700">
+                              Combined: {cell.combined_with.map((c) => `${c.class_name} (${c.session})`).join(", ")}
+                            </div>
+                          )}
                         </button>
                       ) : (
                         <button

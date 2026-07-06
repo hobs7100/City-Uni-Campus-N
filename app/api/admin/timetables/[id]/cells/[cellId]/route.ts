@@ -33,6 +33,7 @@ export async function PATCH(
       `update timetable_cells set allocation_id = null, updated_at = now() where id = $1 returning *`,
       [cellId]
     );
+    await query(`update timetables set updated_at = now() where id = $1`, [id]);
     return NextResponse.json({ cell: updated });
   }
 
@@ -100,5 +101,6 @@ export async function PATCH(
     `update timetable_cells set allocation_id = $1, updated_at = now() where id = $2 returning *`,
     [allocation_id, cellId]
   );
+  await query(`update timetables set updated_at = now() where id = $1`, [id]);
   return NextResponse.json({ cell: updated });
 }

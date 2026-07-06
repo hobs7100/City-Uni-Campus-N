@@ -53,6 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
+    await client.query(`update timetables set updated_at = now() where id = $1`, [id]);
     await client.query("commit");
     return NextResponse.json({ day }, { status: 201 });
   } catch (err) {

@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
               (select json_agg(json_build_object(
                   'semester_id', s.id,
                   'class_id', s.class_id,
+                  'department_id', cl.department_id,
                   'class_name', cl.class_name,
                   'session', cl.session,
                   'semester_number', s.semester_number,

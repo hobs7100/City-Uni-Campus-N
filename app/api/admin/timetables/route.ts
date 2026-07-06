@@ -37,7 +37,7 @@ export async function GET() {
      join classes cl on cl.id = tt.class_id
      join departments d on d.id = tt.department_id
      join semesters s on s.id = tt.semester_id
-     order by tt.created_at desc`
+     order by tt.updated_at desc`
   );
   return NextResponse.json({ timetables });
 }
