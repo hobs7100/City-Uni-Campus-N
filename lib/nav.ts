@@ -20,6 +20,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Timetables", href: "/dashboard/admin/timetables" },
     { label: "Teacher Attendance", href: "/dashboard/admin/attendance" },
     { label: "Billing", href: "/dashboard/admin/billing" },
+    { label: "Exams & Results", href: "/dashboard/admin/results" },
   ],
   hod: [
     { label: "Overview", href: "/dashboard/hod" },
