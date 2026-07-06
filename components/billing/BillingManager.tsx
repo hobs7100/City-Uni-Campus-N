@@ -231,6 +231,7 @@ export default function BillingManager() {
   const [deleteTarget, setDeleteTarget] = useState<Bill | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
+  const [combinedVisitingBill, setCombinedVisitingBill] = useState<{ items: VisitingBillPrintItem[]; billNumbersLabel: string; dateLabel: string } | null>(null);
 
   const [visDepartmentId, setVisDepartmentId] = useState("");
   const [visItems, setVisItems] = useState<VisitingPreviewItem[]>([]);
@@ -335,14 +336,13 @@ export default function BillingManager() {
         toast.error(data.error || "Something went wrong.");
         return;
       }
-      const generatedBills = data.bills as Bill[];
-      if (generatedBills.length === 1) {
-        toast.success("Bill generated.");
-        setSelectedBill(generatedBills[0]);
-        setTimeout(() => window.print(), 150);
-      } else {
-        toast.success(`${generatedBills.length} bills generated (one per teacher). Print each from Find Bill.`);
-      }
+      const generatedBills = data.bills as { bill_number: string; items: VisitingBillPrintItem[] }[];
+      const items = generatedBills.flatMap((b) => b.items);
+      const billNumbersLabel = generatedBills.map((b) => b.bill_number).join(", ");
+      toast.success(`${generatedBills.length} bill(s) generated.`);
+      setSelectedBill(null);
+      setCombinedVisitingBill({ items, billNumbersLabel, dateLabel: new Date().toLocaleDateString() });
+      setTimeout(() => window.print(), 150);
       loadVisPreview();
       setTab("find");
     } finally {
@@ -474,6 +474,7 @@ export default function BillingManager() {
   }
 
   function handlePrint(bill: Bill) {
+    setCombinedVisitingBill(null);
     setSelectedBill(bill);
     setTimeout(() => window.print(), 100);
   }
@@ -785,6 +786,17 @@ export default function BillingManager() {
               teacher_name: selectedBill.teacher_name,
               attendance: it.attendance ?? [],
             }))}
+          />
+        </div>
+      )}
+
+      {combinedVisitingBill && (
+        <div className="hidden print:block">
+          <VisitingBillDocument
+            docTitle="Visiting Faculty Bill"
+            billNumbersLabel={combinedVisitingBill.billNumbersLabel}
+            dateLabel={combinedVisitingBill.dateLabel}
+            items={combinedVisitingBill.items}
           />
         </div>
       )}
