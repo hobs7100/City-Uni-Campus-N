@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { GraduationCap, Lock, Mail } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { DataFetchLoader } from "@/components/ui/Loaders";
+import Logo from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,10 +41,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
-            <GraduationCap size={32} />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">City College</h1>
+          <Logo size="lg" className="mb-3" />
           <p className="text-sm text-slate-500 dark:text-slate-400">
             University Campus &mdash; Campus Management System
           </p>

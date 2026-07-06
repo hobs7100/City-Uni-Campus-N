@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem, NavIconName } from "@/lib/nav";
+import Logo from "@/components/Logo";
 
 const iconMap: Record<NavIconName, LucideIcon> = {
   LayoutDashboard,
@@ -64,18 +65,10 @@ export default function Sidebar({
       }}
     >
       <div
-        className="flex h-16 items-center gap-2.5 border-b px-5"
+        className="flex h-16 items-center gap-2.5 border-b px-4"
         style={{ borderColor: "var(--surface-border)" }}
       >
-        <div className="icon-tile grad-primary h-10 w-10 shrink-0">
-          <GraduationCap size={20} />
-        </div>
-        <div className="leading-tight">
-          <p className="text-sm font-bold text-slate-900 dark:text-white">City College</p>
-          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            University Campus
-          </p>
-        </div>
+        <Logo size="sm" />
       </div>
       <nav className="flex flex-col gap-1 p-3">
         {items.map((item) => {
