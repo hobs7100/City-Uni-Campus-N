@@ -33,3 +33,18 @@ body {
   background: rgba(100, 116, 139, 0.4);
   border-radius: 9999px;
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+  html, body {
+    background: #fff !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}

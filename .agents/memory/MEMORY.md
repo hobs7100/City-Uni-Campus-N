@@ -1,2 +1,3 @@
 - [Partial unique index for "one active X per Y"](partial-unique-active-status.md) — DB pattern for enforcing single-active-record constraints, paired with app-level pre-check for clean error messages.
 - [Combined-lecture clash exemption pattern](combined-lecture-clash-exemption.md) — exempt "same physical lecture in two places" by matching a shared row id, not a boolean flag.
+- [Auto-provision vs. reject for combined-entity validation](auto-provision-combined-catalog.md) — when a user action logically implies a missing prerequisite record, create it instead of blocking with an error.

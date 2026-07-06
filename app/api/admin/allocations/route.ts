@@ -89,18 +89,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "All selected classes must have an active semester." }, { status: 400 });
   }
 
+  const primaryCatalog = await queryOne(
+    `select 1 from semester_courses where semester_id = $1 and course_id = $2`,
+    [d.semester_id, d.course_id]
+  );
+  if (!primaryCatalog) {
+    return NextResponse.json(
+      { error: "The selected course is not part of the curriculum for the selected class/semester." },
+      { status: 400 }
+    );
+  }
+
   const catalogRows = await query<{ semester_id: string }>(
     `select semester_id from semester_courses where semester_id = any($1::uuid[]) and course_id = $2`,
     [allSemesterIds, d.course_id]
   );
   const coveredSemesterIds = new Set(catalogRows.map((r) => r.semester_id));
-  const missing = allSemesterIds.filter((id) => !coveredSemesterIds.has(id));
-  if (missing.length > 0) {
-    return NextResponse.json(
-      { error: "The selected course is not part of the curriculum for one or more of the selected classes/semesters." },
-      { status: 400 }
-    );
-  }
+  const semesterIdsNeedingCatalogEntry = allSemesterIds.filter((id) => !coveredSemesterIds.has(id));
 
   const teacher = await queryOne<{ id: string; department_id: string }>(
     `select id, department_id from teachers where id = $1 and deleted_at is null`,
@@ -128,6 +133,13 @@ export async function POST(request: NextRequest) {
       [d.course_id, d.teacher_id, d.allocation_type, d.rate, d.is_combined]
     );
     const allocation = allocationResult.rows[0];
+
+    for (const semesterId of semesterIdsNeedingCatalogEntry) {
+      await client.query(
+        `insert into semester_courses (semester_id, course_id) values ($1, $2) on conflict (semester_id, course_id) do nothing`,
+        [semesterId, d.course_id]
+      );
+    }
 
     for (const semesterId of allSemesterIds) {
       await client.query(

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, Loader2, Lock, Play, X } from "lucide-react";
+import { BookOpen, Calendar, Loader2, Lock, Pencil, Play, Plus, X } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Modal from "@/components/ui/Modal";
 
 interface ClassOption {
   id: string;
@@ -34,6 +35,7 @@ interface SemesterCourse {
 interface Semester {
   id: string;
   class_id: string;
+  department_id: string;
   class_name: string;
   session: string;
   department_name: string;
@@ -73,6 +75,15 @@ export default function SemestersPage() {
   const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
   const [closing, setClosing] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editSemester, setEditSemester] = useState<Semester | null>(null);
+  const [editTermType, setEditTermType] = useState<"Fall" | "Spring">("Fall");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [addCourseId, setAddCourseId] = useState("");
+  const [addingCourse, setAddingCourse] = useState(false);
+  const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,6 +136,16 @@ export default function SemestersPage() {
   );
   const courseOptions = availableCourses.map((c) => ({ value: c.id, label: `${c.code} — ${c.title} (${c.credit_hours} Cr)` }));
   const selectedCoursesDetail = availableCourses.filter((c) => selectedCourseIds.includes(c.id));
+
+  const editCourseOptions = useMemo(() => {
+    if (!editSemester) return [];
+    const existingIds = new Set(editSemester.courses.map((c) => c.id));
+    return courses
+      .filter((c) => c.department_id === editSemester.department_id)
+      .filter((c) => !existingIds.has(c.id))
+      .filter((c) => c.status !== "blocked")
+      .map((c) => ({ value: c.id, label: `${c.code} — ${c.title} (${c.credit_hours} Cr)` }));
+  }, [courses, editSemester]);
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +221,84 @@ export default function SemestersPage() {
       load();
     } finally {
       setClosing(false);
+    }
+  }
+
+  function openEdit(s: Semester) {
+    setEditSemester(s);
+    setEditTermType(s.term_type);
+    setEditStartDate(s.start_date ? s.start_date.slice(0, 10) : "");
+    setAddCourseId("");
+    setEditModalOpen(true);
+  }
+
+  async function refreshEditSemester(id: string) {
+    const res = await fetch("/api/admin/semesters");
+    const data = await res.json();
+    if (res.ok) {
+      setSemesters(data.semesters);
+      const found = data.semesters.find((s: Semester) => s.id === id);
+      if (found) setEditSemester(found);
+    }
+  }
+
+  async function handleSaveDetails() {
+    if (!editSemester) return;
+    setSavingDetails(true);
+    try {
+      const res = await fetch(`/api/admin/semesters/${editSemester.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ term_type: editTermType, start_date: editStartDate }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Something went wrong.");
+        return;
+      }
+      toast.success("Semester details updated.");
+      await refreshEditSemester(editSemester.id);
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
+  async function handleAddCourseToSemester() {
+    if (!editSemester || !addCourseId) return;
+    setAddingCourse(true);
+    try {
+      const res = await fetch(`/api/admin/semesters/${editSemester.id}/courses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id: addCourseId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Something went wrong.");
+        return;
+      }
+      toast.success("Course added to curriculum.");
+      setAddCourseId("");
+      await refreshEditSemester(editSemester.id);
+    } finally {
+      setAddingCourse(false);
+    }
+  }
+
+  async function handleRemoveCourseFromSemester(courseId: string) {
+    if (!editSemester) return;
+    setRemovingCourseId(courseId);
+    try {
+      const res = await fetch(`/api/admin/semesters/${editSemester.id}/courses/${courseId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Something went wrong.");
+        return;
+      }
+      toast.success("Course removed from curriculum.");
+      await refreshEditSemester(editSemester.id);
+    } finally {
+      setRemovingCourseId(null);
     }
   }
 
@@ -430,11 +529,12 @@ export default function SemestersPage() {
                 <th className="px-4 py-3">Closed</th>
                 <th className="px-4 py-3">Courses</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Edit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {semesters.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No semesters found.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No semesters found.</td></tr>
               ) : (
                 semesters.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -446,6 +546,17 @@ export default function SemestersPage() {
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.close_date ? new Date(s.close_date).toLocaleDateString() : "-"}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.courses.length}</td>
                     <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(s)}
+                        disabled={s.status === "closed"}
+                        title={s.status === "closed" ? "Closed semesters cannot be edited" : "Edit semester"}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -463,6 +574,109 @@ export default function SemestersPage() {
         onConfirm={handleClose}
         onCancel={() => setConfirmClose(false)}
       />
+
+      <Modal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title={editSemester ? `Edit Semester — ${editSemester.class_name} (${editSemester.session})` : "Edit Semester"}
+        widthClass="max-w-2xl"
+      >
+        {editSemester && (
+          <div className="space-y-6">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Semester Details</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Term Type</label>
+                  <SearchableSelect
+                    options={termOptions}
+                    value={termOptions.find((t) => t.value === editTermType)}
+                    onChange={(opt) => setEditTermType((opt as { value: string }).value as "Fall" | "Spring")}
+                    isClearable={false}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Start Date</label>
+                  <input
+                    type="date"
+                    value={editStartDate}
+                    onChange={(e) => setEditStartDate(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  disabled={savingDetails}
+                  onClick={handleSaveDetails}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {savingDetails ? "Saving..." : "Save Details"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Curriculum Courses</p>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableSelect
+                    options={editCourseOptions}
+                    value={null}
+                    onChange={(opt) => setAddCourseId(opt ? (opt as SelectOption).value : "")}
+                    placeholder="Search by course name or code to add..."
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={!addCourseId || addingCourse}
+                  onClick={handleAddCourseToSemester}
+                  className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  <Plus size={15} /> {addingCourse ? "Adding..." : "Add"}
+                </button>
+              </div>
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2">Code</th>
+                      <th className="px-3 py-2">Title</th>
+                      <th className="px-3 py-2">Credit Hours</th>
+                      <th className="px-3 py-2 text-right">Remove</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {editSemester.courses.length === 0 ? (
+                      <tr><td colSpan={4} className="px-3 py-4 text-center text-slate-400">No courses in this semester yet.</td></tr>
+                    ) : (
+                      editSemester.courses.map((c) => (
+                        <tr key={c.id}>
+                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{c.code}</td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.title}</td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.credit_hours}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              disabled={removingCourseId === c.id}
+                              onClick={() => handleRemoveCourseFromSemester(c.id)}
+                              className="text-red-500 hover:text-red-600 disabled:opacity-50"
+                            >
+                              <X size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">A course already allocated to a teacher in this semester cannot be removed.</p>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
