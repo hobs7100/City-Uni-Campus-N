@@ -13,7 +13,6 @@ import {
   GraduationCap,
   Save,
   User,
-  X,
 } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
@@ -92,11 +91,13 @@ interface StudentAttendanceRow {
   student_id: string;
   name: string;
   roll_no: string | null;
+  class_name: string;
+  session: string;
   presents: number;
   absents: number;
   leaves: number;
   percentage: number | null;
-  status: "ok" | "warning" | "struck-off" | "no-data";
+  status: "ok" | "warning" | "low" | "no-data";
 }
 
 interface Notification {
@@ -159,17 +160,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [markClassId, setMarkClassId] = useState("");
   const [markDate, setMarkDate] = useState(todayStr());
   const [rosterRows, setRosterRows] = useState<RosterRow[]>([]);
-  const [semesterInfo, setSemesterInfo] = useState<Record<string, unknown> | null>(null);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterSaving, setRosterSaving] = useState(false);
   const [isCombinedRoster, setIsCombinedRoster] = useState(false);
 
-  const [studentsClassId, setStudentsClassId] = useState("");
+  const [studentsAllocId, setStudentsAllocId] = useState("");
   const [studentReportRows, setStudentReportRows] = useState<StudentAttendanceRow[]>([]);
   const [studentReportLoading, setStudentReportLoading] = useState(false);
-  const [studentReportSemester, setStudentReportSemester] = useState<{ semester_number: number; term_type: string } | null>(null);
-
-  const [viewAttendanceAlloc, setViewAttendanceAlloc] = useState<{ allocation_id: string; course_title: string; class_name: string; course_id: string } | null>(null);
+  const [studentReportCourse, setStudentReportCourse] = useState<{ course_title: string; is_combined: boolean } | null>(null);
 
   const [reportRows, setReportRows] = useState<AttendanceReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
@@ -231,39 +229,36 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   }, []);
 
   const loadRoster = useCallback(async () => {
-    if (!markClassId || !markDate) {
+    if (!markAllocationId || !markDate) {
       setRosterRows([]);
-      setSemesterInfo(null);
       return;
     }
     setRosterLoading(true);
     try {
-      const params = new URLSearchParams({ class_id: markClassId, date: markDate });
+      const params = new URLSearchParams({ allocation_id: markAllocationId, date: markDate });
       const res = await fetch(`/api/teacher/student-attendance/roster?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Could not load roster.");
         setRosterRows([]);
-        setSemesterInfo(null);
         return;
       }
-      setSemesterInfo(data.semester);
       setRosterRows(data.rows);
       setIsCombinedRoster(data.is_combined);
     } finally {
       setRosterLoading(false);
     }
-  }, [markClassId, markDate]);
+  }, [markAllocationId, markDate]);
 
   const loadStudentReport = useCallback(async () => {
-    if (!studentsClassId) {
+    if (!studentsAllocId) {
       setStudentReportRows([]);
-      setStudentReportSemester(null);
+      setStudentReportCourse(null);
       return;
     }
     setStudentReportLoading(true);
     try {
-      const params = new URLSearchParams({ class_id: studentsClassId });
+      const params = new URLSearchParams({ allocation_id: studentsAllocId });
       const res = await fetch(`/api/teacher/student-attendance/report?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) {
@@ -272,11 +267,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         return;
       }
       setStudentReportRows(data.rows);
-      setStudentReportSemester(data.semester);
+      setStudentReportCourse(data.allocation ?? null);
     } finally {
       setStudentReportLoading(false);
     }
-  }, [studentsClassId]);
+  }, [studentsAllocId]);
 
   const loadAttendanceReport = useCallback(async () => {
     setReportLoading(true);
@@ -339,14 +334,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   }
 
   async function handleSaveRoster() {
-    if (!semesterInfo) return;
+    if (!markAllocationId) return;
     setRosterSaving(true);
     try {
       const res = await fetch("/api/teacher/student-attendance/roster", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          semester_id: semesterInfo.id,
+          allocation_id: markAllocationId,
           attendance_date: markDate,
           rows: rosterRows.map((r) => ({
             student_id: r.student_id,
@@ -565,13 +560,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         <td className="px-4 py-3">
                           <button
                             onClick={() => {
-                              setViewAttendanceAlloc({
-                                allocation_id: c.allocation_id,
-                                course_title: c.course_title,
-                                class_name: `${c.class_name} (${c.session})`,
-                                course_id: c.course_id,
-                              });
-                              setTab("report");
+                              setStudentsAllocId(c.allocation_id);
+                              setTab("students");
                             }}
                             className="flex items-center gap-1 rounded-md bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/40"
                           >
@@ -744,7 +734,6 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   const course = active.find((c) => c.allocation_id === allocId);
                   setMarkClassId(course ? course.class_id : "");
                   setRosterRows([]);
-                  setSemesterInfo(null);
                 }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
@@ -789,7 +778,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {rosterLoading ? (
                   <TableLoader colSpan={5} />
-                ) : !markClassId ? (
+                ) : !markAllocationId ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
                       Select a course above to load students.
@@ -878,32 +867,28 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           <div className="mb-4 card-3d p-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
-                Class
+                Course
               </label>
               <select
-                value={studentsClassId}
-                onChange={(e) => setStudentsClassId(e.target.value)}
-                className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                value={studentsAllocId}
+                onChange={(e) => setStudentsAllocId(e.target.value)}
+                className="w-full max-w-lg rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                <option value="">Select a class</option>
-                {Array.from(
-                  new Map(
-                    active.map((c) => [c.class_id, c])
-                  ).values()
-                ).map((c) => (
-                  <option key={c.class_id} value={c.class_id}>
-                    {c.class_name} ({c.session})
+                <option value="">Select a course to view student attendance</option>
+                {active.map((c) => (
+                  <option key={c.allocation_id} value={c.allocation_id}>
+                    {c.course_title} — {c.class_name} ({c.session}){c.is_combined ? " [Combined]" : ""}
                   </option>
                 ))}
               </select>
             </div>
+            {studentReportCourse && studentsAllocId && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Attendance for <strong>{studentReportCourse.course_title}</strong>
+                {studentReportCourse.is_combined && " — Combined lecture (all classes merged)"}
+              </p>
+            )}
           </div>
-
-          {studentReportSemester && (
-            <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-              Showing attendance for active Semester {studentReportSemester.semester_number} — {studentReportSemester.term_type}
-            </p>
-          )}
 
           <div className="overflow-hidden card-3d">
             <table className="w-full border-collapse text-left text-sm">
@@ -911,6 +896,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 <tr>
                   <th className="px-4 py-3">Student</th>
                   <th className="px-4 py-3">Roll No</th>
+                  <th className="px-4 py-3">Class</th>
                   <th className="px-4 py-3">Present</th>
                   <th className="px-4 py-3">Absent</th>
                   <th className="px-4 py-3">Leave</th>
@@ -920,17 +906,17 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {studentReportLoading ? (
-                  <TableLoader colSpan={7} />
-                ) : !studentsClassId ? (
+                  <TableLoader colSpan={8} />
+                ) : !studentsAllocId ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                      Select a class above.
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                      Select a course above to view student attendance.
                     </td>
                   </tr>
                 ) : studentReportRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                      No students found.
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                      No students found for this course.
                     </td>
                   </tr>
                 ) : (
@@ -938,6 +924,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     <tr key={r.student_id}>
                       <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{r.name}</td>
                       <td className="px-4 py-3 text-slate-500">{r.roll_no || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{r.class_name} ({r.session})</td>
                       <td className="px-4 py-3 text-emerald-600 font-semibold">{r.presents}</td>
                       <td className="px-4 py-3 text-red-500 font-semibold">{r.absents}</td>
                       <td className="px-4 py-3 text-amber-500 font-semibold">{r.leaves}</td>
@@ -951,7 +938,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         {r.status === "warning" && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Warning</span>
                         )}
-                        {r.status === "struck-off" && (
+                        {r.status === "low" && (
                           <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">Low</span>
                         )}
                         {r.status === "no-data" && (
@@ -969,20 +956,6 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
       {tab === "report" && (
         <div>
-          {viewAttendanceAlloc && (
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 dark:border-sky-800 dark:bg-sky-900/20">
-              <Eye size={16} className="text-sky-600 dark:text-sky-400" />
-              <span className="flex-1 text-sm text-sky-800 dark:text-sky-200">
-                Showing attendance for <strong>{viewAttendanceAlloc.course_title}</strong> — {viewAttendanceAlloc.class_name}
-              </span>
-              <button
-                onClick={() => setViewAttendanceAlloc(null)}
-                className="rounded-md p-1 text-sky-500 hover:bg-sky-100 dark:hover:bg-sky-900/40"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
           <div className="mb-4 flex flex-wrap items-end gap-3 card-3d p-4 print:hidden">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
