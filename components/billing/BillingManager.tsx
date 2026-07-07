@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Banknote, FileDown, Trash2, Wallet } from "lucide-react";
+import { Banknote, CheckCircle2, FileDown, Trash2, Wallet } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { formatDateOnly } from "@/lib/format";
@@ -50,6 +50,13 @@ interface VisitingBillPrintItem {
   attendance: AttendanceRow[];
 }
 
+interface ClassOption {
+  id: string;
+  class_name: string;
+  session: string;
+  department_id: string;
+}
+
 interface Bill {
   id: string;
   bill_number: string;
@@ -61,6 +68,9 @@ interface Bill {
   period_to: string | null;
   total_amount: string;
   status: "unpaid" | "paid";
+  paid_at: string | null;
+  payment_mode: "bank_transfer" | "cheque" | null;
+  cheque_number: string | null;
   created_at: string;
   items: BillItem[];
 }
@@ -260,16 +270,22 @@ export default function BillingManager() {
   const [tab, setTab] = useState<"find" | "visiting" | "permanent">("find");
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
 
+  const [findSubTab, setFindSubTab] = useState<"unpaid" | "paid">("unpaid");
   const [filterDepartmentId, setFilterDepartmentId] = useState("");
+  const [filterSession, setFilterSession] = useState("");
+  const [filterClassId, setFilterClassId] = useState("");
   const [filterTeacherId, setFilterTeacherId] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterType, setFilterType] = useState("");
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Bill | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
+
+  const [rowPaymentMode, setRowPaymentMode] = useState<Record<string, "bank_transfer" | "cheque" | "">>({});
+  const [rowChequeNumber, setRowChequeNumber] = useState<Record<string, string>>({});
+  const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [combinedVisitingBill, setCombinedVisitingBill] = useState<{
     items: VisitingBillPrintItem[];
     billNumbersLabel: string;
@@ -294,37 +310,45 @@ export default function BillingManager() {
   const [permGenerating, setPermGenerating] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetch("/api/admin/departments"), fetch("/api/admin/teachers")]).then(
-      async ([dRes, tRes]) => {
-        const dData = await dRes.json();
-        const tData = await tRes.json();
-        if (dRes.ok)
-          setDepartments(
-            dData.departments.map((d: { id: string; name: string }) => ({
-              value: d.id,
-              label: d.name,
-            })),
-          );
-        if (tRes.ok) setTeachers(tData.teachers);
-      },
-    );
+    Promise.all([
+      fetch("/api/admin/departments"),
+      fetch("/api/admin/teachers"),
+      fetch("/api/admin/classes"),
+    ]).then(async ([dRes, tRes, cRes]) => {
+      const dData = await dRes.json();
+      const tData = await tRes.json();
+      const cData = await cRes.json();
+      if (dRes.ok)
+        setDepartments(
+          dData.departments.map((d: { id: string; name: string }) => ({
+            value: d.id,
+            label: d.name,
+          })),
+        );
+      if (tRes.ok) setTeachers(tData.teachers);
+      if (cRes.ok) setClasses(cData.classes ?? []);
+    });
   }, []);
 
   const loadBills = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set("status", findSubTab);
       if (filterDepartmentId) params.set("department_id", filterDepartmentId);
       if (filterTeacherId) params.set("teacher_id", filterTeacherId);
-      if (filterStatus) params.set("status", filterStatus);
-      if (filterType) params.set("bill_type", filterType);
+      if (filterClassId) params.set("class_id", filterClassId);
       const res = await fetch(`/api/admin/bills?${params.toString()}`);
       const data = await res.json();
-      if (res.ok) setBills(data.bills);
+      if (res.ok) {
+        setBills(data.bills);
+        setRowPaymentMode({});
+        setRowChequeNumber({});
+      }
     } finally {
       setLoading(false);
     }
-  }, [filterDepartmentId, filterTeacherId, filterStatus, filterType]);
+  }, [findSubTab, filterDepartmentId, filterTeacherId, filterClassId]);
 
   useEffect(() => {
     if (tab === "find") loadBills();
@@ -337,6 +361,35 @@ export default function BillingManager() {
         .map((t) => ({ value: t.id, label: `${t.name} (${t.type})` })),
     [teachers, filterDepartmentId],
   );
+
+  const availableSessions = useMemo(() => {
+    const filtered = filterDepartmentId
+      ? classes.filter((c) => c.department_id === filterDepartmentId)
+      : classes;
+    return [...new Set(filtered.map((c) => c.session))].sort();
+  }, [classes, filterDepartmentId]);
+
+  const availableClasses = useMemo(
+    () =>
+      classes.filter(
+        (c) =>
+          (!filterDepartmentId || c.department_id === filterDepartmentId) &&
+          (!filterSession || c.session === filterSession),
+      ),
+    [classes, filterDepartmentId, filterSession],
+  );
+
+  function handleFindDepartmentChange(v: string) {
+    setFilterDepartmentId(v);
+    setFilterSession("");
+    setFilterClassId("");
+    setFilterTeacherId("");
+  }
+
+  function handleFindSessionChange(v: string) {
+    setFilterSession(v);
+    setFilterClassId("");
+  }
 
   const permTeacherOptions = useMemo(
     () =>
@@ -509,19 +562,40 @@ export default function BillingManager() {
     }
   }
 
-  async function handleToggleStatus(bill: Bill) {
-    const res = await fetch(`/api/admin/bills/${bill.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: bill.status === "paid" ? "unpaid" : "paid" }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      toast.error(data.error || "Something went wrong.");
+  async function handleMarkPaid(bill: Bill) {
+    const mode = rowPaymentMode[bill.id] ?? "";
+    if (!mode) {
+      toast.error("Select a payment mode before marking as paid.");
       return;
     }
-    toast.success("Bill status updated.");
-    loadBills();
+    if (mode === "cheque") {
+      const cheque = (rowChequeNumber[bill.id] ?? "").trim();
+      if (!/^\d{6}$/.test(cheque)) {
+        toast.error("Enter the last 6 digits of the cheque number.");
+        return;
+      }
+    }
+    setMarkingPaid(bill.id);
+    try {
+      const res = await fetch(`/api/admin/bills/${bill.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "paid",
+          payment_mode: mode,
+          cheque_number: mode === "cheque" ? (rowChequeNumber[bill.id] ?? "").trim() : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Something went wrong.");
+        return;
+      }
+      toast.success("Bill marked as paid.");
+      loadBills();
+    } finally {
+      setMarkingPaid(null);
+    }
   }
 
   async function handleDelete() {
@@ -581,7 +655,27 @@ export default function BillingManager() {
 
       {tab === "find" && (
         <div className="print:hidden">
-          <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 sm:grid-cols-4">
+          {/* Sub-tabs */}
+          <div className="mb-4 flex gap-1 rounded-lg border border-slate-200 p-1 dark:border-slate-700 w-fit">
+            {(["unpaid", "paid"] as const).map((st) => (
+              <button
+                key={st}
+                onClick={() => setFindSubTab(st)}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+                  findSubTab === st
+                    ? st === "unpaid"
+                      ? "bg-amber-500 text-white"
+                      : "bg-emerald-600 text-white"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {st === "unpaid" ? "Unpaid" : "Paid"}
+              </button>
+            ))}
+          </div>
+
+          {/* Cascading filters */}
+          <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
                 Department
@@ -589,11 +683,38 @@ export default function BillingManager() {
               <SearchableSelect
                 options={departments}
                 value={departments.find((d) => d.value === filterDepartmentId) || null}
-                onChange={(opt) => {
-                  setFilterDepartmentId(opt ? (opt as SelectOption).value : "");
-                  setFilterTeacherId("");
-                }}
+                onChange={(opt) => handleFindDepartmentChange(opt ? (opt as SelectOption).value : "")}
                 placeholder="All departments"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Session
+              </label>
+              <select
+                value={filterSession}
+                onChange={(e) => handleFindSessionChange(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">All sessions</option>
+                {availableSessions.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Class
+              </label>
+              <SearchableSelect
+                options={availableClasses.map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` }))}
+                value={
+                  availableClasses
+                    .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` }))
+                    .find((o) => o.value === filterClassId) || null
+                }
+                onChange={(opt) => setFilterClassId(opt ? (opt as SelectOption).value : "")}
+                placeholder="All classes"
               />
             </div>
             <div>
@@ -607,103 +728,221 @@ export default function BillingManager() {
                 placeholder="All teachers"
               />
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
-                Status
-              </label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="">All</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="paid">Paid</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
-                Type
-              </label>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="">All</option>
-                <option value="visiting">Visiting</option>
-                <option value="permanent">Permanent</option>
-              </select>
-            </div>
           </div>
 
-          <div className="overflow-hidden card-3d card-hover">
+          {/* Bills table */}
+          <div className="overflow-x-auto card-3d card-hover">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-3">Bill #</th>
-                  <th className="px-4 py-3">Teacher</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Period</th>
-                  <th className="px-4 py-3">Amount (PKR)</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Bill #</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Bill Date</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Teacher</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Course</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Class / Session / Sem</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Type</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Period</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-right">Amount (PKR)</th>
+                  <th className="px-3 py-3 whitespace-nowrap">Status</th>
+                  {findSubTab === "unpaid" ? (
+                    <>
+                      <th className="px-3 py-3 whitespace-nowrap">Payment Mode</th>
+                      <th className="px-3 py-3 whitespace-nowrap">Cheque #</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-3 py-3 whitespace-nowrap">Payment Mode</th>
+                      <th className="px-3 py-3 whitespace-nowrap">Cheque #</th>
+                      <th className="px-3 py-3 whitespace-nowrap">Paid Date</th>
+                    </>
+                  )}
+                  <th className="px-3 py-3 whitespace-nowrap text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {loading ? (
-                  <TableLoader colSpan={7} />
+                  <TableLoader colSpan={findSubTab === "unpaid" ? 12 : 13} />
                 ) : bills.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                      No bills found.
+                    <td
+                      colSpan={findSubTab === "unpaid" ? 12 : 13}
+                      className="px-4 py-10 text-center text-slate-400"
+                    >
+                      No {findSubTab} bills found.
                     </td>
                   </tr>
                 ) : (
-                  bills.map((b) => (
-                    <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
-                        {b.bill_number}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {b.teacher_name}
-                        <div className="text-xs text-slate-400">{b.department_name}</div>
-                      </td>
-                      <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">
-                        {b.bill_type}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {b.billing_month || `${b.period_from} - ${b.period_to}`}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
-                        {Number(b.total_amount).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleToggleStatus(b)}
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${b.status === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"}`}
-                        >
-                          {b.status === "paid" ? "Paid" : "Unpaid"}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1.5">
-                          <button
-                            onClick={() => handlePrint(b)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                  bills.map((b) => {
+                    const courses = b.items
+                      .map((it) => it.course_code)
+                      .filter(Boolean)
+                      .join(", ");
+                    const classInfo = b.items
+                      .map((it) =>
+                        it.class_name
+                          ? `${it.class_name} ${it.session} Sem ${it.semester_number}`
+                          : null,
+                      )
+                      .filter(Boolean)
+                      .join(" / ");
+                    const mode = rowPaymentMode[b.id] ?? "";
+                    const cheque = rowChequeNumber[b.id] ?? "";
+                    const canMarkPaid = !!mode && (mode !== "cheque" || /^\d{6}$/.test(cheque.trim()));
+
+                    return (
+                      <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td className="px-3 py-3 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                          {b.bill_number}
+                        </td>
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                          {formatDateOnly(b.created_at)}
+                        </td>
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300">
+                          <div>{b.teacher_name}</div>
+                          <div className="text-xs text-slate-400">{b.department_name}</div>
+                        </td>
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 max-w-[140px]">
+                          <div className="truncate" title={courses}>{courses || "—"}</div>
+                        </td>
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 max-w-[180px]">
+                          <div className="truncate text-xs" title={classInfo}>{classInfo || "—"}</div>
+                        </td>
+                        <td className="px-3 py-3 capitalize text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                          {b.bill_type}
+                        </td>
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap text-xs">
+                          {b.billing_month || `${b.period_from ?? ""} – ${b.period_to ?? ""}`}
+                        </td>
+                        <td className="px-3 py-3 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap text-right">
+                          {Number(b.total_amount).toLocaleString()}
+                        </td>
+                        <td className="px-3 py-3">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${
+                              b.status === "paid"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                            }`}
                           >
-                            <FileDown size={16} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(b)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            {b.status === "paid" ? "Paid" : "Unpaid"}
+                          </span>
+                        </td>
+
+                        {findSubTab === "unpaid" ? (
+                          <>
+                            {/* Payment mode select */}
+                            <td className="px-3 py-3">
+                              <select
+                                value={mode}
+                                onChange={(e) =>
+                                  setRowPaymentMode((prev) => ({
+                                    ...prev,
+                                    [b.id]: e.target.value as "bank_transfer" | "cheque" | "",
+                                  }))
+                                }
+                                className="w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              >
+                                <option value="">— Select —</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="cheque">Cheque</option>
+                              </select>
+                            </td>
+                            {/* Cheque number input */}
+                            <td className="px-3 py-3">
+                              {mode === "cheque" ? (
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  value={cheque}
+                                  onChange={(e) =>
+                                    setRowChequeNumber((prev) => ({
+                                      ...prev,
+                                      [b.id]: e.target.value.replace(/\D/g, "").slice(0, 6),
+                                    }))
+                                  }
+                                  placeholder="Last 6 digits"
+                                  className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                />
+                              ) : (
+                                <span className="text-xs text-slate-400">—</span>
+                              )}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                              {b.payment_mode === "bank_transfer"
+                                ? "Bank Transfer"
+                                : b.payment_mode === "cheque"
+                                  ? "Cheque"
+                                  : "—"}
+                            </td>
+                            <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300">
+                              {b.cheque_number || "—"}
+                            </td>
+                            <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                              {b.paid_at ? formatDateOnly(b.paid_at) : "—"}
+                            </td>
+                          </>
+                        )}
+
+                        {/* Actions */}
+                        <td className="px-3 py-3">
+                          <div className="flex justify-end gap-1">
+                            {/* View PDF */}
+                            <div className="relative group">
+                              <button
+                                onClick={() => handlePrint(b)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                              >
+                                <FileDown size={15} />
+                              </button>
+                              <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                View Bill PDF
+                              </span>
+                            </div>
+
+                            {/* Mark Paid — only on Unpaid tab */}
+                            {findSubTab === "unpaid" && (
+                              <div className="relative group">
+                                <button
+                                  onClick={() => handleMarkPaid(b)}
+                                  disabled={!canMarkPaid || markingPaid === b.id}
+                                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                                    canMarkPaid
+                                      ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                                      : "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                  }`}
+                                >
+                                  {markingPaid === b.id ? (
+                                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+                                  ) : (
+                                    <CheckCircle2 size={15} />
+                                  )}
+                                </button>
+                                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                  {canMarkPaid ? "Mark as Paid" : "Select payment mode first"}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Delete */}
+                            <div className="relative group">
+                              <button
+                                onClick={() => setDeleteTarget(b)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                              <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                Delete Bill
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

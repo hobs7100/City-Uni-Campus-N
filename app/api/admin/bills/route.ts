@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const teacherId = request.nextUrl.searchParams.get("teacher_id");
   const status = request.nextUrl.searchParams.get("status");
   const billType = request.nextUrl.searchParams.get("bill_type");
+  const classId = request.nextUrl.searchParams.get("class_id");
 
   const conditions: string[] = [];
   const values: unknown[] = [];
@@ -18,10 +19,17 @@ export async function GET(request: NextRequest) {
   if (teacherId) { conditions.push(`b.teacher_id = $${i++}`); values.push(teacherId); }
   if (status) { conditions.push(`b.status = $${i++}`); values.push(status); }
   if (billType) { conditions.push(`b.bill_type = $${i++}`); values.push(billType); }
+  if (classId) {
+    conditions.push(`exists (select 1 from bill_items bi2 where bi2.bill_id = b.id and bi2.class_id = $${i++})`);
+    values.push(classId);
+  }
   const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
 
   const bills = await query(
-    `select b.*, te.name as teacher_name, te.account_number, te.account_title, te.bank_name,
+    `select b.id, b.bill_number, b.bill_type, b.teacher_id, b.department_id,
+            b.billing_month, b.period_from, b.period_to, b.total_amount, b.status,
+            b.paid_at, b.payment_mode, b.cheque_number, b.created_at,
+            te.name as teacher_name, te.account_number, te.account_title, te.bank_name,
             d.name as department_name,
             coalesce(
               (select json_agg(json_build_object(
