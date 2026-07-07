@@ -15,13 +15,18 @@ export async function GET(_request: NextRequest) {
   if (departmentIds.length === 0) {
     return NextResponse.json({
       departments: [],
-      counters: { total_classes: 0, total_students: 0, active: 0, left: 0, dropped: 0, freezed: 0, struck_off: 0 },
+      counters: {
+        total_classes: 0, teachers_count: 0, active_semesters: 0,
+        total_students: 0, active: 0, left: 0, dropped: 0, freezed: 0, struck_off: 0,
+      },
       classes: [],
     });
   }
 
   const counters = await query<{
     total_classes: string;
+    teachers_count: string;
+    active_semesters: string;
     total_students: string;
     active: string;
     left: string;
@@ -31,11 +36,14 @@ export async function GET(_request: NextRequest) {
   }>(
     `select
        (select count(*) from classes where department_id = any($1::uuid[])) as total_classes,
+       (select count(*) from teachers te where te.department_id = any($1::uuid[]) and te.deleted_at is null) as teachers_count,
+       (select count(*) from semesters s join classes cl on cl.id = s.class_id
+        where cl.department_id = any($1::uuid[]) and s.status = 'active') as active_semesters,
        count(*) as total_students,
-       count(*) filter (where st.status = 'active') as active,
-       count(*) filter (where st.status = 'left') as left,
-       count(*) filter (where st.status = 'dropped') as dropped,
-       count(*) filter (where st.status = 'freezed') as freezed,
+       count(*) filter (where st.status = 'active')    as active,
+       count(*) filter (where st.status = 'left')      as left,
+       count(*) filter (where st.status = 'dropped')   as dropped,
+       count(*) filter (where st.status = 'freezed')   as freezed,
        count(*) filter (where st.status = 'struck_off') as struck_off
      from students st
      where st.department_id = any($1::uuid[]) and st.deleted_at is null`,
@@ -44,7 +52,7 @@ export async function GET(_request: NextRequest) {
 
   const classes = await query(
     `select cl.id, cl.class_name, cl.session, aff.university_name,
-            count(st.id) filter (where st.deleted_at is null) as total_students,
+            count(st.id) filter (where st.deleted_at is null)                          as total_students,
             count(st.id) filter (where st.deleted_at is null and st.status = 'active') as active_students,
             count(st.id) filter (where st.deleted_at is null and st.status = 'struck_off') as struck_off
      from classes cl
