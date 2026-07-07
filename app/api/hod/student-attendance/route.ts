@@ -69,11 +69,15 @@ export async function GET(request: NextRequest) {
     // 2) Overall attendance per semester (admin/coordinator-marked via student_attendance_records)
     const overallRows = await query<{
       semester_id: string;
+      semester_number: string;
+      term_type: string;
+      sem_status: string;
       presents: string;
       absents: string;
       leaves: string;
     }>(
       `select sem.id as semester_id,
+              sem.semester_number, sem.term_type, sem.status as sem_status,
               count(*) filter (where sar.status = 'present') as presents,
               count(*) filter (where sar.status = 'absent')  as absents,
               count(*) filter (where sar.status = 'leave')   as leaves
@@ -83,16 +87,25 @@ export async function GET(request: NextRequest) {
        left join student_attendance_records sar
          on sar.semester_id = sem.id and sar.student_id = $1
        where st.id = $1
-       group by sem.id`,
+       group by sem.id, sem.semester_number, sem.term_type, sem.status`,
       [studentId]
     );
 
-    // Build overall map
-    const overallMap = new Map<string, { presents: number; absents: number; leaves: number; percentage: number | null }>();
+    // Build overall map (includes semester metadata as fallback for semesters with no course allocations)
+    const overallMap = new Map<string, {
+      semester_number: number; term_type: string; sem_status: string;
+      presents: number; absents: number; leaves: number; percentage: number | null;
+    }>();
     for (const r of overallRows) {
       const p = Number(r.presents), a = Number(r.absents), l = Number(r.leaves);
       const total = p + a;
-      overallMap.set(r.semester_id, { presents: p, absents: a, leaves: l, percentage: total > 0 ? Math.round((p / total) * 100) : null });
+      overallMap.set(r.semester_id, {
+        semester_number: Number(r.semester_number),
+        term_type: r.term_type,
+        sem_status: r.sem_status,
+        presents: p, absents: a, leaves: l,
+        percentage: total > 0 ? Math.round((p / total) * 100) : null,
+      });
     }
 
     // Group course rows by semester
@@ -124,8 +137,17 @@ export async function GET(request: NextRequest) {
     // Also ensure semesters with only overall records appear
     const allSemIds = new Set([...semMap.keys(), ...overallMap.keys()]);
     const semesters = Array.from(allSemIds).map((sid) => {
-      const entry = semMap.get(sid) ?? { semester_id: sid, semester_number: 0, term_type: "", sem_status: "", courses: [] };
-      const overall = overallMap.get(sid) ?? { presents: 0, absents: 0, leaves: 0, percentage: null };
+      const ov = overallMap.get(sid);
+      const entry = semMap.get(sid) ?? {
+        semester_id: sid,
+        semester_number: ov?.semester_number ?? 0,
+        term_type: ov?.term_type ?? "",
+        sem_status: ov?.sem_status ?? "",
+        courses: [],
+      };
+      const overall = ov
+        ? { presents: ov.presents, absents: ov.absents, leaves: ov.leaves, percentage: ov.percentage }
+        : { presents: 0, absents: 0, leaves: 0, percentage: null };
       return { ...entry, overall };
     }).sort((a, b) => a.semester_number - b.semester_number);
 
