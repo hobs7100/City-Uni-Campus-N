@@ -13,7 +13,9 @@ function createPool() {
   return new Pool({
     connectionString,
     ssl: { rejectUnauthorized: false },
-    max: 10,
+    max: 3,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
   });
 }
 
