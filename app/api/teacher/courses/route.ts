@@ -50,11 +50,11 @@ export async function GET(_request: NextRequest) {
       unpaid_bills: string;
     }>(
       `select allocation_id,
-              count(*) as total_lectures,
-              count(*) filter (where bill_item_id is null) as unbilled_lectures,
-              count(*) filter (where bill_item_id is not null and bi_status = 'unpaid') as unpaid_bills
+              coalesce(sum(lecture_count), 0)                                              as total_lectures,
+              coalesce(sum(lecture_count) filter (where bill_item_id is null), 0)          as unbilled_lectures,
+              count(*)          filter (where bill_item_id is not null and bi_status = 'unpaid') as unpaid_bills
        from (
-         select ar.allocation_id, ar.bill_item_id, b.status as bi_status
+         select ar.allocation_id, ar.lecture_count, ar.bill_item_id, b.status as bi_status
          from attendance_records ar
          left join bill_items bi on bi.id = ar.bill_item_id
          left join bills b on b.id = bi.bill_id

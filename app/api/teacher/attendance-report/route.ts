@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   const from = request.nextUrl.searchParams.get("from");
   const to = request.nextUrl.searchParams.get("to");
   const courseId = request.nextUrl.searchParams.get("course_id");
+  const classId = request.nextUrl.searchParams.get("class_id");
 
   const conditions: string[] = [`a.teacher_id = $1`];
   const values: unknown[] = [session!.userId];
@@ -16,6 +17,12 @@ export async function GET(request: NextRequest) {
   if (from) { conditions.push(`ar.attendance_date >= $${i++}`); values.push(from); }
   if (to) { conditions.push(`ar.attendance_date <= $${i++}`); values.push(to); }
   if (courseId) { conditions.push(`c.id = $${i++}`); values.push(courseId); }
+  if (classId) {
+    conditions.push(
+      `exists (select 1 from allocation_semesters als_f join semesters s_f on s_f.id = als_f.semester_id where als_f.allocation_id = a.id and s_f.class_id = $${i++})`
+    );
+    values.push(classId);
+  }
 
   const records = await query(
     `select ar.id, ar.attendance_date, ar.lecture_count, ar.late_minutes, ar.status, ar.remarks,
@@ -36,13 +43,5 @@ export async function GET(request: NextRequest) {
     values
   );
 
-  const courses = await query(
-    `select distinct c.id, c.code, c.title
-     from allocations a join courses c on c.id = a.course_id
-     where a.teacher_id = $1
-     order by c.title`,
-    [session!.userId]
-  );
-
-  return NextResponse.json({ records, courses });
+  return NextResponse.json({ records });
 }

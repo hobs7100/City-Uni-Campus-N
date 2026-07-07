@@ -174,8 +174,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [reportLoading, setReportLoading] = useState(false);
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
+  const [reportCourseId, setReportCourseId] = useState("");
+  const [reportClassId, setReportClassId] = useState("");
   const [reportCourseFilter, setReportCourseFilter] = useState<{
-    course_id: string;
     label: string;
   } | null>(null);
 
@@ -284,14 +285,15 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const params = new URLSearchParams();
       if (reportFrom) params.set("from", reportFrom);
       if (reportTo) params.set("to", reportTo);
-      if (reportCourseFilter) params.set("course_id", reportCourseFilter.course_id);
+      if (reportCourseId) params.set("course_id", reportCourseId);
+      if (reportClassId) params.set("class_id", reportClassId);
       const res = await fetch(`/api/teacher/attendance-report?${params.toString()}`);
       const data = await res.json();
       if (res.ok) setReportRows(data.records);
     } finally {
       setReportLoading(false);
     }
-  }, [reportFrom, reportTo, reportCourseFilter]);
+  }, [reportFrom, reportTo, reportCourseId, reportClassId]);
 
   const loadNotifications = useCallback(async () => {
     setNotifLoading(true);
@@ -436,6 +438,24 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     [active],
   );
 
+  const reportCourseOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return [...active, ...inactive].filter((c) => {
+      if (seen.has(c.course_id)) return false;
+      seen.add(c.course_id);
+      return true;
+    });
+  }, [active, inactive]);
+
+  const reportClassOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return [...active, ...inactive].filter((c) => {
+      if (seen.has(c.class_id)) return false;
+      seen.add(c.class_id);
+      return true;
+    });
+  }, [active, inactive]);
+
   function cellFor(dayId: string, periodId: string) {
     return timetableDetail?.cells.find((c) => c.day_id === dayId && c.period_id === periodId);
   }
@@ -566,8 +586,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         <td className="px-4 py-3">
                           <button
                             onClick={() => {
+                              setReportCourseId(c.course_id);
+                              setReportClassId(c.class_id);
                               setReportCourseFilter({
-                                course_id: c.course_id,
                                 label: `${c.course_title} — ${c.class_name} (${c.session})`,
                               });
                               setTab("report");
@@ -982,6 +1003,46 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             </div>
           )}
           <div className="mb-4 flex flex-wrap items-end gap-3 card-3d p-4 print:hidden">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Course
+              </label>
+              <select
+                value={reportCourseId}
+                onChange={(e) => {
+                  setReportCourseId(e.target.value);
+                  setReportCourseFilter(null);
+                }}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">All Courses</option>
+                {reportCourseOptions.map((c) => (
+                  <option key={c.course_id} value={c.course_id}>
+                    {c.course_title} ({c.course_code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Class
+              </label>
+              <select
+                value={reportClassId}
+                onChange={(e) => {
+                  setReportClassId(e.target.value);
+                  setReportCourseFilter(null);
+                }}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">All Classes</option>
+                {reportClassOptions.map((c) => (
+                  <option key={c.class_id} value={c.class_id}>
+                    {c.class_name} ({c.session})
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
                 From
