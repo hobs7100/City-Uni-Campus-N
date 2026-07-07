@@ -8,6 +8,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { TableLoader } from "@/components/ui/Loaders";
+import { useUserRole } from "@/lib/roleContext";
 
 interface ClassRow {
   id: string;
@@ -48,6 +49,7 @@ const emptyForm = {
 };
 
 export default function ClassesPage() {
+  const readOnly = useUserRole() === "finance_manager";
   const [items, setItems] = useState<ClassRow[]>([]);
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [affiliations, setAffiliations] = useState<SelectOption[]>([]);
@@ -165,12 +167,14 @@ export default function ClassesPage() {
             Manage classes, sessions, and semester structure
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={18} /> Add Class
-        </button>
+        {!readOnly && (
+          <button
+            onClick={openCreate}
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            <Plus size={18} /> Add Class
+          </button>
+        )}
       </div>
 
       <div className="overflow-hidden card-3d card-hover">
@@ -217,20 +221,22 @@ export default function ClassesPage() {
                     <StatusBadge status={c.status} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(c)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(c)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    {!readOnly && (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(c)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(c)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))

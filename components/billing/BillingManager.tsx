@@ -7,6 +7,7 @@ import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader } from "@/components/ui/Loaders";
+import { useUserRole } from "@/lib/roleContext";
 
 interface TeacherOption {
   id: string;
@@ -267,6 +268,7 @@ const allocTypeLabel: Record<string, string> = {
 };
 
 export default function BillingManager() {
+  const readOnly = useUserRole() === "finance_manager";
   const [tab, setTab] = useState<"find" | "visiting" | "permanent">("find");
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
@@ -636,9 +638,11 @@ export default function BillingManager() {
           {(
             [
               { key: "find", label: "Find Bill" },
-              { key: "visiting", label: "Visiting Faculty Bill" },
-              { key: "permanent", label: "Permanent Faculty Bill" },
-            ] as const
+              ...(!readOnly ? [
+                { key: "visiting", label: "Visiting Faculty Bill" },
+                { key: "permanent", label: "Permanent Faculty Bill" },
+              ] : []),
+            ] as { key: "find" | "visiting" | "permanent"; label: string }[]
           ).map(({ key, label }) => (
             <button
               key={key}

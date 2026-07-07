@@ -8,6 +8,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { TableLoader } from "@/components/ui/Loaders";
+import { useUserRole } from "@/lib/roleContext";
 
 interface Department {
   id: string;
@@ -33,6 +34,7 @@ const statusOptions = [
 ];
 
 export default function DepartmentsPage() {
+  const readOnly = useUserRole() === "finance_manager";
   const [items, setItems] = useState<Department[]>([]);
   const [hods, setHods] = useState<SelectOption[]>([]);
   const [coordinators, setCoordinators] = useState<SelectOption[]>([]);
@@ -147,12 +149,14 @@ export default function DepartmentsPage() {
             Assign HoDs and Coordinators to departments
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={18} /> Add Faculty
-        </button>
+        {!readOnly && (
+          <button
+            onClick={openCreate}
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            <Plus size={18} /> Add Faculty
+          </button>
+        )}
       </div>
 
       <div className="overflow-hidden card-3d card-hover">
@@ -191,20 +195,22 @@ export default function DepartmentsPage() {
                     <StatusBadge status={d.status} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(d)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(d)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    {!readOnly && (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(d)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(d)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))

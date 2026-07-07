@@ -7,6 +7,7 @@ import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect
 import Modal from "@/components/ui/Modal";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader } from "@/components/ui/Loaders";
+import { useUserRole } from "@/lib/roleContext";
 
 interface Lecture {
   allocation_id: string;
@@ -73,7 +74,8 @@ function todayStr() {
 }
 
 export default function AttendanceManager() {
-  const [tab, setTab] = useState<"mark" | "report">("mark");
+  const readOnly = useUserRole() === "finance_manager";
+  const [tab, setTab] = useState<"mark" | "report">(readOnly ? "report" : "mark");
   const [departments, setDepartments] = useState<SelectOption[]>([]);
 
   const [date, setDate] = useState(todayStr());
@@ -281,12 +283,14 @@ export default function AttendanceManager() {
           </p>
         </div>
         <div className="flex gap-2 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
-          <button
-            onClick={() => setTab("mark")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "mark" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
-          >
-            Mark Attendance
-          </button>
+          {!readOnly && (
+            <button
+              onClick={() => setTab("mark")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "mark" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
+            >
+              Mark Attendance
+            </button>
+          )}
           <button
             onClick={() => setTab("report")}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "report" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}

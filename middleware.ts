@@ -8,7 +8,7 @@ const roleHomePage: Record<UserRole, string> = {
   coordinator: "/dashboard/coordinator",
   teacher: "/dashboard/teacher",
   student: "/dashboard/student",
-  finance_manager: "/dashboard/finance_manager",
+  finance_manager: "/dashboard/admin",
 };
 
 const rolePrefixAccess: Record<UserRole, string[]> = {
@@ -17,7 +17,7 @@ const rolePrefixAccess: Record<UserRole, string[]> = {
   coordinator: ["/dashboard/coordinator"],
   teacher: ["/dashboard/teacher"],
   student: ["/dashboard/student"],
-  finance_manager: ["/dashboard/finance_manager"],
+  finance_manager: ["/dashboard/admin"],
 };
 
 export async function middleware(request: NextRequest) {

@@ -11,6 +11,7 @@ import PrintableTimetable, {
   PrintableTimetableData,
 } from "@/components/timetable/PrintableTimetable";
 import { TableLoader } from "@/components/ui/Loaders";
+import { useUserRole } from "@/lib/roleContext";
 
 interface ClassOption {
   id: string;
@@ -51,6 +52,7 @@ const shiftOptions = [
 ];
 
 export default function TimetablesPage() {
+  const readOnly = useUserRole() === "finance_manager";
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [semesters, setSemesters] = useState<SemesterRow[]>([]);
@@ -275,12 +277,14 @@ export default function TimetablesPage() {
           >
             <FileDown size={18} /> Export Selected ({visibleSelectedIds.length})
           </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            <Plus size={18} /> New Timetable
-          </button>
+          {!readOnly && (
+            <button
+              onClick={openCreate}
+              className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              <Plus size={18} /> New Timetable
+            </button>
+          )}
         </div>
       </div>
 
@@ -382,12 +386,14 @@ export default function TimetablesPage() {
                       >
                         <CalendarDays size={16} />
                       </Link>
-                      <button
-                        onClick={() => setDeleteTarget(tt)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {!readOnly && (
+                        <button
+                          onClick={() => setDeleteTarget(tt)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

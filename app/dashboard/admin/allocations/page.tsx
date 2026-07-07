@@ -7,6 +7,7 @@ import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { TableLoader } from "@/components/ui/Loaders";
+import { useUserRole } from "@/lib/roleContext";
 
 interface ClassOption {
   id: string;
@@ -75,6 +76,7 @@ const allocationTypeLabel: Record<string, string> = {
 };
 
 export default function AllocationsPage() {
+  const readOnly = useUserRole() === "finance_manager";
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
@@ -422,12 +424,14 @@ export default function AllocationsPage() {
           >
             <FileDown size={18} /> Export PDF
           </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            <Plus size={18} /> New Allocation
-          </button>
+          {!readOnly && (
+            <button
+              onClick={openCreate}
+              className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              <Plus size={18} /> New Allocation
+            </button>
+          )}
         </div>
       </div>
 
@@ -549,20 +553,22 @@ export default function AllocationsPage() {
                     {a.rate}
                   </td>
                   <td className="px-4 py-3 print:hidden">
-                    <div className="flex justify-end gap-1.5">
-                      <button
-                        onClick={() => openEdit(a)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(a)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    {!readOnly && (
+                      <div className="flex justify-end gap-1.5">
+                        <button
+                          onClick={() => openEdit(a)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(a)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))
