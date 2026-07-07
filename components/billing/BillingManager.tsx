@@ -336,8 +336,9 @@ export default function BillingManager() {
       const params = new URLSearchParams();
       params.set("status", findSubTab);
       if (filterDepartmentId) params.set("department_id", filterDepartmentId);
-      if (filterTeacherId) params.set("teacher_id", filterTeacherId);
-      if (filterClassId) params.set("class_id", filterClassId);
+      if (filterSession)      params.set("session", filterSession);
+      if (filterClassId)      params.set("class_id", filterClassId);
+      if (filterTeacherId)    params.set("teacher_id", filterTeacherId);
       const res = await fetch(`/api/admin/bills?${params.toString()}`);
       const data = await res.json();
       if (res.ok) {
@@ -348,7 +349,7 @@ export default function BillingManager() {
     } finally {
       setLoading(false);
     }
-  }, [findSubTab, filterDepartmentId, filterTeacherId, filterClassId]);
+  }, [findSubTab, filterDepartmentId, filterSession, filterClassId, filterTeacherId]);
 
   useEffect(() => {
     if (tab === "find") loadBills();

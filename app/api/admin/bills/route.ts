@@ -7,21 +7,30 @@ export async function GET(request: NextRequest) {
   if (response) return response;
 
   const departmentId = request.nextUrl.searchParams.get("department_id");
-  const teacherId = request.nextUrl.searchParams.get("teacher_id");
-  const status = request.nextUrl.searchParams.get("status");
-  const billType = request.nextUrl.searchParams.get("bill_type");
-  const classId = request.nextUrl.searchParams.get("class_id");
+  const teacherId    = request.nextUrl.searchParams.get("teacher_id");
+  const status       = request.nextUrl.searchParams.get("status");
+  const billType     = request.nextUrl.searchParams.get("bill_type");
+  const classId      = request.nextUrl.searchParams.get("class_id");
+  const session      = request.nextUrl.searchParams.get("session");
 
   const conditions: string[] = [];
   const values: unknown[] = [];
   let i = 1;
   if (departmentId) { conditions.push(`b.department_id = $${i++}`); values.push(departmentId); }
-  if (teacherId) { conditions.push(`b.teacher_id = $${i++}`); values.push(teacherId); }
-  if (status) { conditions.push(`b.status = $${i++}`); values.push(status); }
-  if (billType) { conditions.push(`b.bill_type = $${i++}`); values.push(billType); }
+  if (teacherId)    { conditions.push(`b.teacher_id = $${i++}`); values.push(teacherId); }
+  if (status)       { conditions.push(`b.status = $${i++}`); values.push(status); }
+  if (billType)     { conditions.push(`b.bill_type = $${i++}`); values.push(billType); }
   if (classId) {
     conditions.push(`exists (select 1 from bill_items bi2 where bi2.bill_id = b.id and bi2.class_id = $${i++})`);
     values.push(classId);
+  }
+  // Session filter: match bills that have at least one item in a class with this session.
+  // Only applied when a specific class is NOT already selected (class filter is more specific).
+  if (session && !classId) {
+    conditions.push(
+      `exists (select 1 from bill_items bi2 join classes cl2 on cl2.id = bi2.class_id where bi2.bill_id = b.id and cl2.session = $${i++})`
+    );
+    values.push(session);
   }
   const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
 
