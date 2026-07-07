@@ -376,7 +376,7 @@ export default function FmDashboardManager({ initialTab }: { initialTab?: string
       {tab === "overview" && (
         <div className="space-y-5">
           {loading && !overviewStats ? (
-            <DataFetchLoader message="Loading overview…" />
+            <DataFetchLoader label="Loading overview…" />
           ) : overviewStats ? (
             <>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
