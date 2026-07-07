@@ -11,7 +11,7 @@ const schema = z.object({
 });
 
 export async function GET() {
-  const { response } = await requireRole("admin", "hod", "coordinator");
+  const { response } = await requireRole("admin", "hod", "coordinator", "finance_manager");
   if (response) return response;
 
   const departments = await query(`

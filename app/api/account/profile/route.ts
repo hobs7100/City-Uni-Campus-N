@@ -5,7 +5,7 @@ import { queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
 export async function GET() {
-  const { session, response } = await requireRole("admin", "hod", "coordinator");
+  const { session, response } = await requireRole("admin", "hod", "coordinator", "finance_manager");
   if (response) return response;
 
   const user = await queryOne(
@@ -22,7 +22,7 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest) {
-  const { session, response } = await requireRole("admin", "hod", "coordinator");
+  const { session, response } = await requireRole("admin", "hod", "coordinator", "finance_manager");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

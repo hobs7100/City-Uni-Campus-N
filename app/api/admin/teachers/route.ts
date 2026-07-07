@@ -20,7 +20,7 @@ const schema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireRole("admin", "hod", "coordinator");
+  const { response } = await requireRole("admin", "hod", "coordinator", "finance_manager");
   if (response) return response;
 
   const departmentId = request.nextUrl.searchParams.get("department_id");

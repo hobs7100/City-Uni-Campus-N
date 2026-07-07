@@ -10,7 +10,7 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requireRole("admin", "coordinator", "finance_manager");
   if (response) return response;
   const { id } = await params;
 

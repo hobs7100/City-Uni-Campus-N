@@ -80,6 +80,17 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Profile", href: "/dashboard/teacher?tab=profile", icon: "UserCog" },
   ],
   student: [{ label: "Overview", href: "/dashboard/student", icon: "LayoutDashboard" }],
+  finance_manager: [
+    { label: "Overview", href: "/dashboard/finance_manager?tab=overview", icon: "LayoutDashboard" },
+    { label: "Classes", href: "/dashboard/finance_manager?tab=classes", icon: "School" },
+    { label: "Faculties", href: "/dashboard/finance_manager?tab=faculties", icon: "Building2" },
+    { label: "Teachers", href: "/dashboard/finance_manager?tab=teachers", icon: "UsersRound" },
+    { label: "Allocations", href: "/dashboard/finance_manager?tab=allocations", icon: "ClipboardList" },
+    { label: "Timetables", href: "/dashboard/finance_manager?tab=timetables", icon: "CalendarClock" },
+    { label: "Teacher Attendance", href: "/dashboard/finance_manager?tab=attendance", icon: "UserCheck" },
+    { label: "Billing", href: "/dashboard/finance_manager?tab=billing", icon: "Wallet" },
+    { label: "Profile", href: "/dashboard/finance_manager?tab=profile", icon: "UserCog" },
+  ],
 };
 
 export const roleLabels: Record<UserRole, string> = {
@@ -88,4 +99,5 @@ export const roleLabels: Record<UserRole, string> = {
   coordinator: "Coordinator",
   teacher: "Teacher",
   student: "Student",
+  finance_manager: "Finance Manager",
 };

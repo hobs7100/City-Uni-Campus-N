@@ -19,7 +19,7 @@ const schema = z
   });
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireRole("admin", "hod", "coordinator", "teacher");
+  const { response } = await requireRole("admin", "hod", "coordinator", "teacher", "finance_manager");
   if (response) return response;
 
   const teacherId = request.nextUrl.searchParams.get("teacher_id");

@@ -13,7 +13,7 @@ const schema = z.object({
 });
 
 export async function GET() {
-  const { response } = await requireRole("admin");
+  const { response } = await requireRole("admin", "finance_manager");
   if (response) return response;
   const affiliations = await query(`select * from affiliations order by created_at desc`);
   return NextResponse.json({ affiliations });
