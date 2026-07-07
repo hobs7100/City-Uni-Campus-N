@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Save,
   User,
+  X,
 } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
@@ -173,6 +174,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [reportLoading, setReportLoading] = useState(false);
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
+  const [reportCourseFilter, setReportCourseFilter] = useState<{
+    course_id: string;
+    label: string;
+  } | null>(null);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
@@ -279,13 +284,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const params = new URLSearchParams();
       if (reportFrom) params.set("from", reportFrom);
       if (reportTo) params.set("to", reportTo);
+      if (reportCourseFilter) params.set("course_id", reportCourseFilter.course_id);
       const res = await fetch(`/api/teacher/attendance-report?${params.toString()}`);
       const data = await res.json();
       if (res.ok) setReportRows(data.records);
     } finally {
       setReportLoading(false);
     }
-  }, [reportFrom, reportTo]);
+  }, [reportFrom, reportTo, reportCourseFilter]);
 
   const loadNotifications = useCallback(async () => {
     setNotifLoading(true);
@@ -560,8 +566,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         <td className="px-4 py-3">
                           <button
                             onClick={() => {
-                              setStudentsAllocId(c.allocation_id);
-                              setTab("students");
+                              setReportCourseFilter({
+                                course_id: c.course_id,
+                                label: `${c.course_title} — ${c.class_name} (${c.session})`,
+                              });
+                              setTab("report");
                             }}
                             className="flex items-center gap-1 rounded-md bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/40"
                           >
@@ -956,6 +965,22 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
       {tab === "report" && (
         <div>
+          {reportCourseFilter && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 dark:border-sky-800 dark:bg-sky-900/20">
+              <Eye size={16} className="shrink-0 text-sky-600 dark:text-sky-400" />
+              <span className="flex-1 text-sm text-sky-800 dark:text-sky-200">
+                Showing your attendance records for{" "}
+                <strong>{reportCourseFilter.label}</strong>
+              </span>
+              <button
+                onClick={() => setReportCourseFilter(null)}
+                className="rounded-md p-1 text-sky-500 hover:bg-sky-100 dark:hover:bg-sky-900/40"
+                title="Clear filter"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
           <div className="mb-4 flex flex-wrap items-end gap-3 card-3d p-4 print:hidden">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
