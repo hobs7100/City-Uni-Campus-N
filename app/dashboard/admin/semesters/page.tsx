@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, FileDown, Lock, Pencil, Play, Plus, Upload, X } from "lucide-react";
+import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, Upload, X } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -88,6 +88,11 @@ export default function SemestersPage() {
   const [addingCourse, setAddingCourse] = useState(false);
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
   const [outlineUploading, setOutlineUploading] = useState<Record<string, boolean>>({});
+  const [newSemesterId, setNewSemesterId] = useState<string | null>(null);
+  const [newSemesterCourses, setNewSemesterCourses] = useState<
+    { id: string; code: string; title: string; outline_url: string | null }[]
+  >([]);
+  const [postStartUploading, setPostStartUploading] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -191,6 +196,10 @@ export default function SemestersPage() {
         return;
       }
       toast.success("Semester started successfully.");
+      setNewSemesterId(data.semester.id);
+      setNewSemesterCourses(
+        selectedCoursesDetail.map((c) => ({ id: c.id, code: c.code, title: c.title, outline_url: null }))
+      );
       setDepartmentId("");
       setSession("");
       setClassId("");
@@ -360,6 +369,27 @@ export default function SemestersPage() {
     }
   }
 
+  async function handlePostStartOutlineUpload(courseId: string, file: File) {
+    if (!newSemesterId) return;
+    setPostStartUploading((prev) => ({ ...prev, [courseId]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(
+        `/api/admin/semesters/${newSemesterId}/courses/${courseId}/outline`,
+        { method: "POST", body: fd }
+      );
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Upload failed."); return; }
+      setNewSemesterCourses((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, outline_url: data.url } : c))
+      );
+      toast.success("Outline uploaded.");
+    } finally {
+      setPostStartUploading((prev) => ({ ...prev, [courseId]: false }));
+    }
+  }
+
   async function handleOutlineDelete(courseId: string) {
     if (!editSemester) return;
     const res = await fetch(
@@ -414,6 +444,85 @@ export default function SemestersPage() {
           <DataFetchLoader />
         </div>
       ) : tab === "start" ? (
+        newSemesterId ? (
+          <div className="max-w-2xl card-3d p-6 space-y-5">
+            <div className="flex items-center gap-3 rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+              <CheckCircle size={20} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div>
+                <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                  Semester started successfully!
+                </p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                  Optionally upload course outline files below, then click Done.
+                </p>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">Code</th>
+                    <th className="px-3 py-2">Title</th>
+                    <th className="px-3 py-2">Outline</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {newSemesterCourses.map((c) => (
+                    <tr key={c.id}>
+                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{c.code}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.title}</td>
+                      <td className="px-3 py-2">
+                        {c.outline_url ? (
+                          <a
+                            href={c.outline_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                          >
+                            <FileDown size={12} /> View
+                          </a>
+                        ) : (
+                          <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
+                            {postStartUploading[c.id] ? (
+                              "Uploading…"
+                            ) : (
+                              <>
+                                <Upload size={12} /> Upload
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handlePostStartOutlineUpload(c.id, f);
+                                    e.target.value = "";
+                                  }}
+                                />
+                              </>
+                            )}
+                          </label>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewSemesterId(null);
+                  setNewSemesterCourses([]);
+                  setPostStartUploading({});
+                }}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleStart} className="max-w-2xl space-y-4 card-3d p-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -570,6 +679,7 @@ export default function SemestersPage() {
             </button>
           </div>
         </form>
+        )
       ) : tab === "close" ? (
         <div className="max-w-2xl space-y-4 card-3d p-6">
           <div className="grid grid-cols-2 gap-4">

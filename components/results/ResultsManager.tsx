@@ -194,6 +194,9 @@ export default function ResultsManager() {
   const [rosterRows, setRosterRows] = useState<RosterRow[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [instructorName, setInstructorName] = useState("");
+  const [exportExamType, setExportExamType] = useState<"MID" | "SEMESTER">("MID");
+  const [exportSheetActive, setExportSheetActive] = useState(false);
 
   const classesForUpload = useMemo(
     () => allClasses.filter((c) => !upDeptId || c.department_id === upDeptId),
@@ -234,6 +237,19 @@ export default function ResultsManager() {
     loadRoster();
   }, [loadRoster]);
 
+  useEffect(() => {
+    if (!upSemesterId || !upCourseId) { setInstructorName(""); return; }
+    fetch(`/api/admin/allocations?semester_id=${upSemesterId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const alloc = (d.allocations || []).find(
+          (a: { course_id: string; teacher_name: string }) => a.course_id === upCourseId,
+        );
+        setInstructorName(alloc?.teacher_name || "");
+      })
+      .catch(() => {});
+  }, [upSemesterId, upCourseId]);
+
   function updateRosterCell(
     studentId: string,
     field: "roll_no" | "mid" | "sessional" | "final" | "practical" | "status",
@@ -255,6 +271,13 @@ export default function ResultsManager() {
         return next;
       }),
     );
+  }
+
+  async function handleExportSheet() {
+    setExportSheetActive(true);
+    await new Promise((r) => setTimeout(r, 150));
+    window.print();
+    setExportSheetActive(false);
   }
 
   async function handleSaveRoster() {
@@ -387,6 +410,15 @@ export default function ResultsManager() {
         : tab === "dropped"
           ? "dropped"
           : "search";
+
+  const exportCls = allClasses.find((c) => c.id === upClassId);
+  const exportCourse = coursesForUploadSemester.find((c) => c.id === upCourseId);
+  const exportDept = departments.find((d) => d.value === upDeptId);
+  const exportHalfLen = Math.ceil(rosterRows.length / 2);
+  const exportLeftRows = rosterRows.slice(0, exportHalfLen);
+  const exportRightRows = rosterRows.slice(exportHalfLen);
+  const exportAppeared = rosterRows.filter((r) => r.mid > 0 || r.sessional > 0 || r.final > 0).length;
+  const exportAbsent = rosterRows.length - exportAppeared;
 
   return (
     <div>
@@ -679,6 +711,52 @@ export default function ResultsManager() {
           {rosterLoading ? (
             <DataFetchLoader />
           ) : upSemesterId && upCourseId ? (
+            <>
+              {exportSheetActive && (
+                <div className="hidden print:block">
+                  <div className="mb-5 border-b-2 border-slate-700 pb-4 text-center">
+                    <h1 className="text-base font-bold uppercase tracking-wide">
+                      City College of Science &amp; Commerce Multan
+                    </h1>
+                    <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-left text-[11px]">
+                      <div><span className="font-semibold">DEPARTMENT:</span> {exportDept?.label || "—"}</div>
+                      <div><span className="font-semibold">COURSE TITLE:</span> {exportCourse?.title || "—"}</div>
+                      <div><span className="font-semibold">CLASS:</span> {exportCls?.class_name || "—"}</div>
+                      <div><span className="font-semibold">COURSE CODE:</span> {exportCourse?.code || "—"}</div>
+                      <div><span className="font-semibold">SESSION:</span> {exportCls?.session || "—"}</div>
+                      <div><span className="font-semibold">CREDIT HOURS:</span> {exportCourse?.credit_hours ?? "—"}</div>
+                      <div><span className="font-semibold">DATE:</span> {new Date().toLocaleDateString("en-PK")}</div>
+                      <div><span className="font-semibold">INSTRUCTOR:</span> {instructorName || "—"}</div>
+                      <div><span className="font-semibold">EXAM:</span> {exportExamType}</div>
+                      <div><span className="font-semibold">CANDIDATES APPEARED:</span> {exportAppeared}</div>
+                      <div><span className="font-semibold">ABSENT:</span> {exportAbsent}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-6 text-[11px]">
+                    {[exportLeftRows, exportRightRows].filter((g) => g.length > 0).map((group, gi) => (
+                      <table key={gi} className="flex-1 border-collapse">
+                        <thead>
+                          <tr className="bg-slate-200">
+                            <th className="border border-slate-400 px-2 py-0.5 text-left">Roll No</th>
+                            <th className="border border-slate-400 px-2 py-0.5 text-left">Mid Marks</th>
+                            <th className="border border-slate-400 px-2 py-0.5 text-left">Sessional</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.map((r) => (
+                            <tr key={r.student_id}>
+                              <td className="border border-slate-300 px-2 py-0.5">{r.roll_no || "—"}</td>
+                              <td className="border border-slate-300 px-2 py-0.5">{r.mid}</td>
+                              <td className="border border-slate-300 px-2 py-0.5">{r.sessional}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className={exportSheetActive ? "print:hidden" : ""}>
             <div className="overflow-x-auto card-3d shadow-sm">
               <table className="w-full border-collapse text-sm">
                 <thead>
@@ -744,7 +822,24 @@ export default function ResultsManager() {
                 </tbody>
               </table>
               {rosterRows.length > 0 && (
-                <div className="flex justify-end border-t border-slate-200 p-3 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 p-3 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={exportExamType}
+                      onChange={(e) => setExportExamType(e.target.value as "MID" | "SEMESTER")}
+                      className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="MID">MID Exam</option>
+                      <option value="SEMESTER">Semester Exam</option>
+                    </select>
+                    <button
+                      onClick={handleExportSheet}
+                      disabled={exportSheetActive}
+                      className="flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                    >
+                      <FileDown size={16} /> Export Sheet
+                    </button>
+                  </div>
                   <button
                     onClick={handleSaveRoster}
                     disabled={saving}
@@ -755,6 +850,8 @@ export default function ResultsManager() {
                 </div>
               )}
             </div>
+              </div>
+            </>
           ) : (
             <p className="py-10 text-center text-sm text-slate-400">
               Select a department, class, semester and course to load the roster.
