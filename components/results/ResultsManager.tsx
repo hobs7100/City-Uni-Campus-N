@@ -228,6 +228,7 @@ export default function ResultsManager() {
       setRosterRows(
         (data.rows ?? []).map((r: RosterRow) => ({ ...r, total: r.mid + r.sessional + r.final })),
       );
+      setInstructorName(data.teacher_name || "");
     } finally {
       setRosterLoading(false);
     }
@@ -238,16 +239,7 @@ export default function ResultsManager() {
   }, [loadRoster]);
 
   useEffect(() => {
-    if (!upSemesterId || !upCourseId) { setInstructorName(""); return; }
-    fetch(`/api/admin/allocations?semester_id=${upSemesterId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const alloc = (d.allocations || []).find(
-          (a: { course_id: string; teacher_name: string }) => a.course_id === upCourseId,
-        );
-        setInstructorName(alloc?.teacher_name || "");
-      })
-      .catch(() => {});
+    if (!upSemesterId || !upCourseId) setInstructorName("");
   }, [upSemesterId, upCourseId]);
 
   function updateRosterCell(
@@ -274,10 +266,15 @@ export default function ResultsManager() {
   }
 
   async function handleExportSheet() {
+    const styleEl = document.createElement("style");
+    styleEl.id = "__export-sheet-portrait";
+    styleEl.textContent = "@page { size: A4 portrait !important; }";
+    document.head.appendChild(styleEl);
     setExportSheetActive(true);
     await new Promise((r) => setTimeout(r, 150));
     window.print();
     setExportSheetActive(false);
+    document.head.removeChild(styleEl);
   }
 
   async function handleSaveRoster() {
@@ -630,7 +627,7 @@ export default function ResultsManager() {
 
       {tab === "upload" && (
         <div>
-          <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="mb-4 flex flex-wrap items-end gap-3 print:hidden">
             <div className="w-56">
               <label className="mb-1 block text-xs font-medium text-slate-500">Department</label>
               <SearchableSelect
@@ -714,23 +711,26 @@ export default function ResultsManager() {
             <>
               {exportSheetActive && (
                 <div className="hidden print:block">
-                  <div className="mb-5 border-b-2 border-slate-700 pb-4 text-center">
-                    <h1 className="text-base font-bold uppercase tracking-wide">
-                      City College of Science &amp; Commerce Multan
-                    </h1>
-                    <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-left text-[11px]">
-                      <div><span className="font-semibold">DEPARTMENT:</span> {exportDept?.label || "—"}</div>
-                      <div><span className="font-semibold">COURSE TITLE:</span> {exportCourse?.title || "—"}</div>
-                      <div><span className="font-semibold">CLASS:</span> {exportCls?.class_name || "—"}</div>
-                      <div><span className="font-semibold">COURSE CODE:</span> {exportCourse?.code || "—"}</div>
-                      <div><span className="font-semibold">SESSION:</span> {exportCls?.session || "—"}</div>
-                      <div><span className="font-semibold">CREDIT HOURS:</span> {exportCourse?.credit_hours ?? "—"}</div>
-                      <div><span className="font-semibold">DATE:</span> {new Date().toLocaleDateString("en-PK")}</div>
-                      <div><span className="font-semibold">INSTRUCTOR:</span> {instructorName || "—"}</div>
-                      <div><span className="font-semibold">EXAM:</span> {exportExamType}</div>
-                      <div><span className="font-semibold">CANDIDATES APPEARED:</span> {exportAppeared}</div>
-                      <div><span className="font-semibold">ABSENT:</span> {exportAbsent}</div>
-                    </div>
+                  <div className="mb-4 border-b-4 border-indigo-600 pb-3 text-center">
+                    <h1 className="text-xl font-bold">CITY COLLEGE (UNIVERSITY CAMPUS)</h1>
+                    <h2 className="text-sm font-semibold text-indigo-700">Exam Result Sheet</h2>
+                    <p className="text-xs text-slate-600">
+                      {exportDept?.label || "—"} &nbsp;|&nbsp; {exportCls?.class_name || "—"} ({exportCls?.session || "—"})
+                    </p>
+                    <p className="text-xs text-slate-500">Generated: {new Date().toLocaleDateString()}</p>
+                  </div>
+                  <div className="mb-4 grid grid-cols-2 gap-x-8 gap-y-0.5 text-[11px]">
+                    <div><span className="font-semibold">DEPARTMENT:</span> {exportDept?.label || "—"}</div>
+                    <div><span className="font-semibold">COURSE TITLE:</span> {exportCourse?.title || "—"}</div>
+                    <div><span className="font-semibold">CLASS:</span> {exportCls?.class_name || "—"}</div>
+                    <div><span className="font-semibold">COURSE CODE:</span> {exportCourse?.code || "—"}</div>
+                    <div><span className="font-semibold">SESSION:</span> {exportCls?.session || "—"}</div>
+                    <div><span className="font-semibold">CREDIT HOURS:</span> {exportCourse?.credit_hours ?? "—"}</div>
+                    <div><span className="font-semibold">DATE:</span> {new Date().toLocaleDateString("en-PK")}</div>
+                    <div><span className="font-semibold">INSTRUCTOR:</span> {instructorName || "—"}</div>
+                    <div><span className="font-semibold">EXAM:</span> {exportExamType}</div>
+                    <div><span className="font-semibold">CANDIDATES APPEARED:</span> {exportAppeared}</div>
+                    <div><span className="font-semibold">ABSENT:</span> {exportAbsent}</div>
                   </div>
                   <div className="flex gap-6 text-[11px]">
                     {[exportLeftRows, exportRightRows].filter((g) => g.length > 0).map((group, gi) => (

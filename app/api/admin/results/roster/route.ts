@@ -28,6 +28,16 @@ export async function GET(request: NextRequest) {
   const course = await queryOne(`select * from courses where id = $1`, [courseId]);
   if (!course) return NextResponse.json({ error: "Course not found." }, { status: 404 });
 
+  const teacherRow = await queryOne<{ teacher_name: string }>(
+    `select t.name as teacher_name
+     from allocations a
+     join allocation_semesters als on als.allocation_id = a.id
+     join teachers t on t.id = a.teacher_id
+     where als.semester_id = $1 and a.course_id = $2
+     limit 1`,
+    [semesterId, courseId]
+  );
+
   const students = await query<Record<string, unknown>>(
     `select s.id as student_id, s.name, s.roll_no, s.status,
             r.mid, r.sessional, r.final, r.practical, r.total, r.status as result_status
@@ -51,7 +61,7 @@ export async function GET(request: NextRequest) {
     status: st.result_status ?? "pass",
   }));
 
-  return NextResponse.json({ semester, course, rows });
+  return NextResponse.json({ semester, course, rows, teacher_name: teacherRow?.teacher_name ?? null });
 }
 
 const rowSchema = z.object({
