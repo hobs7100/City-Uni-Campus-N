@@ -22,7 +22,17 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const response = NextResponse.next();
-  const session = await getIronSession<SessionData>(request, response, sessionOptions);
+
+  let session: SessionData & { isLoggedIn: boolean; role: UserRole };
+  try {
+    session = await getIronSession<SessionData>(request, response, sessionOptions) as SessionData & { isLoggedIn: boolean; role: UserRole };
+  } catch {
+    // Session decryption failed (e.g. missing/rotated SESSION_SECRET in production)
+    // Treat as unauthenticated
+    const loginUrl = new URL("/login", request.url);
+    if (pathname !== "/login") return NextResponse.redirect(loginUrl);
+    return response;
+  }
 
   const isDashboardRoute = pathname.startsWith("/dashboard");
   const isLoginRoute = pathname === "/login";

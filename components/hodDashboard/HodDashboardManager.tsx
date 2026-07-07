@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award, BookOpen, Building2, CalendarCheck, ClipboardCheck,
   FileDown, GraduationCap, LayoutDashboard, School, Search,
-  UsersRound, TrendingUp, User,
+  UsersRound, TrendingUp, User, UserCog,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -14,6 +14,8 @@ import { formatDateOnly } from "@/lib/format";
 import { PageLoader, DataFetchLoader } from "@/components/ui/Loaders";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import ProfilePasswordForm from "@/components/ProfilePasswordForm";
+import Logo from "@/components/Logo";
 import type { SingleValue } from "react-select";
 
 interface Department  { id: string; name: string }
@@ -53,6 +55,7 @@ const tabs = [
   { id: "classes",     label: "All Classes",         icon: School },
   { id: "attendance",  label: "Student Attendance",  icon: ClipboardCheck },
   { id: "results",     label: "Exam & Results",      icon: Award },
+  { id: "profile",     label: "Profile",             icon: UserCog },
 ] as const;
 type TabId = (typeof tabs)[number]["id"];
 
@@ -222,12 +225,15 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   return (
     <div>
       {/* ── header ───────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-col gap-2 print:hidden sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-            {departments.map((d) => d.name).join(", ")}
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Head of Department Dashboard</p>
+      <div className="mb-6 flex flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Logo size="sm" className="shrink-0" />
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+              {departments.map((d) => d.name).join(", ")}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Head of Department Dashboard</p>
+          </div>
         </div>
         <button
           onClick={() => window.print()}
@@ -614,6 +620,13 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══════════════════════ PROFILE TAB ══════════════════════════════ */}
+      {tab === "profile" && (
+        <div className="max-w-lg">
+          <ProfilePasswordForm />
         </div>
       )}
 
