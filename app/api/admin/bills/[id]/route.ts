@@ -25,16 +25,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { status, payment_mode, cheque_number } = parsed.data;
 
+  // Compute values in JS to avoid CASE WHEN enum-vs-text comparison issues in PostgreSQL.
+  const paidAt     = status === "paid" ? new Date().toISOString() : null;
+  const pMode      = status === "paid" ? (payment_mode  ?? null)  : null;
+  const chequeNum  = status === "paid" ? (cheque_number ?? null)  : null;
+
   const bill = await queryOne<{ teacher_id: string; bill_number: string; status: string }>(
     `update bills
-     set status = $1,
-         paid_at = case when $1 = 'paid' then now() else null end,
-         payment_mode = case when $1 = 'paid' then $2 else null end,
-         cheque_number = case when $1 = 'paid' then $3 else null end,
-         updated_at = now()
-     where id = $4
+     set status = $1, paid_at = $2, payment_mode = $3, cheque_number = $4, updated_at = now()
+     where id = $5
      returning *`,
-    [status, payment_mode ?? null, cheque_number ?? null, id]
+    [status, paidAt, pMode, chequeNum, id]
   );
 
   if (bill && status === "paid") {

@@ -592,7 +592,7 @@ export default function BillingManager() {
         return;
       }
       toast.success("Bill marked as paid.");
-      loadBills();
+      setFindSubTab("paid");
     } finally {
       setMarkingPaid(null);
     }
@@ -631,25 +631,22 @@ export default function BillingManager() {
             Generate and track visiting & permanent faculty bills
           </p>
         </div>
-        <div className="flex gap-2 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
-          <button
-            onClick={() => setTab("find")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "find" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
-          >
-            Find Bill
-          </button>
-          <button
-            onClick={() => setTab("visiting")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "visiting" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
-          >
-            Visiting Faculty Bill
-          </button>
-          <button
-            onClick={() => setTab("permanent")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "permanent" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
-          >
-            Permanent Faculty Bill
-          </button>
+        <div className="flex flex-wrap gap-1 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
+          {(
+            [
+              { key: "find", label: "Find Bill" },
+              { key: "visiting", label: "Visiting Faculty Bill" },
+              { key: "permanent", label: "Permanent Faculty Bill" },
+            ] as const
+          ).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium sm:text-sm ${tab === key ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -661,7 +658,7 @@ export default function BillingManager() {
               <button
                 key={st}
                 onClick={() => setFindSubTab(st)}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+                className={`rounded-md px-3 py-1 text-xs font-semibold capitalize transition-colors sm:px-4 sm:py-1.5 sm:text-sm ${
                   findSubTab === st
                     ? st === "unpaid"
                       ? "bg-amber-500 text-white"
@@ -732,31 +729,24 @@ export default function BillingManager() {
 
           {/* Bills table */}
           <div className="overflow-x-auto card-3d card-hover">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+            <table className="w-full min-w-[900px] border-collapse text-left text-xs sm:text-sm">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 sm:text-xs">
                 <tr>
-                  <th className="px-3 py-3 whitespace-nowrap">Bill #</th>
-                  <th className="px-3 py-3 whitespace-nowrap">Bill Date</th>
-                  <th className="px-3 py-3 whitespace-nowrap">Teacher</th>
-                  <th className="px-3 py-3 whitespace-nowrap">Course</th>
-                  <th className="px-3 py-3 whitespace-nowrap">Class / Session / Sem</th>
-                  <th className="px-3 py-3 whitespace-nowrap">Type</th>
-                  <th className="px-3 py-3 whitespace-nowrap">Period</th>
-                  <th className="px-3 py-3 whitespace-nowrap text-right">Amount (PKR)</th>
-                  <th className="px-3 py-3 whitespace-nowrap">Status</th>
-                  {findSubTab === "unpaid" ? (
-                    <>
-                      <th className="px-3 py-3 whitespace-nowrap">Payment Mode</th>
-                      <th className="px-3 py-3 whitespace-nowrap">Cheque #</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="px-3 py-3 whitespace-nowrap">Payment Mode</th>
-                      <th className="px-3 py-3 whitespace-nowrap">Cheque #</th>
-                      <th className="px-3 py-3 whitespace-nowrap">Paid Date</th>
-                    </>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Bill #</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Bill Date</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Teacher</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Course</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Class / Session / Sem</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Type</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Period</th>
+                  <th className="px-2 py-2 whitespace-nowrap text-right sm:px-3 sm:py-3">Amount (PKR)</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Status</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Payment Mode</th>
+                  <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Cheque #</th>
+                  {findSubTab === "paid" && (
+                    <th className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">Paid Date</th>
                   )}
-                  <th className="px-3 py-3 whitespace-nowrap text-right">Actions</th>
+                  <th className="px-2 py-2 whitespace-nowrap text-right sm:px-3 sm:py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -774,7 +764,7 @@ export default function BillingManager() {
                 ) : (
                   bills.map((b) => {
                     const courses = b.items
-                      .map((it) => it.course_code)
+                      .map((it) => it.course_title)
                       .filter(Boolean)
                       .join(", ");
                     const classInfo = b.items
@@ -791,34 +781,36 @@ export default function BillingManager() {
 
                     return (
                       <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="px-3 py-3 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                        <td className="px-2 py-2 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap sm:px-3 sm:py-3">
                           {b.bill_number}
                         </td>
-                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        <td className="px-2 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap sm:px-3 sm:py-3">
                           {formatDateOnly(b.created_at)}
                         </td>
-                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300">
-                          <div>{b.teacher_name}</div>
-                          <div className="text-xs text-slate-400">{b.department_name}</div>
+                        <td className="px-2 py-2 sm:px-3 sm:py-3">
+                          <div className="font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                            {b.teacher_name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 sm:text-xs">{b.department_name}</div>
                         </td>
-                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 max-w-[140px]">
+                        <td className="px-2 py-2 text-slate-600 dark:text-slate-300 sm:px-3 sm:py-3 max-w-[130px]">
                           <div className="truncate" title={courses}>{courses || "—"}</div>
                         </td>
-                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 max-w-[180px]">
-                          <div className="truncate text-xs" title={classInfo}>{classInfo || "—"}</div>
+                        <td className="px-2 py-2 text-slate-600 dark:text-slate-300 sm:px-3 sm:py-3 max-w-[160px]">
+                          <div className="truncate text-[10px] sm:text-xs" title={classInfo}>{classInfo || "—"}</div>
                         </td>
-                        <td className="px-3 py-3 capitalize text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        <td className="px-2 py-2 capitalize text-slate-600 dark:text-slate-300 whitespace-nowrap sm:px-3 sm:py-3">
                           {b.bill_type}
                         </td>
-                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap text-xs">
+                        <td className="px-2 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap text-[10px] sm:px-3 sm:py-3 sm:text-xs">
                           {b.billing_month || `${b.period_from ?? ""} – ${b.period_to ?? ""}`}
                         </td>
-                        <td className="px-3 py-3 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap text-right">
+                        <td className="px-2 py-2 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap text-right sm:px-3 sm:py-3">
                           {Number(b.total_amount).toLocaleString()}
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-2 py-2 sm:px-3 sm:py-3">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap sm:px-2.5 sm:py-1 sm:text-xs ${
                               b.status === "paid"
                                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
                                 : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
@@ -830,8 +822,7 @@ export default function BillingManager() {
 
                         {findSubTab === "unpaid" ? (
                           <>
-                            {/* Payment mode select */}
-                            <td className="px-3 py-3">
+                            <td className="px-2 py-2 sm:px-3 sm:py-3">
                               <select
                                 value={mode}
                                 onChange={(e) =>
@@ -840,15 +831,14 @@ export default function BillingManager() {
                                     [b.id]: e.target.value as "bank_transfer" | "cheque" | "",
                                   }))
                                 }
-                                className="w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                className="w-32 rounded-lg border border-slate-300 px-1.5 py-1 text-[10px] dark:border-slate-700 dark:bg-slate-800 dark:text-white sm:w-36 sm:px-2 sm:py-1.5 sm:text-xs"
                               >
                                 <option value="">— Select —</option>
                                 <option value="bank_transfer">Bank Transfer</option>
                                 <option value="cheque">Cheque</option>
                               </select>
                             </td>
-                            {/* Cheque number input */}
-                            <td className="px-3 py-3">
+                            <td className="px-2 py-2 sm:px-3 sm:py-3">
                               {mode === "cheque" ? (
                                 <input
                                   type="text"
@@ -860,64 +850,66 @@ export default function BillingManager() {
                                       [b.id]: e.target.value.replace(/\D/g, "").slice(0, 6),
                                     }))
                                   }
-                                  placeholder="Last 6 digits"
-                                  className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                  placeholder="6 digits"
+                                  className="w-24 rounded-lg border border-slate-300 px-1.5 py-1 text-[10px] dark:border-slate-700 dark:bg-slate-800 dark:text-white sm:w-28 sm:px-2 sm:py-1.5 sm:text-xs"
                                 />
                               ) : (
-                                <span className="text-xs text-slate-400">—</span>
+                                <span className="text-slate-400">—</span>
                               )}
                             </td>
                           </>
                         ) : (
                           <>
-                            <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            <td className="px-2 py-2 text-[10px] text-slate-600 dark:text-slate-300 whitespace-nowrap sm:px-3 sm:py-3 sm:text-xs">
                               {b.payment_mode === "bank_transfer"
                                 ? "Bank Transfer"
                                 : b.payment_mode === "cheque"
                                   ? "Cheque"
                                   : "—"}
                             </td>
-                            <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300">
+                            <td className="px-2 py-2 text-[10px] text-slate-600 dark:text-slate-300 sm:px-3 sm:py-3 sm:text-xs">
                               {b.cheque_number || "—"}
                             </td>
-                            <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            <td className="px-2 py-2 text-[10px] text-slate-600 dark:text-slate-300 whitespace-nowrap sm:px-3 sm:py-3 sm:text-xs">
                               {b.paid_at ? formatDateOnly(b.paid_at) : "—"}
                             </td>
                           </>
                         )}
 
                         {/* Actions */}
-                        <td className="px-3 py-3">
-                          <div className="flex justify-end gap-1">
-                            {/* View PDF */}
+                        <td className="px-2 py-2 sm:px-3 sm:py-3">
+                          <div className="flex justify-end gap-0.5 sm:gap-1">
                             <div className="relative group">
                               <button
                                 onClick={() => handlePrint(b)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 sm:h-8 sm:w-8"
                               >
-                                <FileDown size={15} />
+                                <FileDown size={13} className="sm:hidden" />
+                                <FileDown size={15} className="hidden sm:block" />
                               </button>
                               <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                 View Bill PDF
                               </span>
                             </div>
 
-                            {/* Mark Paid — only on Unpaid tab */}
                             {findSubTab === "unpaid" && (
                               <div className="relative group">
                                 <button
                                   onClick={() => handleMarkPaid(b)}
                                   disabled={!canMarkPaid || markingPaid === b.id}
-                                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                                  className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors sm:h-8 sm:w-8 ${
                                     canMarkPaid
                                       ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-                                      : "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                      : "cursor-not-allowed text-slate-300 dark:text-slate-600"
                                   }`}
                                 >
                                   {markingPaid === b.id ? (
-                                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent sm:h-3.5 sm:w-3.5" />
                                   ) : (
-                                    <CheckCircle2 size={15} />
+                                    <>
+                                      <CheckCircle2 size={13} className="sm:hidden" />
+                                      <CheckCircle2 size={15} className="hidden sm:block" />
+                                    </>
                                   )}
                                 </button>
                                 <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -926,13 +918,13 @@ export default function BillingManager() {
                               </div>
                             )}
 
-                            {/* Delete */}
                             <div className="relative group">
                               <button
                                 onClick={() => setDeleteTarget(b)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 sm:h-8 sm:w-8"
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={13} className="sm:hidden" />
+                                <Trash2 size={15} className="hidden sm:block" />
                               </button>
                               <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                 Delete Bill
