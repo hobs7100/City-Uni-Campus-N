@@ -24,7 +24,7 @@ interface ClassRow {
 
 const typeOptions = [
   { value: "ADP", label: "ADP" },
-  { value: "BS-Bridging", label: "BS-Bridging (4 Semesters)" },
+  { value: "BS-Bridging", label: "BS-Bridging" },
   { value: "BS", label: "BS" },
   { value: "DIT", label: "DIT" },
   { value: "LLB", label: "LLB" },

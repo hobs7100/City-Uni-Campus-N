@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Download, FileSpreadsheet, KeyRound, Pencil, Plus, Trash2, Upload, User } from "lucide-react";
+import { KeyRound, Pencil, Plus, Trash2, Upload, User } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -75,11 +75,6 @@ export default function StudentsPage() {
   const [uploading, setUploading] = useState(false);
   const [regenTarget, setRegenTarget] = useState<Student | null>(null);
   const [regenLoading, setRegenLoading] = useState(false);
-  const [bulkModalOpen, setBulkModalOpen] = useState(false);
-  const [bulkFile, setBulkFile] = useState<File | null>(null);
-  const [bulkUploading, setBulkUploading] = useState(false);
-  const [bulkResult, setBulkResult] = useState<{ created: number; failed: number; errors: string[] } | null>(null);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -249,22 +244,6 @@ export default function StudentsPage() {
     }
   }
 
-  async function handleBulkUpload() {
-    if (!bulkFile) return;
-    setBulkUploading(true);
-    setBulkResult(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", bulkFile);
-      const res = await fetch("/api/admin/students/bulk", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Bulk upload failed."); return; }
-      setBulkResult(data);
-      if (data.created > 0) load();
-    } finally {
-      setBulkUploading(false);
-    }
-  }
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -296,19 +275,6 @@ export default function StudentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a
-            href="/api/admin/students/sample"
-            download
-            className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <Download size={16} /> Sample Excel
-          </a>
-          <button
-            onClick={() => { setBulkModalOpen(true); setBulkResult(null); setBulkFile(null); }}
-            className="flex items-center gap-2 rounded-lg border border-emerald-600 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
-          >
-            <FileSpreadsheet size={16} /> Bulk Upload
-          </button>
           <button
             onClick={openCreate}
             className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
@@ -651,61 +617,6 @@ export default function StudentsPage() {
         onCancel={() => setRegenTarget(null)}
       />
 
-      <Modal
-        open={bulkModalOpen}
-        onClose={() => { setBulkModalOpen(false); setBulkResult(null); setBulkFile(null); }}
-        title="Bulk Upload Students"
-        widthClass="max-w-lg"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Upload an Excel (.xlsx) file. Download the{" "}
-            <a href="/api/admin/students/sample" download className="text-indigo-600 underline">
-              sample sheet
-            </a>{" "}
-            for the correct column format. Passwords are auto-generated and emailed to each student.
-          </p>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Select .xlsx File
-            </label>
-            <input
-              type="file"
-              accept=".xlsx"
-              onChange={(e) => { setBulkFile(e.target.files?.[0] || null); setBulkResult(null); }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
-          </div>
-          {bulkResult && (
-            <div className={`rounded-lg p-3 text-sm ${bulkResult.created > 0 ? "bg-emerald-50 dark:bg-emerald-500/10" : "bg-amber-50 dark:bg-amber-500/10"}`}>
-              <p className="font-semibold">Created: {bulkResult.created} | Failed: {bulkResult.failed}</p>
-              {bulkResult.errors.length > 0 && (
-                <ul className="mt-1 list-disc pl-4 text-xs text-red-600">
-                  {bulkResult.errors.slice(0, 10).map((e, i) => <li key={i}>{e}</li>)}
-                  {bulkResult.errors.length > 10 && <li>…and {bulkResult.errors.length - 10} more</li>}
-                </ul>
-              )}
-            </div>
-          )}
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => { setBulkModalOpen(false); setBulkResult(null); setBulkFile(null); }}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              onClick={handleBulkUpload}
-              disabled={!bulkFile || bulkUploading}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {bulkUploading ? "Uploading..." : "Upload & Create"}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }
