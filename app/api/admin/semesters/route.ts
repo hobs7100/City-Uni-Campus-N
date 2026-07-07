@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const semesters = await query(
     `select s.*, c.class_name, c.session, d.name as department_name,
             coalesce(
-              (select json_agg(json_build_object('id', co.id, 'code', co.code, 'title', co.title, 'credit_hours', co.credit_hours))
+              (select json_agg(json_build_object('id', co.id, 'code', co.code, 'title', co.title, 'credit_hours', co.credit_hours, 'outline_url', sc.course_outline_url, 'outline_public_id', sc.course_outline_public_id))
                from semester_courses sc join courses co on co.id = sc.course_id
                where sc.semester_id = s.id),
               '[]'

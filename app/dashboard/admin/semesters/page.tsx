@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, Lock, Pencil, Play, Plus, X } from "lucide-react";
+import { BookOpen, Calendar, FileDown, Lock, Pencil, Play, Plus, Upload, X } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -31,6 +31,8 @@ interface SemesterCourse {
   code: string;
   title: string;
   credit_hours: string;
+  outline_url: string | null;
+  outline_public_id: string | null;
 }
 
 interface Semester {
@@ -85,6 +87,7 @@ export default function SemestersPage() {
   const [addCourseId, setAddCourseId] = useState("");
   const [addingCourse, setAddingCourse] = useState(false);
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
+  const [outlineUploading, setOutlineUploading] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -327,6 +330,54 @@ export default function SemestersPage() {
     } finally {
       setRemovingCourseId(null);
     }
+  }
+
+  async function handleOutlineUpload(courseId: string, file: File) {
+    if (!editSemester) return;
+    setOutlineUploading((prev) => ({ ...prev, [courseId]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(
+        `/api/admin/semesters/${editSemester.id}/courses/${courseId}/outline`,
+        { method: "POST", body: fd }
+      );
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Upload failed."); return; }
+      setEditSemester((prev) =>
+        prev
+          ? {
+              ...prev,
+              courses: prev.courses.map((c) =>
+                c.id === courseId ? { ...c, outline_url: data.url, outline_public_id: "uploaded" } : c
+              ),
+            }
+          : null
+      );
+      toast.success("Course outline uploaded.");
+    } finally {
+      setOutlineUploading((prev) => ({ ...prev, [courseId]: false }));
+    }
+  }
+
+  async function handleOutlineDelete(courseId: string) {
+    if (!editSemester) return;
+    const res = await fetch(
+      `/api/admin/semesters/${editSemester.id}/courses/${courseId}/outline`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) { toast.error("Failed to remove outline."); return; }
+    setEditSemester((prev) =>
+      prev
+        ? {
+            ...prev,
+            courses: prev.courses.map((c) =>
+              c.id === courseId ? { ...c, outline_url: null, outline_public_id: null } : c
+            ),
+          }
+        : null
+    );
+    toast.success("Outline removed.");
   }
 
   return (
@@ -768,6 +819,7 @@ export default function SemestersPage() {
                       <th className="px-3 py-2">Code</th>
                       <th className="px-3 py-2">Title</th>
                       <th className="px-3 py-2">Credit Hours</th>
+                      <th className="px-3 py-2">Outline</th>
                       <th className="px-3 py-2 text-right">Remove</th>
                     </tr>
                   </thead>
@@ -789,6 +841,48 @@ export default function SemestersPage() {
                           </td>
                           <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                             {c.credit_hours}
+                          </td>
+                          <td className="px-3 py-2">
+                            {c.outline_url ? (
+                              <div className="flex items-center gap-1">
+                                <a
+                                  href={c.outline_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                                >
+                                  <FileDown size={12} /> View
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOutlineDelete(c.id)}
+                                  className="ml-1 text-red-400 hover:text-red-600"
+                                  title="Remove outline"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            ) : (
+                              <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
+                                {outlineUploading[c.id] ? (
+                                  "Uploading…"
+                                ) : (
+                                  <>
+                                    <Upload size={12} /> Upload
+                                    <input
+                                      type="file"
+                                      accept=".pdf,.doc,.docx,.ppt,.pptx"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleOutlineUpload(c.id, f);
+                                        e.target.value = "";
+                                      }}
+                                    />
+                                  </>
+                                )}
+                              </label>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right">
                             <button

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { queryOne } from "@/lib/db";
+import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { deleteFromCloudinary } from "@/lib/cloudinary";
 
 const closeSchema = z.object({
   close_date: z.string().min(4),
@@ -29,6 +30,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (semester.status === "closed") {
       return NextResponse.json({ error: "This semester is already closed." }, { status: 409 });
+    }
+    // Delete course outlines from Cloudinary before closing
+    const outlines = await query<{ course_outline_public_id: string }>(
+      `select course_outline_public_id from semester_courses
+       where semester_id = $1 and course_outline_public_id is not null`,
+      [id]
+    );
+    await Promise.all(outlines.map((o) => deleteFromCloudinary(o.course_outline_public_id).catch(() => {})));
+    if (outlines.length > 0) {
+      await query(
+        `update semester_courses set course_outline_url = null, course_outline_public_id = null
+         where semester_id = $1`,
+        [id]
+      );
     }
     const updated = await queryOne(
       `update semesters set status = 'closed', close_date = $1, updated_at = now() where id = $2 returning *`,

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Building2, FileDown, GraduationCap, UsersRound } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
 import { PageLoader } from "@/components/ui/Loaders";
+import StatusBadge from "@/components/ui/StatusBadge";
 
 interface Department {
   id: string;
@@ -30,21 +31,34 @@ interface ClassRow {
   struck_off: string;
 }
 
+interface TeacherRow {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  type: string;
+  status: string;
+  department_name: string;
+  active_allocations: string;
+}
+
 export default function HodDashboardManager() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [counters, setCounters] = useState<Counters | null>(null);
   const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/hod/overview")
-      .then((r) => r.json())
-      .then((d) => {
-        setDepartments(d.departments);
-        setCounters(d.counters);
-        setClasses(d.classes);
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch("/api/hod/overview").then((r) => r.json()),
+      fetch("/api/hod/teachers").then((r) => r.json()),
+    ]).then(([overview, teachersData]) => {
+      setDepartments(overview.departments ?? []);
+      setCounters(overview.counters);
+      setClasses(overview.classes ?? []);
+      setTeachers(teachersData.teachers ?? []);
+    }).finally(() => setLoading(false));
   }, []);
 
   const cards = counters
@@ -176,6 +190,41 @@ export default function HodDashboardManager() {
           </tbody>
         </table>
       </div>
+
+      {teachers.length > 0 && (
+        <div className="overflow-hidden card-3d print:hidden">
+          <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-200">
+            Teachers in My Department(s)
+          </h2>
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Department</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Active Courses</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {teachers.map((t) => (
+                <tr key={t.id}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-slate-800 dark:text-slate-100">{t.name}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{t.email}</div>
+                  </td>
+                  <td className="px-4 py-3 capitalize">{t.type}</td>
+                  <td className="px-4 py-3">{t.department_name}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={t.status} />
+                  </td>
+                  <td className="px-4 py-3">{t.active_allocations}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="hidden print:block">
         <div className="mb-3 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-3 text-center text-white">

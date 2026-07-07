@@ -22,23 +22,26 @@ export async function GET(_request: NextRequest) {
     class_id: string;
     class_name: string;
     session: string;
+    outline_url: string | null;
   }>(
     `select a.id as allocation_id, c.id as course_id, c.code as course_code, c.title as course_title,
             c.credit_hours, a.allocation_type, a.rate, a.is_combined,
             s.id as semester_id, s.semester_number, s.term_type, s.status as semester_status,
-            cl.id as class_id, cl.class_name, cl.session
+            cl.id as class_id, cl.class_name, cl.session,
+            sc.course_outline_url as outline_url
      from allocations a
      join courses c on c.id = a.course_id
      join allocation_semesters als on als.allocation_id = a.id
      join semesters s on s.id = als.semester_id
      join classes cl on cl.id = s.class_id
+     left join semester_courses sc on sc.semester_id = als.semester_id and sc.course_id = a.course_id
      where a.teacher_id = $1
      order by cl.class_name, s.semester_number`,
     [session!.userId]
   );
 
   const allocationIds = Array.from(new Set(rows.map((r) => r.allocation_id)));
-  let paymentByAllocation = new Map<string, "paid" | "pending" | "n/a">();
+  let paymentByAllocation = new Map<string, { status: "paid" | "pending" | "n/a"; delivered: number }>();
   if (allocationIds.length > 0) {
     const paymentRows = await query<{
       allocation_id: string;
@@ -69,17 +72,24 @@ export async function GET(_request: NextRequest) {
         if (total > 0) {
           status = unbilled > 0 || unpaidBills > 0 ? "pending" : "paid";
         }
-        return [r.allocation_id, status];
+        return [r.allocation_id, { status, delivered: total }];
       })
     );
   }
 
   const active = rows
     .filter((r) => r.semester_status === "active")
-    .map((r) => ({ ...r }));
+    .map((r) => ({
+      ...r,
+      delivered_lectures: paymentByAllocation.get(r.allocation_id)?.delivered ?? 0,
+    }));
   const inactive = rows
     .filter((r) => r.semester_status === "closed")
-    .map((r) => ({ ...r, payment_status: paymentByAllocation.get(r.allocation_id) ?? "n/a" }));
+    .map((r) => ({
+      ...r,
+      payment_status: paymentByAllocation.get(r.allocation_id)?.status ?? "n/a",
+      delivered_lectures: paymentByAllocation.get(r.allocation_id)?.delivered ?? 0,
+    }));
 
   return NextResponse.json({ active, inactive });
 }

@@ -71,6 +71,13 @@ interface AttendanceSummary {
   flag: "ok" | "warning" | "struck_off";
 }
 
+interface AttendanceRecord {
+  attendance_date: string;
+  status: string;
+  reason: string | null;
+  call_remarks: string | null;
+}
+
 interface Notification {
   id: string;
   title: string;
@@ -111,6 +118,7 @@ export default function StudentDashboardManager() {
   const [attendanceFrom, setAttendanceFrom] = useState("");
   const [attendanceTo, setAttendanceTo] = useState("");
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   const [results, setResults] = useState<SemesterResult[]>([]);
@@ -157,7 +165,10 @@ export default function StudentDashboardManager() {
       if (attendanceTo) params.set("to", attendanceTo);
       const res = await fetch(`/api/student/attendance?${params.toString()}`);
       const data = await res.json();
-      if (res.ok) setAttendanceSummary(data.summary);
+      if (res.ok) {
+        setAttendanceSummary(data.summary);
+        setAttendanceRecords(data.records || []);
+      }
     } finally {
       setAttendanceLoading(false);
     }
@@ -410,35 +421,72 @@ export default function StudentDashboardManager() {
           ) : !attendanceSummary ? (
             <p className="py-8 text-center text-sm text-slate-400">No active semester found.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="card-3d card-hover p-5">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">
-                  {attendanceSummary.presents}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Presents</p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div className="card-3d card-hover p-5">
+                  <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {attendanceSummary.presents}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Presents</p>
+                </div>
+                <div className="card-3d card-hover p-5">
+                  <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                    {attendanceSummary.absents}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Absents</p>
+                </div>
+                <div className="card-3d card-hover p-5">
+                  <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                    {attendanceSummary.leaves}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Leaves</p>
+                </div>
+                <div className="card-3d card-hover p-5">
+                  <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                    {attendanceSummary.percentage}%
+                  </p>
+                  <span
+                    className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[attendanceSummary.flag]}`}
+                  >
+                    {flagLabels[attendanceSummary.flag]}
+                  </span>
+                </div>
               </div>
-              <div className="card-3d card-hover p-5">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">
-                  {attendanceSummary.absents}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Absents</p>
-              </div>
-              <div className="card-3d card-hover p-5">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">
-                  {attendanceSummary.leaves}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Leaves</p>
-              </div>
-              <div className="card-3d card-hover p-5">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">
-                  {attendanceSummary.percentage}%
-                </p>
-                <span
-                  className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[attendanceSummary.flag]}`}
-                >
-                  {flagLabels[attendanceSummary.flag]}
-                </span>
-              </div>
+
+              {attendanceRecords.length > 0 && (
+                <div className="overflow-hidden card-3d">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {attendanceRecords.map((r, i) => {
+                        const statusColor =
+                          r.status === "present"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : r.status === "absent"
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-amber-600 dark:text-amber-400";
+                        return (
+                          <tr key={i}>
+                            <td className="px-4 py-2.5">{formatDateOnly(r.attendance_date)}</td>
+                            <td className={`px-4 py-2.5 capitalize font-medium ${statusColor}`}>
+                              {r.status}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                              {r.reason || "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

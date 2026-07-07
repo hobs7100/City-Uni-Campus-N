@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { generateRandomPassword, hashPassword } from "@/lib/auth";
 import { requireRole } from "@/lib/requireRole";
+import { sendWelcomeEmail } from "@/lib/email";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -82,5 +83,17 @@ export async function POST(request: NextRequest) {
     ]
   );
 
-  return NextResponse.json({ teacher, generatedPassword }, { status: 201 });
+  const emailResult = await sendWelcomeEmail({
+    to: (teacher as { email: string }).email,
+    name: (teacher as { name: string }).name,
+    password: generatedPassword,
+  }).catch((e) => ({ success: false, error: String(e) }));
+
+  if (emailResult.success) {
+    return NextResponse.json({ teacher, emailSent: true }, { status: 201 });
+  }
+  return NextResponse.json(
+    { teacher, emailSent: false, emailError: emailResult.error, generatedPassword },
+    { status: 201 }
+  );
 }

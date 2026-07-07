@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -60,6 +60,8 @@ export default function TeachersPage() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Teacher | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [regenTarget, setRegenTarget] = useState<Teacher | null>(null);
+  const [regenLoading, setRegenLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,10 +138,14 @@ export default function TeachersPage() {
         toast.error(data.error || "Something went wrong.");
         return;
       }
-      if (!editing && data.generatedPassword) {
-        toast.success(`Teacher created. Temporary password: ${data.generatedPassword}`, {
-          duration: 8000,
-        });
+      if (!editing) {
+        if (data.emailSent) {
+          toast.success("Teacher created. Login credentials emailed.", { duration: 5000 });
+        } else if (data.generatedPassword) {
+          toast.success(`Teacher created. Email failed — temporary password: ${data.generatedPassword}`, { duration: 10000 });
+        } else {
+          toast.success("Teacher created.");
+        }
       } else {
         toast.success("Teacher updated.");
       }
@@ -147,6 +153,24 @@ export default function TeachersPage() {
       load();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRegen() {
+    if (!regenTarget) return;
+    setRegenLoading(true);
+    try {
+      const res = await fetch(`/api/admin/teachers/${regenTarget.id}/regenerate-password`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed."); return; }
+      if (data.emailSent) {
+        toast.success(`New password emailed to ${regenTarget.name}.`, { duration: 5000 });
+      } else {
+        toast.success(`Email failed. New password: ${data.newPassword}`, { duration: 10000 });
+      }
+      setRegenTarget(null);
+    } finally {
+      setRegenLoading(false);
     }
   }
 
@@ -227,12 +251,21 @@ export default function TeachersPage() {
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => openEdit(t)}
+                        title="Edit"
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
                         <Pencil size={16} />
                       </button>
                       <button
+                        onClick={() => setRegenTarget(t)}
+                        title="Regenerate Password"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                      >
+                        <KeyRound size={16} />
+                      </button>
+                      <button
                         onClick={() => setDeleteTarget(t)}
+                        title="Delete"
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
                       >
                         <Trash2 size={16} />
@@ -421,6 +454,16 @@ export default function TeachersPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!regenTarget}
+        title="Regenerate Password"
+        message={`Generate a new password for ${regenTarget?.name} and email it to ${regenTarget?.email}?`}
+        confirmLabel="Regenerate & Email"
+        loading={regenLoading}
+        onConfirm={handleRegen}
+        onCancel={() => setRegenTarget(null)}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

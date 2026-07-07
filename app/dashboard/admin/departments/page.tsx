@@ -110,7 +110,7 @@ export default function DepartmentsPage() {
         toast.error(data.error || "Something went wrong.");
         return;
       }
-      toast.success(editing ? "Department updated." : "Department created.");
+      toast.success(editing ? "Faculty updated." : "Faculty created.");
       setModalOpen(false);
       load();
     } finally {
@@ -128,7 +128,7 @@ export default function DepartmentsPage() {
         toast.error(data.error);
         return;
       }
-      toast.success("Department deleted.");
+      toast.success("Faculty deleted.");
       setDeleteTarget(null);
       load();
     } finally {
@@ -141,7 +141,7 @@ export default function DepartmentsPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-            Department Management
+            Faculty Management
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Assign HoDs and Coordinators to departments
@@ -151,7 +151,7 @@ export default function DepartmentsPage() {
           onClick={openCreate}
           className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
         >
-          <Plus size={18} /> Add Department
+          <Plus size={18} /> Add Faculty
         </button>
       </div>
 
@@ -159,7 +159,7 @@ export default function DepartmentsPage() {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
             <tr>
-              <th className="px-4 py-3">Department</th>
+              <th className="px-4 py-3">Faculty</th>
               <th className="px-4 py-3">HoD</th>
               <th className="px-4 py-3">Coordinator</th>
               <th className="px-4 py-3">Status</th>
@@ -216,12 +216,12 @@ export default function DepartmentsPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "Edit Department" : "Add Department"}
+        title={editing ? "Edit Faculty" : "Add Faculty"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Department Name
+              Faculty Name
             </label>
             <input
               required
@@ -293,7 +293,7 @@ export default function DepartmentsPage() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete Department"
+        title="Delete Faculty"
         message={`Are you sure you want to delete"${deleteTarget?.name}"? This cannot be undone.`}
         confirmLabel="Delete"
         loading={deleting}

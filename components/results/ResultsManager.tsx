@@ -955,13 +955,13 @@ export default function ResultsManager() {
               <SearchableSelect
                 options={searchOptions.map((s) => ({
                   value: s.id,
-                  label: `${s.name}${s.roll_no ? ` (${s.roll_no})` : ""} - ${s.class_name}`,
+                  label: `${s.name}${s.roll_no ? ` (${s.roll_no})` : ""} — ${s.class_name} · ${s.session}`,
                 }))}
                 onInputChange={(v) => setSearchQuery(v)}
                 value={
                   searchOptions
                     .filter((s) => s.id === searchStudentId)
-                    .map((s) => ({ value: s.id, label: s.name }))[0] || null
+                    .map((s) => ({ value: s.id, label: `${s.name}${s.roll_no ? ` (${s.roll_no})` : ""} — ${s.class_name} · ${s.session}` }))[0] || null
                 }
                 onChange={(v) => {
                   const id = (v as SelectOption | null)?.value || "";
@@ -999,7 +999,7 @@ export default function ResultsManager() {
                   </h3>
                   <table className="w-full border-collapse text-sm print:text-[11px]">
                     <thead>
-                      <tr className="border-b border-slate-300 bg-slate-100 text-left dark:border-slate-700 dark:bg-slate-800">
+                      <tr className="border-b border-slate-300 bg-slate-100 text-left dark:border-slate-700 dark:bg-slate-800 print:bg-indigo-600 print:text-white">
                         <th className="px-2 py-1.5">Code</th>
                         <th className="px-2 py-1.5">Course</th>
                         <th className="px-2 py-1.5">Cr. Hrs</th>
@@ -1012,10 +1012,10 @@ export default function ResultsManager() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sem.courses.map((c) => (
+                      {sem.courses.map((c, idx) => (
                         <tr
                           key={c.course_code}
-                          className="border-b border-slate-200 dark:border-slate-800"
+                          className={`border-b border-slate-200 dark:border-slate-800 ${idx % 2 === 1 ? "print:bg-indigo-50/60" : ""}`}
                         >
                           <td className="px-2 py-1.5">{c.course_code}</td>
                           <td className="px-2 py-1.5">{c.course_title}</td>
@@ -1036,6 +1036,15 @@ export default function ResultsManager() {
                           </td>
                         </tr>
                       ))}
+                      <tr className="border-t-2 border-indigo-300 bg-slate-50 font-semibold dark:bg-slate-800/50 print:bg-indigo-50">
+                        <td className="px-2 py-1.5" colSpan={7}>
+                          Total Credit Hours: {sem.courses.reduce((s, c) => s + Number(c.credit_hours), 0)}
+                        </td>
+                        <td className="px-2 py-1.5 text-indigo-700 dark:text-indigo-400 print:text-indigo-700">
+                          {sem.courses.reduce((s, c) => s + Number(c.total), 0).toFixed(2)}
+                        </td>
+                        <td className="px-2 py-1.5" />
+                      </tr>
                     </tbody>
                   </table>
                 </div>

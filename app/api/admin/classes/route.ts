@@ -3,14 +3,14 @@ import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
-const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8 };
+const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8, "BS-Bridging": 4 };
 
 const schema = z.object({
   department_id: z.string().uuid(),
   class_name: z.string().min(1),
   session: z.string().min(4),
   affiliation_id: z.string().uuid().nullable().optional(),
-  type: z.enum(["ADP", "BS", "DIT", "LLB"]),
+  type: z.enum(["ADP", "BS", "DIT", "LLB", "BS-Bridging"]),
   status: z.enum(["active", "blocked"]).default("active"),
 });
 

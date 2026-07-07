@@ -29,7 +29,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Users", href: "/dashboard/admin/users", icon: "Users" },
     { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
-    { label: "Departments", href: "/dashboard/admin/departments", icon: "Building2" },
+    { label: "Faculties", href: "/dashboard/admin/departments", icon: "Building2" },
     { label: "Classes", href: "/dashboard/admin/classes", icon: "School" },
     { label: "Students", href: "/dashboard/admin/students", icon: "GraduationCap" },
     { label: "Teachers", href: "/dashboard/admin/teachers", icon: "UsersRound" },

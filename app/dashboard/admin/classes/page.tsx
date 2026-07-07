@@ -17,13 +17,14 @@ interface ClassRow {
   session: string;
   affiliation_id: string | null;
   university_name: string | null;
-  type: "ADP" | "BS" | "DIT" | "LLB";
+  type: "ADP" | "BS" | "DIT" | "LLB" | "BS-Bridging";
   total_semesters: number;
   status: "active" | "blocked";
 }
 
 const typeOptions = [
   { value: "ADP", label: "ADP" },
+  { value: "BS-Bridging", label: "BS-Bridging (4 Semesters)" },
   { value: "BS", label: "BS" },
   { value: "DIT", label: "DIT" },
   { value: "LLB", label: "LLB" },

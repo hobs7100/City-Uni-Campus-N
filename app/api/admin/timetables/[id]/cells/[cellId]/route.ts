@@ -43,8 +43,8 @@ export async function PATCH(
   );
   if (!timetable) return NextResponse.json({ error: "Timetable not found." }, { status: 404 });
 
-  const allocation = await queryOne<{ id: string; teacher_id: string; teacher_name: string }>(
-    `select a.id, a.teacher_id, t.name as teacher_name
+  const allocation = await queryOne<{ id: string; teacher_id: string; teacher_name: string; is_combined: boolean }>(
+    `select a.id, a.teacher_id, a.is_combined, t.name as teacher_name
      from allocations a
      join teachers t on t.id = a.teacher_id
      where a.id = $1`,
@@ -95,6 +95,42 @@ export async function PATCH(
       },
       { status: 409 }
     );
+  }
+
+  // For combined lectures: if already placed in another timetable, the slot must match
+  if (allocation.is_combined) {
+    const existingPlacement = await queryOne<{
+      day_name: string;
+      start_time: string;
+      end_time: string;
+      class_name: string;
+      session: string;
+    }>(
+      `select td.day_name, tp.start_time, tp.end_time, cl.class_name, cl.session
+       from timetable_cells tc
+       join timetable_days td on td.id = tc.day_id
+       join timetable_periods tp on tp.id = tc.period_id
+       join timetables tt on tt.id = tc.timetable_id
+       join classes cl on cl.id = tt.class_id
+       where tc.allocation_id = $1
+         and tc.id != $2
+         and tc.timetable_id != $3
+       limit 1`,
+      [allocation_id, cellId, id]
+    );
+    if (
+      existingPlacement &&
+      (existingPlacement.day_name !== day.day_name ||
+        existingPlacement.start_time !== period.start_time ||
+        existingPlacement.end_time !== period.end_time)
+    ) {
+      return NextResponse.json(
+        {
+          error: `Combined lecture already placed in ${existingPlacement.class_name} (${existingPlacement.session}) on ${existingPlacement.day_name} ${existingPlacement.start_time}–${existingPlacement.end_time}. All combined classes must share the exact same slot.`,
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const updated = await queryOne(

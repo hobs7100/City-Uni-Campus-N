@@ -28,6 +28,8 @@ interface CourseRow {
   class_name: string;
   session: string;
   payment_status?: "paid" | "pending" | "n/a";
+  outline_url?: string | null;
+  delivered_lectures?: number;
 }
 
 interface TimetableSummary {
@@ -427,7 +429,7 @@ export default function TeacherDashboardManager() {
       </div>
 
       {tab === "overview" && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div className="card-3d card-hover p-5">
             <p className="text-2xl font-bold text-slate-900 dark:text-white">{active.length}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Active Courses</p>
@@ -437,6 +439,12 @@ export default function TeacherDashboardManager() {
               {totalStudentsTaught}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Classes Taught</p>
+          </div>
+          <div className="card-3d card-hover p-5">
+            <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+              {active.reduce((s, c) => s + (c.delivered_lectures ?? 0), 0)}
+            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Lectures Delivered</p>
           </div>
           <div className="card-3d card-hover p-5">
             <p className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -462,14 +470,16 @@ export default function TeacherDashboardManager() {
                     <th className="px-4 py-3">Semester</th>
                     <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Rate</th>
+                    <th className="px-4 py-3">Delivered</th>
+                    <th className="px-4 py-3">Outline</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {coursesLoading ? (
-                    <TableLoader colSpan={5} />
+                    <TableLoader colSpan={7} />
                   ) : active.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                         No active courses.
                       </td>
                     </tr>
@@ -494,6 +504,23 @@ export default function TeacherDashboardManager() {
                           {c.allocation_type.replace("_", "")}
                         </td>
                         <td className="px-4 py-3">PKR {c.rate}</td>
+                        <td className="px-4 py-3 font-semibold text-indigo-600 dark:text-indigo-400">
+                          {c.delivered_lectures ?? 0}
+                        </td>
+                        <td className="px-4 py-3">
+                          {c.outline_url ? (
+                            <a
+                              href={c.outline_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                            >
+                              <FileDown size={12} /> View
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}
