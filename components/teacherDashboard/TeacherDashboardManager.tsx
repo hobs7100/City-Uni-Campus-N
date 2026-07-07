@@ -8,15 +8,20 @@ import {
   CalendarClock,
   CheckCircle2,
   ClipboardList,
+  Eye,
   FileDown,
+  GraduationCap,
   Save,
   User,
+  X,
 } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 
 interface CourseRow {
   allocation_id: string;
+  course_id: string;
+  class_id: string;
   course_code: string;
   course_title: string;
   credit_hours: string;
@@ -83,6 +88,17 @@ interface AttendanceReportRow {
   classes: { class_name: string; session: string }[];
 }
 
+interface StudentAttendanceRow {
+  student_id: string;
+  name: string;
+  roll_no: string | null;
+  presents: number;
+  absents: number;
+  leaves: number;
+  percentage: number | null;
+  status: "ok" | "warning" | "struck-off" | "no-data";
+}
+
 interface Notification {
   id: string;
   title: string;
@@ -115,6 +131,7 @@ const tabs = [
   { id: "courses", label: "My Courses", icon: BookOpen },
   { id: "timetable", label: "Timetable", icon: CalendarClock },
   { id: "mark", label: "Mark Attendance", icon: CheckCircle2 },
+  { id: "students", label: "Student Attendance", icon: GraduationCap },
   { id: "report", label: "My Attendance", icon: FileDown },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "profile", label: "Profile", icon: User },
@@ -122,8 +139,12 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]["id"];
 
-export default function TeacherDashboardManager() {
-  const [tab, setTab] = useState<TabId>("overview");
+const validTabs = tabs.map((t) => t.id) as string[];
+
+export default function TeacherDashboardManager({ initialTab }: { initialTab?: string }) {
+  const [tab, setTab] = useState<TabId>(
+    validTabs.includes(initialTab ?? "") ? (initialTab as TabId) : "overview"
+  );
 
   const [active, setActive] = useState<CourseRow[]>([]);
   const [inactive, setInactive] = useState<CourseRow[]>([]);
@@ -134,9 +155,7 @@ export default function TeacherDashboardManager() {
   const [timetableDetail, setTimetableDetail] = useState<TimetableDetail | null>(null);
   const [timetableLoading, setTimetableLoading] = useState(false);
 
-  const [classOptions, setClassOptions] = useState<
-    { id: string; class_name: string; session: string }[]
-  >([]);
+  const [markAllocationId, setMarkAllocationId] = useState("");
   const [markClassId, setMarkClassId] = useState("");
   const [markDate, setMarkDate] = useState(todayStr());
   const [rosterRows, setRosterRows] = useState<RosterRow[]>([]);
@@ -144,6 +163,13 @@ export default function TeacherDashboardManager() {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterSaving, setRosterSaving] = useState(false);
   const [isCombinedRoster, setIsCombinedRoster] = useState(false);
+
+  const [studentsClassId, setStudentsClassId] = useState("");
+  const [studentReportRows, setStudentReportRows] = useState<StudentAttendanceRow[]>([]);
+  const [studentReportLoading, setStudentReportLoading] = useState(false);
+  const [studentReportSemester, setStudentReportSemester] = useState<{ semester_number: number; term_type: string } | null>(null);
+
+  const [viewAttendanceAlloc, setViewAttendanceAlloc] = useState<{ allocation_id: string; course_title: string; class_name: string; course_id: string } | null>(null);
 
   const [reportRows, setReportRows] = useState<AttendanceReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
@@ -177,17 +203,6 @@ export default function TeacherDashboardManager() {
     }
   }, []);
 
-  const loadDistinctClasses = useCallback(async () => {
-    const res = await fetch("/api/teacher/courses");
-    const data = await res.json();
-    if (res.ok) {
-      const seen = new Map<string, { id: string; class_name: string; session: string }>();
-      for (const c of data.active as (CourseRow & { class_id: string })[]) {
-        seen.set(c.class_id, { id: c.class_id, class_name: c.class_name, session: c.session });
-      }
-      setClassOptions(Array.from(seen.values()));
-    }
-  }, []);
 
   const loadTimetables = useCallback(async () => {
     setTimetableLoading(true);
@@ -240,6 +255,29 @@ export default function TeacherDashboardManager() {
     }
   }, [markClassId, markDate]);
 
+  const loadStudentReport = useCallback(async () => {
+    if (!studentsClassId) {
+      setStudentReportRows([]);
+      setStudentReportSemester(null);
+      return;
+    }
+    setStudentReportLoading(true);
+    try {
+      const params = new URLSearchParams({ class_id: studentsClassId });
+      const res = await fetch(`/api/teacher/student-attendance/report?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Could not load student attendance.");
+        setStudentReportRows([]);
+        return;
+      }
+      setStudentReportRows(data.rows);
+      setStudentReportSemester(data.semester);
+    } finally {
+      setStudentReportLoading(false);
+    }
+  }, [studentsClassId]);
+
   const loadAttendanceReport = useCallback(async () => {
     setReportLoading(true);
     try {
@@ -281,16 +319,16 @@ export default function TeacherDashboardManager() {
 
   useEffect(() => {
     loadCourses();
-    loadDistinctClasses();
-  }, [loadCourses, loadDistinctClasses]);
+  }, [loadCourses]);
 
   useEffect(() => {
     if (tab === "timetable") loadTimetables();
     if (tab === "mark") loadRoster();
+    if (tab === "students") loadStudentReport();
     if (tab === "report") loadAttendanceReport();
     if (tab === "notifications") loadNotifications();
     if (tab === "profile") loadProfile();
-  }, [tab, loadTimetables, loadRoster, loadAttendanceReport, loadNotifications, loadProfile]);
+  }, [tab, loadTimetables, loadRoster, loadStudentReport, loadAttendanceReport, loadNotifications, loadProfile]);
 
   useEffect(() => {
     if (selectedTimetableId) loadTimetableDetail(selectedTimetableId);
@@ -392,7 +430,10 @@ export default function TeacherDashboardManager() {
     () => notifications.filter((n) => !n.is_read).length,
     [notifications],
   );
-  const totalStudentsTaught = useMemo(() => classOptions.length, [classOptions]);
+  const totalStudentsTaught = useMemo(
+    () => new Set(active.map((c) => c.class_id)).size,
+    [active],
+  );
 
   function cellFor(dayId: string, periodId: string) {
     return timetableDetail?.cells.find((c) => c.day_id === dayId && c.period_id === periodId);
@@ -469,9 +510,9 @@ export default function TeacherDashboardManager() {
                     <th className="px-4 py-3">Class / Session</th>
                     <th className="px-4 py-3">Semester</th>
                     <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Rate</th>
                     <th className="px-4 py-3">Delivered</th>
                     <th className="px-4 py-3">Outline</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -503,7 +544,6 @@ export default function TeacherDashboardManager() {
                         <td className="px-4 py-3 capitalize">
                           {c.allocation_type.replace("_", "")}
                         </td>
-                        <td className="px-4 py-3">PKR {c.rate}</td>
                         <td className="px-4 py-3 font-semibold text-indigo-600 dark:text-indigo-400">
                           {c.delivered_lectures ?? 0}
                         </td>
@@ -513,13 +553,30 @@ export default function TeacherDashboardManager() {
                               href={c.outline_url}
                               target="_blank"
                               rel="noreferrer"
+                              download
                               className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
                             >
-                              <FileDown size={12} /> View
+                              <FileDown size={12} /> Download
                             </a>
                           ) : (
                             <span className="text-xs text-slate-400">—</span>
                           )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => {
+                              setViewAttendanceAlloc({
+                                allocation_id: c.allocation_id,
+                                course_title: c.course_title,
+                                class_name: `${c.class_name} (${c.session})`,
+                                course_id: c.course_id,
+                              });
+                              setTab("report");
+                            }}
+                            className="flex items-center gap-1 rounded-md bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/40"
+                          >
+                            <Eye size={12} /> View Attendance
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -677,17 +734,24 @@ export default function TeacherDashboardManager() {
           <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
-                Class
+                Course (select to load class)
               </label>
               <select
-                value={markClassId}
-                onChange={(e) => setMarkClassId(e.target.value)}
+                value={markAllocationId}
+                onChange={(e) => {
+                  const allocId = e.target.value;
+                  setMarkAllocationId(allocId);
+                  const course = active.find((c) => c.allocation_id === allocId);
+                  setMarkClassId(course ? course.class_id : "");
+                  setRosterRows([]);
+                  setSemesterInfo(null);
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                <option value="">Select a class</option>
-                {classOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.class_name} ({c.session})
+                <option value="">Select a course</option>
+                {active.map((c) => (
+                  <option key={`${c.allocation_id}-${c.class_name}`} value={c.allocation_id}>
+                    {c.course_title} — {c.class_name} ({c.session}){c.is_combined ? " [Combined]" : ""}
                   </option>
                 ))}
               </select>
@@ -728,7 +792,7 @@ export default function TeacherDashboardManager() {
                 ) : !markClassId ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
-                      Select a class and date.
+                      Select a course above to load students.
                     </td>
                   </tr>
                 ) : rosterRows.length === 0 ? (
@@ -809,8 +873,116 @@ export default function TeacherDashboardManager() {
         </div>
       )}
 
+      {tab === "students" && (
+        <div>
+          <div className="mb-4 card-3d p-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                Class
+              </label>
+              <select
+                value={studentsClassId}
+                onChange={(e) => setStudentsClassId(e.target.value)}
+                className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">Select a class</option>
+                {Array.from(
+                  new Map(
+                    active.map((c) => [c.class_id, c])
+                  ).values()
+                ).map((c) => (
+                  <option key={c.class_id} value={c.class_id}>
+                    {c.class_name} ({c.session})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {studentReportSemester && (
+            <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+              Showing attendance for active Semester {studentReportSemester.semester_number} — {studentReportSemester.term_type}
+            </p>
+          )}
+
+          <div className="overflow-hidden card-3d">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                <tr>
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Roll No</th>
+                  <th className="px-4 py-3">Present</th>
+                  <th className="px-4 py-3">Absent</th>
+                  <th className="px-4 py-3">Leave</th>
+                  <th className="px-4 py-3">%</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {studentReportLoading ? (
+                  <TableLoader colSpan={7} />
+                ) : !studentsClassId ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                      Select a class above.
+                    </td>
+                  </tr>
+                ) : studentReportRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                      No students found.
+                    </td>
+                  </tr>
+                ) : (
+                  studentReportRows.map((r) => (
+                    <tr key={r.student_id}>
+                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{r.name}</td>
+                      <td className="px-4 py-3 text-slate-500">{r.roll_no || "—"}</td>
+                      <td className="px-4 py-3 text-emerald-600 font-semibold">{r.presents}</td>
+                      <td className="px-4 py-3 text-red-500 font-semibold">{r.absents}</td>
+                      <td className="px-4 py-3 text-amber-500 font-semibold">{r.leaves}</td>
+                      <td className="px-4 py-3 font-bold">
+                        {r.percentage !== null ? `${r.percentage}%` : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.status === "ok" && (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">OK</span>
+                        )}
+                        {r.status === "warning" && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Warning</span>
+                        )}
+                        {r.status === "struck-off" && (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">Low</span>
+                        )}
+                        {r.status === "no-data" && (
+                          <span className="text-xs text-slate-400">No data</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {tab === "report" && (
         <div>
+          {viewAttendanceAlloc && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 dark:border-sky-800 dark:bg-sky-900/20">
+              <Eye size={16} className="text-sky-600 dark:text-sky-400" />
+              <span className="flex-1 text-sm text-sky-800 dark:text-sky-200">
+                Showing attendance for <strong>{viewAttendanceAlloc.course_title}</strong> — {viewAttendanceAlloc.class_name}
+              </span>
+              <button
+                onClick={() => setViewAttendanceAlloc(null)}
+                className="rounded-md p-1 text-sky-500 hover:bg-sky-100 dark:hover:bg-sky-900/40"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
           <div className="mb-4 flex flex-wrap items-end gap-3 card-3d p-4 print:hidden">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">

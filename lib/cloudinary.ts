@@ -18,8 +18,23 @@ export async function uploadToCloudinary(
   return { url: result.secure_url, publicId: result.public_id };
 }
 
+export async function uploadRawToCloudinary(
+  fileBase64: string,
+  folder: string
+): Promise<{ url: string; publicId: string }> {
+  const result = await cloudinary.uploader.upload(fileBase64, {
+    folder: `campus-management/${folder}`,
+    resource_type: "raw",
+  });
+  return { url: result.secure_url, publicId: result.public_id };
+}
+
 export async function deleteFromCloudinary(publicId: string) {
   await cloudinary.uploader.destroy(publicId);
+}
+
+export async function deleteRawFromCloudinary(publicId: string) {
+  await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
 }
 
 export default cloudinary;

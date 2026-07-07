@@ -16,7 +16,9 @@ export type NavIconName =
   | "ClipboardCheck"
   | "Wallet"
   | "Award"
-  | "UserCog";
+  | "UserCog"
+  | "Bell"
+  | "FileSearch";
 
 export interface NavItem {
   label: string;
@@ -48,7 +50,10 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
   ],
   hod: [
-    { label: "Overview", href: "/dashboard/hod", icon: "LayoutDashboard" },
+    { label: "Overview", href: "/dashboard/hod?tab=overview", icon: "LayoutDashboard" },
+    { label: "Classes", href: "/dashboard/hod?tab=classes", icon: "School" },
+    { label: "Student Attendance", href: "/dashboard/hod?tab=attendance", icon: "ClipboardCheck" },
+    { label: "Exam & Results", href: "/dashboard/hod?tab=results", icon: "Award" },
     { label: "Profile", href: "/dashboard/hod/profile", icon: "UserCog" },
   ],
   coordinator: [
@@ -64,7 +69,16 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Billing", href: "/dashboard/coordinator/billing", icon: "Wallet" },
     { label: "Profile", href: "/dashboard/coordinator/profile", icon: "UserCog" },
   ],
-  teacher: [{ label: "Overview", href: "/dashboard/teacher", icon: "LayoutDashboard" }],
+  teacher: [
+    { label: "Overview", href: "/dashboard/teacher?tab=overview", icon: "LayoutDashboard" },
+    { label: "My Courses", href: "/dashboard/teacher?tab=courses", icon: "BookOpen" },
+    { label: "Timetable", href: "/dashboard/teacher?tab=timetable", icon: "CalendarClock" },
+    { label: "Mark Attendance", href: "/dashboard/teacher?tab=mark", icon: "ClipboardCheck" },
+    { label: "My Attendance", href: "/dashboard/teacher?tab=report", icon: "UserCheck" },
+    { label: "Student Attendance", href: "/dashboard/teacher?tab=students", icon: "GraduationCap" },
+    { label: "Notifications", href: "/dashboard/teacher?tab=notifications", icon: "Bell" },
+    { label: "Profile", href: "/dashboard/teacher?tab=profile", icon: "UserCog" },
+  ],
   student: [{ label: "Overview", href: "/dashboard/student", icon: "LayoutDashboard" }],
 };
 

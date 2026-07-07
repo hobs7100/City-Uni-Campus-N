@@ -19,6 +19,8 @@ import {
   Wallet,
   Award,
   UserCog,
+  Bell,
+  FileSearch,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem, NavIconName } from "@/lib/nav";
@@ -41,6 +43,8 @@ const iconMap: Record<NavIconName, LucideIcon> = {
   Wallet,
   Award,
   UserCog,
+  Bell,
+  FileSearch,
 };
 
 export default function Sidebar({

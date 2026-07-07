@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
-import { uploadToCloudinary, deleteFromCloudinary } from "@/lib/cloudinary";
+import { uploadRawToCloudinary, deleteRawFromCloudinary } from "@/lib/cloudinary";
 
 export async function POST(
   request: NextRequest,
@@ -30,12 +30,12 @@ export async function POST(
 
   // Delete old outline if exists
   if (sc.course_outline_public_id) {
-    await deleteFromCloudinary(sc.course_outline_public_id).catch(() => {});
+    await deleteRawFromCloudinary(sc.course_outline_public_id).catch(() => {});
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
   const base64 = `data:${file.type || "application/octet-stream"};base64,${buf.toString("base64")}`;
-  const { url, publicId } = await uploadToCloudinary(base64, "course-outlines");
+  const { url, publicId } = await uploadRawToCloudinary(base64, "course-outlines");
 
   await query(
     `update semester_courses set course_outline_url = $1, course_outline_public_id = $2
@@ -61,7 +61,7 @@ export async function DELETE(
   if (!sc) return NextResponse.json({ error: "Course not in this semester." }, { status: 404 });
 
   if (sc.course_outline_public_id) {
-    await deleteFromCloudinary(sc.course_outline_public_id).catch(() => {});
+    await deleteRawFromCloudinary(sc.course_outline_public_id).catch(() => {});
   }
 
   await query(
