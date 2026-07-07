@@ -37,6 +37,23 @@ interface CourseRow {
   delivered_lectures?: number;
 }
 
+interface GroupedCourseRow {
+  allocation_id: string;
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  allocation_type: string;
+  rate: string;
+  is_combined: boolean;
+  semester_number: number;
+  term_type: string;
+  classes: { class_id: string; class_name: string; session: string }[];
+  outline_url?: string | null;
+  delivered_lectures: number;
+  payment_status?: "paid" | "pending" | "n/a";
+}
+
 interface TimetableSummary {
   id: string;
   shift: string;
@@ -151,6 +168,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [active, setActive] = useState<CourseRow[]>([]);
   const [inactive, setInactive] = useState<CourseRow[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
+  const [coursesSubTab, setCoursesSubTab] = useState<"active" | "inactive">("active");
 
   const [timetables, setTimetables] = useState<TimetableSummary[]>([]);
   const [selectedTimetableId, setSelectedTimetableId] = useState("");
@@ -456,6 +474,39 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     });
   }, [active, inactive]);
 
+  function groupCourseRows(rows: CourseRow[]): GroupedCourseRow[] {
+    const map = new Map<string, GroupedCourseRow>();
+    for (const c of rows) {
+      if (!map.has(c.allocation_id)) {
+        map.set(c.allocation_id, {
+          allocation_id: c.allocation_id,
+          course_id: c.course_id,
+          course_code: c.course_code,
+          course_title: c.course_title,
+          credit_hours: c.credit_hours,
+          allocation_type: c.allocation_type,
+          rate: c.rate,
+          is_combined: c.is_combined,
+          semester_number: c.semester_number,
+          term_type: c.term_type,
+          outline_url: c.outline_url,
+          delivered_lectures: c.delivered_lectures ?? 0,
+          payment_status: c.payment_status,
+          classes: [{ class_id: c.class_id, class_name: c.class_name, session: c.session }],
+        });
+      } else {
+        const existing = map.get(c.allocation_id)!;
+        if (!existing.classes.some((cl) => cl.class_id === c.class_id)) {
+          existing.classes.push({ class_id: c.class_id, class_name: c.class_name, session: c.session });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }
+
+  const groupedActive = useMemo(() => groupCourseRows(active), [active]);
+  const groupedInactive = useMemo(() => groupCourseRows(inactive), [inactive]);
+
   function cellFor(dayId: string, periodId: string) {
     return timetableDetail?.cells.find((c) => c.day_id === dayId && c.period_id === periodId);
   }
@@ -493,7 +544,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       {tab === "overview" && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div className="card-3d card-hover p-5">
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">{active.length}</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{groupedActive.length}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Active Courses</p>
           </div>
           <div className="card-3d card-hover p-5">
@@ -504,13 +555,13 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           </div>
           <div className="card-3d card-hover p-5">
             <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-              {active.reduce((s, c) => s + (c.delivered_lectures ?? 0), 0)}
+              {groupedActive.reduce((s, c) => s + c.delivered_lectures, 0)}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Lectures Delivered</p>
           </div>
           <div className="card-3d card-hover p-5">
             <p className="text-2xl font-bold text-slate-900 dark:text-white">
-              {inactive.filter((c) => c.payment_status === "pending").length}
+              {groupedInactive.filter((c) => c.payment_status === "pending").length}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Pending Bills</p>
           </div>
@@ -518,150 +569,133 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       )}
 
       {tab === "courses" && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Active Courses
-            </h2>
-            <div className="overflow-hidden card-3d card-hover">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3">Course</th>
-                    <th className="px-4 py-3">Class / Session</th>
-                    <th className="px-4 py-3">Semester</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Delivered</th>
-                    <th className="px-4 py-3">Outline</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {coursesLoading ? (
-                    <TableLoader colSpan={7} />
-                  ) : active.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
-                        No active courses.
-                      </td>
-                    </tr>
-                  ) : (
-                    active.map((c) => (
-                      <tr key={`${c.allocation_id}-${c.class_name}-${c.semester_number}`}>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-slate-800 dark:text-slate-100">
-                            {c.course_title}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {c.course_code} {c.is_combined && "· Combined"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {c.class_name} ({c.session})
-                        </td>
-                        <td className="px-4 py-3">
-                          Sem {c.semester_number} — {c.term_type}
-                        </td>
-                        <td className="px-4 py-3 capitalize">
-                          {c.allocation_type.replace("_", "")}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-indigo-600 dark:text-indigo-400">
-                          {c.delivered_lectures ?? 0}
-                        </td>
-                        <td className="px-4 py-3">
-                          {c.outline_url ? (
-                            <a
-                              href={c.outline_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              download
-                              className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
-                            >
-                              <FileDown size={12} /> Download
-                            </a>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => {
-                              setReportCourseId(c.course_id);
-                              setReportClassId(c.class_id);
-                              setReportCourseFilter({
-                                label: `${c.course_title} — ${c.class_name} (${c.session})`,
-                              });
-                              setTab("report");
-                            }}
-                            className="flex items-center gap-1 rounded-md bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/40"
-                          >
-                            <Eye size={12} /> View Attendance
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+        <div className="space-y-4">
+          {/* Sub-tab switcher */}
+          <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
+            {(["active", "inactive"] as const).map((st) => (
+              <button
+                key={st}
+                onClick={() => setCoursesSubTab(st)}
+                className={`px-4 py-2 text-sm font-medium capitalize border-b-2 transition-colors ${
+                  coursesSubTab === st
+                    ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400"
+                    : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                {st === "active" ? `Active (${groupedActive.length})` : `Inactive (${groupedInactive.length})`}
+              </button>
+            ))}
           </div>
 
-          <div>
-            <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Inactive Courses
-            </h2>
-            <div className="overflow-hidden card-3d card-hover">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3">Course</th>
-                    <th className="px-4 py-3">Class / Session</th>
-                    <th className="px-4 py-3">Semester</th>
-                    <th className="px-4 py-3">Payment Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {inactive.length === 0 ? (
+          {/* Shared columns renderer */}
+          {(() => {
+            const rows = coursesSubTab === "active" ? groupedActive : groupedInactive;
+            const isInactive = coursesSubTab === "inactive";
+            const colSpan = isInactive ? 8 : 7;
+            return (
+              <div className="overflow-hidden card-3d card-hover">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                        No inactive courses.
-                      </td>
+                      <th className="px-4 py-3">Course</th>
+                      <th className="px-4 py-3">Class / Session</th>
+                      <th className="px-4 py-3">Semester</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Delivered</th>
+                      <th className="px-4 py-3">Outline</th>
+                      {isInactive && <th className="px-4 py-3">Payment</th>}
+                      <th className="px-4 py-3">Actions</th>
                     </tr>
-                  ) : (
-                    inactive.map((c) => (
-                      <tr key={`${c.allocation_id}-${c.class_name}-${c.semester_number}`}>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-slate-800 dark:text-slate-100">
-                            {c.course_title}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {c.course_code}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {c.class_name} ({c.session})
-                        </td>
-                        <td className="px-4 py-3">
-                          Sem {c.semester_number} — {c.term_type}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-                              c.payment_status === "paid"
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                            }`}
-                          >
-                            {c.payment_status === "paid" ? "Paid" : "Pending"}
-                          </span>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {coursesLoading ? (
+                      <TableLoader colSpan={colSpan} />
+                    ) : rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={colSpan} className="px-4 py-8 text-center text-slate-400">
+                          No {coursesSubTab} courses.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    ) : (
+                      rows.map((c) => (
+                        <tr key={c.allocation_id}>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              {c.course_title}
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {c.course_code}{c.is_combined && " · Combined"}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {c.classes.map((cl) => (
+                              <div key={cl.class_id}>{cl.class_name} ({cl.session})</div>
+                            ))}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            Sem {c.semester_number} — {c.term_type}
+                          </td>
+                          <td className="px-4 py-3 capitalize whitespace-nowrap">
+                            {c.allocation_type.replace("_", " ")}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-indigo-600 dark:text-indigo-400">
+                            {c.delivered_lectures}
+                          </td>
+                          <td className="px-4 py-3">
+                            {c.outline_url ? (
+                              <a
+                                href={c.outline_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                download
+                                className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                              >
+                                <FileDown size={12} /> Download
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </td>
+                          {isInactive && (
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                                  c.payment_status === "paid"
+                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                    : c.payment_status === "pending"
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                    : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"
+                                }`}
+                              >
+                                {c.payment_status === "paid" ? "Paid" : c.payment_status === "pending" ? "Pending" : "N/A"}
+                              </span>
+                            </td>
+                          )}
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => {
+                                setReportCourseId(c.course_id);
+                                setReportClassId(c.is_combined ? "" : (c.classes[0]?.class_id ?? ""));
+                                setReportCourseFilter({
+                                  label: c.is_combined
+                                    ? `${c.course_title} [Combined]`
+                                    : `${c.course_title} — ${c.classes[0]?.class_name} (${c.classes[0]?.session})`,
+                                });
+                                setTab("report");
+                              }}
+                              className="flex items-center gap-1 rounded-md bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/40"
+                            >
+                              <Eye size={12} /> View Attendance
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
 
