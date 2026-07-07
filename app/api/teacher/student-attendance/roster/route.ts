@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const allocation = await queryOne<{ id: string; is_combined: boolean }>(
     `select a.id, a.is_combined
      from allocations a
-     where a.id = $1 and a.teacher_id = $2 and a.deleted_at is null`,
+     where a.id = $1 and a.teacher_id = $2`,
     [allocationId, session!.userId]
   );
   if (!allocation) {
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
   const d = parsed.data;
 
   const allocation = await queryOne<{ id: string }>(
-    `select a.id from allocations a where a.id = $1 and a.teacher_id = $2 and a.deleted_at is null`,
+    `select a.id from allocations a where a.id = $1 and a.teacher_id = $2`,
     [d.allocation_id, session!.userId]
   );
   if (!allocation) {

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     `select a.id, a.is_combined, co.title as course_title
      from allocations a
      join courses co on co.id = a.course_id
-     where a.id = $1 and a.teacher_id = $2 and a.deleted_at is null`,
+     where a.id = $1 and a.teacher_id = $2`,
     [allocationId, session!.userId]
   );
   if (!allocation) {
