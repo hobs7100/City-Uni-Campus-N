@@ -27,7 +27,7 @@ function defaultPeriods(shift: "morning" | "evening") {
 }
 
 export async function GET() {
-  const { response } = await requireRole("admin", "hod", "coordinator", "teacher", "student");
+  const { response } = await requireRole("admin", "hod", "coordinator", "finance_manager", "teacher", "student");
   if (response) return response;
 
   const timetables = await query(

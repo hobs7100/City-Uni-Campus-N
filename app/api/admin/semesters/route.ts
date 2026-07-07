@@ -13,7 +13,7 @@ const schema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireRole("admin", "hod", "coordinator", "teacher");
+  const { response } = await requireRole("admin", "hod", "coordinator", "finance_manager", "teacher");
   if (response) return response;
 
   const classId = request.nextUrl.searchParams.get("class_id");
