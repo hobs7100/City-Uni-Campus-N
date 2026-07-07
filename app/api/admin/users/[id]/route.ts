@@ -7,7 +7,7 @@ const updateSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
   cellno: z.string().optional().nullable(),
-  role: z.enum(["admin", "hod", "coordinator"]).optional(),
+  role: z.enum(["admin", "hod", "coordinator", "finance_manager"]).optional(),
   status: z.enum(["active", "blocked"]).optional(),
 });
 
