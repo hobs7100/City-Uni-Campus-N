@@ -91,11 +91,12 @@ export async function POST(request: NextRequest) {
     await client.query("begin");
     for (const row of d.rows) {
       if (isCoordinator) {
-        // Coordinators can only mark attendance for the first time — cannot overwrite existing records
+        // Coordinators cannot change the status once marked, but can always update reason/call_remarks
         await client.query(
           `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
            values ($1,$2,$3,$4,$5,$6,$7)
-           on conflict (student_id, attendance_date) do nothing`,
+           on conflict (student_id, attendance_date)
+           do update set reason = excluded.reason, call_remarks = excluded.call_remarks, updated_at = now()`,
           [row.student_id, d.semester_id, d.attendance_date, row.status, row.reason || null, row.call_remarks || null, userId]
         );
       } else {
