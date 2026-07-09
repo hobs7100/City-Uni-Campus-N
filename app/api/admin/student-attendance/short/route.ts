@@ -19,12 +19,13 @@ export async function GET(request: NextRequest) {
     contact: string | null;
     class_name: string;
     session: string;
+    student_status: string;
     presents: string;
     absents: string;
     leaves: string;
   }>(
     `select st.id as student_id, st.name, st.roll_no, st.contact,
-            cl.class_name, cl.session,
+            cl.class_name, cl.session, st.status as student_status,
             count(*) filter (where sar.status = 'present') as presents,
             count(*) filter (where sar.status = 'absent')  as absents,
             count(*) filter (where sar.status = 'leave')   as leaves
@@ -34,13 +35,13 @@ export async function GET(request: NextRequest) {
      left join student_attendance_records sar
        on sar.student_id = st.id and sar.semester_id = $1
      where st.deleted_at is null
-       and st.status = 'active'
-     group by st.id, st.name, st.roll_no, st.contact, cl.class_name, cl.session
+       and st.status in ('active', 'struck_off')
+     group by st.id, st.name, st.roll_no, st.contact, cl.class_name, cl.session, st.status
      having
        count(*) filter (where sar.status in ('present','absent')) > 0
        and (count(*) filter (where sar.status = 'present'))::float /
            nullif(count(*) filter (where sar.status in ('present','absent')), 0) < 0.5
-     order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
+     order by st.status, cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
     [semesterId]
   );
 
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
       contact: r.contact,
       class_name: r.class_name,
       session: r.session,
+      student_status: r.student_status,
       presents: p,
       absents: a,
       leaves: l,

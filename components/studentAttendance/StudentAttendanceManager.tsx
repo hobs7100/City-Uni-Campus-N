@@ -42,6 +42,7 @@ interface ShortRow {
   contact: string | null;
   class_name: string;
   session: string;
+  student_status: string;
   presents: number;
   absents: number;
   leaves: number;
@@ -58,7 +59,7 @@ interface ReportRow {
   absents: number;
   leaves: number;
   percentage: number | null;
-  flag: "ok" | "warning" | "struck_off";
+  flag: "ok" | "warning" | "low";
 }
 
 function todayStr() {
@@ -68,12 +69,12 @@ function todayStr() {
 const flagLabels: Record<string, string> = {
   ok: "OK",
   warning: "Warning",
-  struck_off: "Struck Off",
+  low: "Low",
 };
 const flagStyles: Record<string, string> = {
   ok: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
   warning: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
-  struck_off: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+  low: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
 };
 
 export default function StudentAttendanceManager({ role = "admin" }: { role?: "admin" | "coordinator" }) {
@@ -277,21 +278,22 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
   }, [tab, loadShortAttendance]);
 
   async function handleStruckOffAll() {
-    if (shortRows.length === 0) return;
+    const activeShortRows = shortRows.filter((r) => r.student_status === "active");
+    if (activeShortRows.length === 0) return;
     setShortStruckOffLoading(true);
     try {
       const res = await fetch("/api/admin/student-attendance/short", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_ids: shortRows.map((r) => r.student_id) }),
+        body: JSON.stringify({ student_ids: activeShortRows.map((r) => r.student_id) }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Failed to struck off students.");
         return;
       }
-      toast.success(`${shortRows.length} student(s) marked as Struck Off.`);
-      setShortRows([]);
+      toast.success(`${activeShortRows.length} student(s) marked as Struck Off.`);
+      await loadShortAttendance();
     } finally {
       setShortStruckOffLoading(false);
     }
@@ -570,14 +572,14 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 />
               </div>
             </div>
-            {shortRows.length > 0 && (
+            {shortRows.filter((r) => r.student_status === "active").length > 0 && (
               <button
                 onClick={handleStruckOffAll}
                 disabled={shortStruckOffLoading}
                 className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {shortStruckOffLoading ? <ButtonLoader /> : null}
-                Struck Off All ({shortRows.length})
+                Struck Off All ({shortRows.filter((r) => r.student_status === "active").length})
               </button>
             )}
           </div>
@@ -592,28 +594,36 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                   <th className="px-4 py-3">Absents</th>
                   <th className="px-4 py-3">Leaves</th>
                   <th className="px-4 py-3">Attendance %</th>
+                  <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {shortLoading ? (
-                  <TableLoader colSpan={6} />
+                  <TableLoader colSpan={7} />
                 ) : !shortSemesterId ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                       Select a semester to find students with short attendance.
                     </td>
                   </tr>
                 ) : shortRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                      No active students with attendance below 50% found.
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                      No students with attendance below 50% found for this semester.
                     </td>
                   </tr>
                 ) : (
                   shortRows.map((r) => (
                     <tr key={r.student_id} className="bg-red-50/30 hover:bg-red-50/60 dark:bg-red-900/5 dark:hover:bg-red-900/10">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                          {r.student_status === "struck_off" && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                              Already Struck Off
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {r.roll_no || "—"} · {r.class_name} ({r.session})
                         </div>
@@ -626,6 +636,17 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                         <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700 dark:bg-red-500/10 dark:text-red-400">
                           {r.percentage !== null ? `${r.percentage}%` : "—"}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.student_status === "active" ? (
+                          <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                            Pending
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                            Struck Off
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -743,10 +764,17 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                   </tr>
                 ) : (
                   reportRows.map((r) => (
-                    <tr key={r.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <tr key={r.student_id} className={`${r.student_status === "struck_off" ? "bg-red-50/30 dark:bg-red-900/5" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"}`}>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">
-                          {r.name}
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            {r.name}
+                          </div>
+                          {r.student_status === "struck_off" && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                              Struck Off
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {r.roll_no || "—"}

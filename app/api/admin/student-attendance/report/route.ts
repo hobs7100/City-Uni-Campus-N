@@ -47,9 +47,9 @@ export async function GET(request: NextRequest) {
     const leaves = Number(r.leaves ?? 0);
     const denom = presents + absents;
     const percentage = denom > 0 ? Math.round((presents / denom) * 10000) / 100 : null;
-    let flag: "ok" | "warning" | "struck_off" = "ok";
+    let flag: "ok" | "warning" | "low" = "ok";
     if (percentage !== null) {
-      if (percentage < 50) flag = "struck_off";
+      if (percentage < 50) flag = "low";
       else if (percentage < 75) flag = "warning";
     }
     return {
