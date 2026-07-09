@@ -297,8 +297,9 @@ export default function StudentManagementPage({ role }: Props) {
 
   const needsStatusFields = ["left", "dropped", "freezed"].includes(form.status);
 
-  // ── Shared filter bar ────────────────────────────────────────────────────
-  const FilterBar = () => (
+  // ── Shared filter bar values (rendered inline — NOT as a nested component
+  //    to avoid React remounting the input on every keystroke, which kills focus)
+  const filterBar = (
     <div className="mb-4 flex flex-col gap-3 sm:flex-row">
       <div className="relative flex-1">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -438,8 +439,8 @@ export default function StudentManagementPage({ role }: Props) {
         </button>
       </div>
 
-      {/* Filter Bar */}
-      <FilterBar />
+      {/* Filter Bar — rendered as a variable, not a component, to preserve input focus */}
+      {filterBar}
 
       {/* ── Active Tab ─────────────────────────────────────────────────── */}
       {tab === "active" && (

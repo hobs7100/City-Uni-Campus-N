@@ -103,5 +103,26 @@ export async function POST(request: NextRequest) {
     client.release();
   }
 
+  // Auto-strike students whose overall semester attendance drops below 50%
+  // Only affects currently 'active' students; leaves already-struck-off alone.
+  const studentIds = d.rows.map((r) => r.student_id);
+  await query(
+    `update students s
+     set status = 'struck_off',
+         status_changed_by_name = 'By System due to Attendance Below 50%',
+         updated_at = now()
+     where s.id = any($1::uuid[])
+       and s.deleted_at is null
+       and s.status = 'active'
+       and (
+         select
+           count(*) filter (where sar.status = 'present')::float /
+           nullif(count(*) filter (where sar.status in ('present','absent')), 0)
+         from student_attendance_records sar
+         where sar.student_id = s.id and sar.semester_id = $2
+       ) < 0.5`,
+    [studentIds, d.semester_id]
+  );
+
   return NextResponse.json({ success: true });
 }
