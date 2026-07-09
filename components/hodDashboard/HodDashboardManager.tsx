@@ -16,6 +16,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import ProfilePasswordForm from "@/components/ProfilePasswordForm";
 import Logo from "@/components/Logo";
+import StudentManagementPage from "@/components/students/StudentManagementPage";
 import type { SingleValue } from "react-select";
 
 interface Department  { id: string; name: string }
@@ -52,6 +53,7 @@ interface ResultStudent {
 
 const tabs = [
   { id: "overview",    label: "Dashboard",          icon: LayoutDashboard },
+  { id: "students",    label: "Students",            icon: GraduationCap },
   { id: "classes",     label: "All Classes",         icon: School },
   { id: "attendance",  label: "Student Attendance",  icon: ClipboardCheck },
   { id: "results",     label: "Exam & Results",      icon: Award },
@@ -331,6 +333,9 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
           </div>
         </div>
       )}
+
+      {/* ══════════════════════ STUDENTS TAB ══════════════════════════════ */}
+      {tab === "students" && <StudentManagementPage role="hod" />}
 
       {/* ══════════════════════ CLASSES TAB ═══════════════════════════════ */}
       {tab === "classes" && (
