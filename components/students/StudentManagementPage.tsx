@@ -67,12 +67,13 @@ const emptyForm = {
 type Tab = "active" | "struck_off";
 
 interface Props {
-  /** "admin" | "coordinator" | "hod" — controls which action buttons appear */
-  role: "admin" | "coordinator" | "hod";
+  /** "admin" | "coordinator" | "hod" | "readonly" — controls which action buttons appear */
+  role: "admin" | "coordinator" | "hod" | "readonly";
 }
 
 export default function StudentManagementPage({ role }: Props) {
   const canAdd    = role === "admin" || role === "coordinator";
+  const canEdit   = role === "admin" || role === "coordinator";
   const canDelete = role === "admin" || role === "coordinator";
   const canRegen  = role === "admin" || role === "coordinator";
 
@@ -352,10 +353,12 @@ export default function StudentManagementPage({ role }: Props) {
       </td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-2">
+          {canEdit && (
           <button onClick={() => openEdit(s)} title="Edit"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
             <Pencil size={16} />
           </button>
+          )}
           {canRegen && (
             <button onClick={() => setRegenTarget(s)} title="Regenerate Password"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10">
@@ -383,7 +386,7 @@ export default function StudentManagementPage({ role }: Props) {
         <th className="px-4 py-3">Session</th>
         <th className="px-4 py-3">Status</th>
         <th className="px-4 py-3">Status Changed By</th>
-        <th className="px-4 py-3 text-right">Actions</th>
+        {canEdit || canRegen || canDelete ? <th className="px-4 py-3 text-right">Actions</th> : null}
       </tr>
     </thead>
   );
