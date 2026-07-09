@@ -92,7 +92,7 @@ const strikeSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requireRole("admin");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

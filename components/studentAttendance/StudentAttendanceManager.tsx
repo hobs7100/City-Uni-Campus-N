@@ -571,7 +571,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 />
               </div>
             </div>
-            {shortRows.filter((r) => r.student_status === "active").length > 0 && (
+            {role === "admin" && shortRows.filter((r) => r.student_status === "active").length > 0 && (
               <button
                 onClick={handleStruckOffAll}
                 disabled={shortStruckOffLoading}
