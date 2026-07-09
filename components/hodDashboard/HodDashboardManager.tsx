@@ -4,14 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award, BookOpen, Building2, CalendarCheck, ClipboardCheck,
   FileDown, GraduationCap, LayoutDashboard, School, Search,
-  UsersRound, TrendingUp, User, UserCog,
+  UsersRound, TrendingUp, User, UserCog, UserMinus,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from "recharts";
 import { formatDateOnly } from "@/lib/format";
-import { PageLoader, DataFetchLoader } from "@/components/ui/Loaders";
+import { PageLoader, DataFetchLoader, TableLoader, ButtonLoader } from "@/components/ui/Loaders";
+import toast from "react-hot-toast";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import ProfilePasswordForm from "@/components/ProfilePasswordForm";
@@ -51,11 +52,21 @@ interface ResultStudent {
   class_name: string; session: string; department_name: string;
 }
 
+interface ShortRow {
+  student_id: string; name: string; roll_no: string | null;
+  class_name: string; session: string; student_status: string;
+  presents: number; absents: number; leaves: number; percentage: number | null;
+}
+
+interface ClassOption { id: string; class_name: string; session: string }
+interface SemOption   { id: string; semester_number: number; term_type: string }
+
 const tabs = [
   { id: "overview",    label: "Dashboard",          icon: LayoutDashboard },
   { id: "students",    label: "Students",            icon: GraduationCap },
   { id: "classes",     label: "All Classes",         icon: School },
   { id: "attendance",  label: "Student Attendance",  icon: ClipboardCheck },
+  { id: "short",       label: "Short Attendance",    icon: UserMinus },
   { id: "results",     label: "Exam & Results",      icon: Award },
   { id: "profile",     label: "Profile",             icon: UserCog },
 ] as const;
@@ -104,6 +115,16 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   const [resultSemesters, setResultSemesters]   = useState<ResultSemester[]>([]);
   const [resultLoading, setResultLoading]       = useState(false);
 
+  // ── short attendance ──────────────────────────────────────────────────────
+  const [shortDeptId,          setShortDeptId]          = useState("");
+  const [shortClassId,         setShortClassId]         = useState("");
+  const [shortSemId,           setShortSemId]           = useState("");
+  const [shortClasses,         setShortClasses]         = useState<ClassOption[]>([]);
+  const [shortSems,            setShortSems]            = useState<SemOption[]>([]);
+  const [shortRows,            setShortRows]            = useState<ShortRow[]>([]);
+  const [shortLoading,         setShortLoading]         = useState(false);
+  const [shortStruckOffLoading,setShortStruckOffLoading]= useState(false);
+
   // ── load overview data ────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
@@ -138,6 +159,62 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
       setAttLoading(false);
     }
   }, []);
+
+  // ── short attendance: load classes when dept changes ─────────────────────
+  useEffect(() => {
+    setShortClassId(""); setShortSemId(""); setShortClasses([]); setShortSems([]);
+    if (!shortDeptId) return;
+    fetch(`/api/admin/classes?department_id=${shortDeptId}`)
+      .then((r) => r.json())
+      .then((d) => setShortClasses(d.classes ?? []));
+  }, [shortDeptId]);
+
+  useEffect(() => {
+    setShortSemId(""); setShortSems([]);
+    if (!shortClassId) return;
+    fetch(`/api/admin/semesters?class_id=${shortClassId}`)
+      .then((r) => r.json())
+      .then((d) => setShortSems((d.semesters ?? []).filter((s: SemOption & { status: string }) => s.status === "active")));
+  }, [shortClassId]);
+
+  const loadShortAttendance = useCallback(async () => {
+    setShortLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (shortDeptId)  params.set("department_id", shortDeptId);
+      if (shortClassId) params.set("class_id",      shortClassId);
+      if (shortSemId)   params.set("semester_id",   shortSemId);
+      const res  = await fetch(`/api/admin/student-attendance/short?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok) setShortRows(data.students ?? []);
+      else toast.error(data.error || "Could not load short attendance.");
+    } finally {
+      setShortLoading(false);
+    }
+  }, [shortDeptId, shortClassId, shortSemId]);
+
+  useEffect(() => {
+    if (tab === "short") loadShortAttendance();
+  }, [tab, loadShortAttendance]);
+
+  async function handleShortStruckOffAll() {
+    const targets = shortRows.filter((r) => r.student_status === "active");
+    if (targets.length === 0) return;
+    setShortStruckOffLoading(true);
+    try {
+      const res = await fetch("/api/admin/student-attendance/short", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_ids: targets.map((r) => r.student_id) }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed."); return; }
+      toast.success(`${targets.length} student(s) marked as Struck Off.`);
+      await loadShortAttendance();
+    } finally {
+      setShortStruckOffLoading(false);
+    }
+  }
 
   function handleAttStudentChange(opt: SingleValue<SelectOption>) {
     const val = opt?.value ?? "";
@@ -479,6 +556,158 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
               );
             })
           )}
+        </div>
+      )}
+
+      {/* ══════════════════════ SHORT ATTENDANCE TAB ══════════════════════ */}
+      {tab === "short" && (
+        <div className="space-y-4">
+          {/* filters + action row */}
+          <div className="card-3d flex flex-wrap items-end gap-3 p-4">
+            {/* Department */}
+            <div className="min-w-[180px] flex-1">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Department
+              </label>
+              <select
+                value={shortDeptId}
+                onChange={(e) => setShortDeptId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">All Departments</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Class */}
+            <div className="min-w-[180px] flex-1">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Class
+              </label>
+              <select
+                value={shortClassId}
+                onChange={(e) => setShortClassId(e.target.value)}
+                disabled={!shortDeptId}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">All Classes</option>
+                {shortClasses.map((c) => (
+                  <option key={c.id} value={c.id}>{c.class_name} ({c.session})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Semester */}
+            <div className="min-w-[180px] flex-1">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Semester
+              </label>
+              <select
+                value={shortSemId}
+                onChange={(e) => setShortSemId(e.target.value)}
+                disabled={!shortClassId}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">All Active Semesters</option>
+                {shortSems.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    Semester {s.semester_number}{s.term_type ? ` — ${s.term_type}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Struck Off All button */}
+            {shortRows.filter((r) => r.student_status === "active").length > 0 && (
+              <button
+                onClick={handleShortStruckOffAll}
+                disabled={shortStruckOffLoading}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {shortStruckOffLoading ? <ButtonLoader /> : <UserMinus size={15} />}
+                Struck Off All ({shortRows.filter((r) => r.student_status === "active").length})
+              </button>
+            )}
+          </div>
+
+          {/* table */}
+          <div className="overflow-hidden card-3d">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-3 dark:border-slate-800 dark:from-red-900/20 dark:to-rose-900/20">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                <UserMinus size={15} className="text-red-500" />
+                Students with Attendance Below 50%
+                <span className="ml-auto text-xs font-normal text-slate-500 dark:text-slate-400">
+                  {shortRows.length} student{shortRows.length !== 1 ? "s" : ""}
+                </span>
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">#</th>
+                    <th className="px-4 py-3">Student</th>
+                    <th className="px-4 py-3">Roll No</th>
+                    <th className="px-4 py-3">Class / Session</th>
+                    <th className="px-4 py-3 text-center">Present</th>
+                    <th className="px-4 py-3 text-center">Absent</th>
+                    <th className="px-4 py-3 text-center">%</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {shortLoading ? (
+                    <TableLoader colSpan={8} />
+                  ) : shortRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                        No students with attendance below 50% found.
+                      </td>
+                    </tr>
+                  ) : (
+                    shortRows.map((r, idx) => {
+                      const pct = r.percentage;
+                      const pctCls = pct === null ? "text-slate-400"
+                        : pct < 50 ? "text-red-600 dark:text-red-400 font-bold"
+                        : "text-amber-600 dark:text-amber-400";
+                      const isStruckOff = r.student_status === "struck_off";
+                      return (
+                        <tr
+                          key={r.student_id}
+                          className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${isStruckOff ? "opacity-60" : ""}`}
+                        >
+                          <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                          <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{r.name}</td>
+                          <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{r.roll_no || "—"}</td>
+                          <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                            {r.class_name} <span className="text-xs">({r.session})</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-emerald-600">{r.presents}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-red-500">{r.absents}</td>
+                          <td className={`px-4 py-2.5 text-center ${pctCls}`}>
+                            {pct !== null ? `${pct}%` : "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {isStruckOff ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                                Struck Off
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

@@ -4,7 +4,7 @@ import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requireRole("admin", "coordinator", "hod");
   if (response) return response;
 
   const semesterId = request.nextUrl.searchParams.get("semester_id");
@@ -92,7 +92,7 @@ const strikeSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin");
+  const { response } = await requireRole("admin", "hod");
   if (response) return response;
 
   const body = await request.json().catch(() => null);
