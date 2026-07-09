@@ -27,22 +27,25 @@ export async function GET(request: NextRequest) {
 
   const departmentId = request.nextUrl.searchParams.get("department_id");
   const classId = request.nextUrl.searchParams.get("class_id");
+  const status = request.nextUrl.searchParams.get("status");
 
   const conditions: string[] = ["s.deleted_at is null"];
   const values: unknown[] = [];
   let i = 1;
   if (departmentId) { conditions.push(`s.department_id = $${i++}`); values.push(departmentId); }
-  if (classId) { conditions.push(`s.class_id = $${i++}`); values.push(classId); }
+  if (classId)      { conditions.push(`s.class_id = $${i++}`);       values.push(classId); }
+  if (status)       { conditions.push(`s.status = $${i++}`);          values.push(status); }
 
   const students = await query(
     `select s.id, s.name, s.father_name, s.cnic, s.contact, s.address, s.email,
             s.department_id, d.name as department_name, s.session, s.class_id, c.class_name,
-            s.profile_image_url, s.status, s.status_change_date, s.status_change_semester, s.created_at
+            s.profile_image_url, s.status, s.status_change_date, s.status_change_semester,
+            s.status_changed_by_name, s.created_at
      from students s
      join departments d on d.id = s.department_id
      join classes c on c.id = s.class_id
      where ${conditions.join(" and ")}
-     order by s.created_at desc`,
+     order by s.name asc`,
     values
   );
   return NextResponse.json({ students });
@@ -68,7 +71,6 @@ export async function POST(request: NextRequest) {
 
   const generatedPassword = generateRandomPassword();
   const passwordHash = await hashPassword(generatedPassword);
-
   const needsStatusFields = ["left", "dropped", "freezed"].includes(d.status);
 
   const student = await queryOne(
@@ -78,18 +80,9 @@ export async function POST(request: NextRequest) {
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      returning id, name, email, status`,
     [
-      d.name,
-      d.father_name || null,
-      d.cnic,
-      d.contact || null,
-      d.address || null,
-      d.email.toLowerCase(),
-      passwordHash,
-      d.department_id,
-      d.session,
-      d.class_id,
-      d.profile_image_url || null,
-      d.status,
+      d.name, d.father_name || null, d.cnic, d.contact || null, d.address || null,
+      d.email.toLowerCase(), passwordHash, d.department_id, d.session, d.class_id,
+      d.profile_image_url || null, d.status,
       needsStatusFields ? d.status_change_date || null : null,
       needsStatusFields ? d.status_change_semester ?? null : null,
     ]
@@ -101,9 +94,7 @@ export async function POST(request: NextRequest) {
     password: generatedPassword,
   }).catch((e) => ({ success: false, error: String(e) }));
 
-  if (emailResult.success) {
-    return NextResponse.json({ student, emailSent: true }, { status: 201 });
-  }
+  if (emailResult.success) return NextResponse.json({ student, emailSent: true }, { status: 201 });
   return NextResponse.json(
     { student, emailSent: false, emailError: emailResult.error, generatedPassword },
     { status: 201 }

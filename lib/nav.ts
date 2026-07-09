@@ -52,6 +52,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   hod: [
     { label: "Overview", href: "/dashboard/hod?tab=overview", icon: "LayoutDashboard" },
     { label: "Classes", href: "/dashboard/hod?tab=classes", icon: "School" },
+    { label: "Students", href: "/dashboard/hod/students", icon: "GraduationCap" },
     { label: "Student Attendance", href: "/dashboard/hod?tab=attendance", icon: "ClipboardCheck" },
     { label: "Exam & Results", href: "/dashboard/hod?tab=results", icon: "Award" },
     { label: "Profile", href: "/dashboard/hod/profile", icon: "UserCog" },

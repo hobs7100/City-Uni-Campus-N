@@ -22,7 +22,7 @@ const schema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { session, response } = await requireRole("admin", "hod", "coordinator");
   if (response) return response;
   const { id } = await params;
 
@@ -39,8 +39,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (d.email) {
     const existing = await queryOne(`select id from students where email = $1 and id != $2`, [
-      d.email.toLowerCase(),
-      id,
+      d.email.toLowerCase(), id,
     ]);
     if (existing) return NextResponse.json({ error: "A student with this email already exists." }, { status: 409 });
   }
@@ -49,6 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const sets: string[] = [];
   const values: unknown[] = [];
   let i = 1;
+
   for (const [key, value] of Object.entries(rest)) {
     if (value === undefined) continue;
     sets.push(`${key} = $${i++}`);
@@ -57,6 +57,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (password) {
     sets.push(`password_hash = $${i++}`);
     values.push(await hashPassword(password));
+  }
+  // When status changes, record who made the change
+  if (d.status !== undefined) {
+    sets.push(`status_changed_by_name = $${i++}`);
+    values.push(session!.name);
   }
   if (rest.status && !["left", "dropped", "freezed"].includes(rest.status)) {
     sets.push(`status_change_date = $${i++}`);
