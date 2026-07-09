@@ -10,7 +10,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
-  if (session.role === "teacher" || session.role === "hod") {
+  if (session.role === "teacher" || session.role === "hod" || session.role === "student") {
     return (
       <TeacherShell name={session.name} roleLabel={roleLabels[session.role]}>
         {children}
