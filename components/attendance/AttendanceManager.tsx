@@ -86,7 +86,7 @@ export default function AttendanceManager() {
   const [markTarget, setMarkTarget] = useState<Lecture | null>(null);
   const [lectureCount, setLectureCount] = useState("1");
   const [lateMinutes, setLateMinutes] = useState("0");
-  const [status, setStatus] = useState<"ok" | "fixture">("ok");
+  const [status, setStatus] = useState<"ok" | "fixture" | "absent">("ok");
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -612,47 +612,73 @@ export default function AttendanceManager() {
                 <Users size={13} /> {markTarget.teacher_name}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Lecture Count
-                </label>
-                <select
-                  value={lectureCount}
-                  onChange={(e) => setLectureCount(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="1">Full (1)</option>
-                  <option value="0.5">Half (0.5)</option>
-                  <option value="0">None (0 - Absent)</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Late Minutes
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={lateMinutes}
-                  onChange={(e) => setLateMinutes(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-            </div>
+            {/* 1. Status */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Status
               </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as "ok" | "fixture")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="ok">OK</option>
-                <option value="fixture">Fixture (Rescheduled)</option>
-              </select>
+              <div className="flex flex-wrap gap-3">
+                {(["ok", "absent", "fixture"] as const).map((opt) => (
+                  <label key={opt} className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="mark-status"
+                      value={opt}
+                      checked={status === opt}
+                      onChange={() => setStatus(opt)}
+                      className="accent-indigo-600"
+                    />
+                    <span className={`text-sm font-medium ${
+                      opt === "ok"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : opt === "absent"
+                        ? "text-red-500 dark:text-red-400"
+                        : "text-amber-500 dark:text-amber-400"
+                    }`}>
+                      {opt === "ok" ? "OK" : opt === "absent" ? "Absent" : "Fixture (Rescheduled)"}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
+
+            {/* 2. Late Minutes */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Late Minutes
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={lateMinutes}
+                onChange={(e) => setLateMinutes(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+
+            {/* 3. Lecture Count */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Lecture Count
+              </label>
+              <div className="flex flex-wrap gap-3">
+                {([["1", "Full (1)"], ["0.5", "Half (0.5)"], ["0", "None (0)"]] as const).map(([val, label]) => (
+                  <label key={val} className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="mark-lecture-count"
+                      value={val}
+                      checked={lectureCount === val}
+                      onChange={() => setLectureCount(val)}
+                      className="accent-indigo-600"
+                    />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. Remarks */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Remarks

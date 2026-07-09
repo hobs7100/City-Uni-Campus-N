@@ -10,7 +10,7 @@ const schema = z.object({
   end_time: z.string().min(1),
   lecture_count: z.coerce.number().min(0).max(1),
   late_minutes: z.coerce.number().int().min(0).default(0),
-  status: z.enum(["ok", "fixture"]).default("ok"),
+  status: z.enum(["ok", "fixture", "absent"]).default("ok"),
   remarks: z.string().optional().nullable(),
 });
 
