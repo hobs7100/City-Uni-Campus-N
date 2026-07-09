@@ -111,6 +111,7 @@ interface StudentAttendanceRow {
   roll_no: string | null;
   class_name: string;
   session: string;
+  student_status: string;
   presents: number;
   absents: number;
   leaves: number;
@@ -982,8 +983,23 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   </tr>
                 ) : (
                   studentReportRows.map((r) => (
-                    <tr key={r.student_id}>
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{r.name}</td>
+                    <tr key={r.student_id} className={r.student_status !== "active" ? "bg-slate-50/60 dark:bg-slate-800/30" : ""}>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                        {r.student_status !== "active" && (
+                          <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+                            r.student_status === "struck_off"
+                              ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400"
+                              : r.student_status === "freezed"
+                              ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400"
+                              : r.student_status === "left"
+                              ? "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
+                          }`}>
+                            {r.student_status.replace("_", " ")}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-500">{r.roll_no || "—"}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">{r.class_name} ({r.session})</td>
                       <td className="px-4 py-3 text-emerald-600 font-semibold">{r.presents}</td>

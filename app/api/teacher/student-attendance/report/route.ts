@@ -43,12 +43,13 @@ export async function GET(request: NextRequest) {
     roll_no: string | null;
     class_name: string;
     session: string;
+    student_status: string;
     presents: string;
     absents: string;
     leaves: string;
   }>(
     `select st.id as student_id, st.name, st.roll_no,
-            cl.class_name, cl.session,
+            cl.class_name, cl.session, st.status as student_status,
             count(*) filter (where sca.status = 'present') as presents,
             count(*) filter (where sca.status = 'absent')  as absents,
             count(*) filter (where sca.status = 'leave')   as leaves
@@ -58,8 +59,7 @@ export async function GET(request: NextRequest) {
        on sca.student_id = st.id and sca.allocation_id = $1
      where st.class_id = any($2::uuid[])
        and st.deleted_at is null
-       and st.status = 'active'
-     group by st.id, st.name, st.roll_no, cl.class_name, cl.session
+     group by st.id, st.name, st.roll_no, cl.class_name, cl.session, st.status
      order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
     [allocationId, allClassIds]
   );
@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
       roll_no: r.roll_no,
       class_name: r.class_name,
       session: r.session,
+      student_status: r.student_status,
       presents: p,
       absents: a,
       leaves: l,
