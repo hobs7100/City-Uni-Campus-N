@@ -165,13 +165,20 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     if (!semesterInfo) return;
     setSaving(true);
     try {
+      const saveRows = role === "coordinator"
+        ? rows.filter((r) => !r.already_marked)
+        : rows;
+      if (saveRows.length === 0) {
+        toast("All attendance for this date is already saved.");
+        return;
+      }
       const res = await fetch("/api/admin/student-attendance/roster", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           semester_id: semesterInfo.id,
           attendance_date: date,
-          rows: rows.map((r) => ({
+          rows: saveRows.map((r) => ({
             student_id: r.student_id,
             status: r.status,
             reason: r.status === "present" ? null : r.reason || null,
@@ -436,7 +443,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
             </table>
           </div>
 
-          {rows.length > 0 && (
+          {rows.length > 0 && !(role === "coordinator" && rows.every((r) => r.already_marked)) && (
             <div className="mt-4 flex justify-end">
               <button
                 onClick={handleSave}
@@ -446,6 +453,14 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 {saving ? <ButtonLoader /> : <Save size={16} />}
                 Save Attendance
               </button>
+            </div>
+          )}
+          {rows.length > 0 && role === "coordinator" && rows.every((r) => r.already_marked) && (
+            <div className="mt-4 flex justify-end">
+              <span className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                <Save size={16} />
+                Attendance already saved for this date
+              </span>
             </div>
           )}
         </div>
