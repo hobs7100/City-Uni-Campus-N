@@ -257,13 +257,12 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
   );
 
   const loadShortAttendance = useCallback(async () => {
-    if (!shortSemesterId) {
-      setShortRows([]);
-      return;
-    }
     setShortLoading(true);
     try {
-      const params = new URLSearchParams({ semester_id: shortSemesterId });
+      const params = new URLSearchParams();
+      if (shortDepartmentId) params.set("department_id", shortDepartmentId);
+      if (shortClassId) params.set("class_id", shortClassId);
+      if (shortSemesterId) params.set("semester_id", shortSemesterId);
       const res = await fetch(`/api/admin/student-attendance/short?${params.toString()}`);
       const data = await res.json();
       if (res.ok) setShortRows(data.students);
@@ -271,7 +270,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     } finally {
       setShortLoading(false);
     }
-  }, [shortSemesterId]);
+  }, [shortDepartmentId, shortClassId, shortSemesterId]);
 
   useEffect(() => {
     if (tab === "short") loadShortAttendance();
@@ -600,12 +599,6 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {shortLoading ? (
                   <TableLoader colSpan={7} />
-                ) : !shortSemesterId ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                      Select a semester to find students with short attendance.
-                    </td>
-                  </tr>
                 ) : shortRows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-10 text-center text-slate-400">

@@ -8,8 +8,27 @@ export async function GET(request: NextRequest) {
   if (response) return response;
 
   const semesterId = request.nextUrl.searchParams.get("semester_id");
-  if (!semesterId) {
-    return NextResponse.json({ error: "semester_id is required." }, { status: 400 });
+  const classId = request.nextUrl.searchParams.get("class_id");
+  const departmentId = request.nextUrl.searchParams.get("department_id");
+
+  const conditions: string[] = [
+    "st.deleted_at is null",
+    "st.status = 'active'",
+  ];
+  const values: unknown[] = [];
+  let i = 1;
+
+  if (semesterId) {
+    conditions.push(`sem.id = $${i++}`);
+    values.push(semesterId);
+  }
+  if (classId) {
+    conditions.push(`st.class_id = $${i++}`);
+    values.push(classId);
+  }
+  if (departmentId) {
+    conditions.push(`cl.department_id = $${i++}`);
+    values.push(departmentId);
   }
 
   const rows = await query<{
@@ -30,19 +49,18 @@ export async function GET(request: NextRequest) {
             count(*) filter (where sar.status = 'absent')  as absents,
             count(*) filter (where sar.status = 'leave')   as leaves
      from students st
-     join semesters sem on sem.id = $1 and sem.class_id = st.class_id
      join classes cl on cl.id = st.class_id
+     join semesters sem on sem.class_id = st.class_id and sem.status = 'active'
      left join student_attendance_records sar
-       on sar.student_id = st.id and sar.semester_id = $1
-     where st.deleted_at is null
-       and st.status in ('active', 'struck_off')
+       on sar.student_id = st.id and sar.semester_id = sem.id
+     where ${conditions.join(" and ")}
      group by st.id, st.name, st.roll_no, st.contact, cl.class_name, cl.session, st.status
      having
        count(*) filter (where sar.status in ('present','absent')) > 0
        and (count(*) filter (where sar.status = 'present'))::float /
            nullif(count(*) filter (where sar.status in ('present','absent')), 0) < 0.5
-     order by st.status, cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
-    [semesterId]
+     order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
+    values
   );
 
   const students = rows.map((r) => {
