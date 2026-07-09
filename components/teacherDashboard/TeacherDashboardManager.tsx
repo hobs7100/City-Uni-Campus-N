@@ -833,24 +833,22 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Student</th>
-                  <th className="px-4 py-3">Class</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Reason</th>
-                  <th className="px-4 py-3">Call Remarks</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {rosterLoading ? (
-                  <TableLoader colSpan={5} />
+                  <TableLoader colSpan={3} />
                 ) : !markAllocationId ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={3} className="px-4 py-10 text-center text-slate-400">
                       Select a course above to load students.
                     </td>
                   </tr>
                 ) : rosterRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={3} className="px-4 py-10 text-center text-slate-400">
                       No students found.
                     </td>
                   </tr>
@@ -865,23 +863,32 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                           {r.roll_no || "—"}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {r.class_name} ({r.session})
-                      </td>
                       <td className="px-4 py-3">
-                        <select
-                          value={r.status}
-                          onChange={(e) =>
-                            updateRosterRow(r.student_id, {
-                              status: e.target.value as RosterRow["status"],
-                            })
-                          }
-                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                        >
-                          <option value="present">Present</option>
-                          <option value="absent">Absent</option>
-                          <option value="leave">Leave</option>
-                        </select>
+                        <div className="flex items-center gap-3">
+                          {(["present", "absent", "leave"] as const).map((opt) => (
+                            <label key={opt} className="flex cursor-pointer items-center gap-1.5">
+                              <input
+                                type="radio"
+                                name={`status-${r.student_id}`}
+                                value={opt}
+                                checked={r.status === opt}
+                                onChange={() =>
+                                  updateRosterRow(r.student_id, { status: opt })
+                                }
+                                className="accent-indigo-600"
+                              />
+                              <span className={`text-xs font-medium capitalize ${
+                                opt === "present"
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : opt === "absent"
+                                  ? "text-red-500 dark:text-red-400"
+                                  : "text-amber-500 dark:text-amber-400"
+                              }`}>
+                                {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <input
@@ -892,16 +899,6 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             updateRosterRow(r.student_id, { reason: e.target.value })
                           }
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={r.call_remarks}
-                          onChange={(e) =>
-                            updateRosterRow(r.student_id, { call_remarks: e.target.value })
-                          }
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                         />
                       </td>
                     </tr>
