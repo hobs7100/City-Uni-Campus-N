@@ -45,13 +45,14 @@ export async function GET(request: NextRequest) {
     contact: string | null;
     class_name: string;
     session: string;
-    status: string | null;
+    student_status: string;
+    att_status: string | null;
     reason: string | null;
     call_remarks: string | null;
   }>(
     `select st.id as student_id, st.name, st.roll_no, st.contact,
-            cl.class_name, cl.session,
-            sca.status, sca.reason, sca.call_remarks
+            cl.class_name, cl.session, st.status as student_status,
+            sca.status as att_status, sca.reason, sca.call_remarks
      from students st
      join classes cl on cl.id = st.class_id
      left join student_course_attendance sca
@@ -60,22 +61,27 @@ export async function GET(request: NextRequest) {
       and sca.attendance_date = $2
      where st.class_id = any($3::uuid[])
        and st.deleted_at is null
-       and st.status = 'active'
+       and st.status in ('active', 'struck_off')
      order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
     [allocationId, date, classIds]
   );
 
-  const rows = students.map((st) => ({
-    student_id: st.student_id,
-    name: st.name,
-    roll_no: st.roll_no,
-    contact: st.contact,
-    class_name: st.class_name,
-    session: st.session,
-    status: (st.status as "present" | "absent" | "leave") ?? "present",
-    reason: st.reason ?? "",
-    call_remarks: st.call_remarks ?? "",
-  }));
+  const rows = students.map((st) => {
+    const isStruckOff = st.student_status === "struck_off";
+    return {
+      student_id: st.student_id,
+      name: st.name,
+      roll_no: st.roll_no,
+      contact: st.contact,
+      class_name: st.class_name,
+      session: st.session,
+      student_status: st.student_status,
+      locked: isStruckOff,
+      status: (isStruckOff ? "absent" : (st.att_status ?? "present")) as "present" | "absent" | "leave",
+      reason: st.reason ?? "",
+      call_remarks: st.call_remarks ?? "",
+    };
+  });
 
   return NextResponse.json({ is_combined: allocation.is_combined, rows });
 }

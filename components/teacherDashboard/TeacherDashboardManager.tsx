@@ -87,6 +87,8 @@ interface RosterRow {
   contact: string | null;
   class_name: string;
   session: string;
+  student_status: string;
+  locked: boolean;
   status: "present" | "absent" | "leave";
   reason: string;
   call_remarks: string;
@@ -855,51 +857,64 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   </tr>
                 ) : (
                   rosterRows.map((r) => (
-                    <tr key={r.student_id}>
+                    <tr key={r.student_id} className={r.locked ? "bg-red-50/40 dark:bg-red-900/10" : ""}>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">
-                          {r.name}
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            {r.name}
+                          </div>
+                          {r.locked && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                              Struck Off
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {r.roll_no || "—"}
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {(["present", "absent", "leave"] as const).map((opt) => (
-                            <label key={opt} className="flex cursor-pointer items-center gap-1.5">
-                              <input
-                                type="radio"
-                                name={`status-${r.student_id}`}
-                                value={opt}
-                                checked={r.status === opt}
-                                onChange={() =>
-                                  updateRosterRow(r.student_id, { status: opt })
-                                }
-                                className="accent-indigo-600"
-                              />
-                              <span className={`text-xs font-medium capitalize ${
-                                opt === "present"
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : opt === "absent"
-                                  ? "text-red-500 dark:text-red-400"
-                                  : "text-amber-500 dark:text-amber-400"
-                              }`}>
-                                {opt.charAt(0).toUpperCase() + opt.slice(1)}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
+                        {r.locked ? (
+                          <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                            Absent
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            {(["present", "absent", "leave"] as const).map((opt) => (
+                              <label key={opt} className="flex cursor-pointer items-center gap-1.5">
+                                <input
+                                  type="radio"
+                                  name={`status-${r.student_id}`}
+                                  value={opt}
+                                  checked={r.status === opt}
+                                  onChange={() =>
+                                    updateRosterRow(r.student_id, { status: opt })
+                                  }
+                                  className="accent-indigo-600"
+                                />
+                                <span className={`text-xs font-medium capitalize ${
+                                  opt === "present"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : opt === "absent"
+                                    ? "text-red-500 dark:text-red-400"
+                                    : "text-amber-500 dark:text-amber-400"
+                                }`}>
+                                  {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <input
                           type="text"
-                          disabled={r.status === "present"}
+                          disabled={r.locked || r.status === "present"}
                           value={r.reason}
                           onChange={(e) =>
                             updateRosterRow(r.student_id, { reason: e.target.value })
                           }
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
                         />
                       </td>
                     </tr>

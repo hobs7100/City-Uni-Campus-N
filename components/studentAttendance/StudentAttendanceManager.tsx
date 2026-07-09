@@ -27,10 +27,25 @@ interface RosterRow {
   name: string;
   roll_no: string | null;
   contact: string | null;
+  student_status: string;
+  locked: boolean;
   status: "present" | "absent" | "leave";
   reason: string;
   call_remarks: string;
   already_marked: boolean;
+}
+
+interface ShortRow {
+  student_id: string;
+  name: string;
+  roll_no: string | null;
+  contact: string | null;
+  class_name: string;
+  session: string;
+  presents: number;
+  absents: number;
+  leaves: number;
+  percentage: number | null;
 }
 
 interface ReportRow {
@@ -62,7 +77,7 @@ const flagStyles: Record<string, string> = {
 };
 
 export default function StudentAttendanceManager({ role = "admin" }: { role?: "admin" | "coordinator" }) {
-  const [tab, setTab] = useState<"mark" | "report">("mark");
+  const [tab, setTab] = useState<"mark" | "report" | "short">("mark");
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [allClasses, setAllClasses] = useState<ClassOption[]>([]);
   const [allSemesters, setAllSemesters] = useState<SemesterOption[]>([]);
@@ -82,6 +97,13 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
   const [reportTo, setReportTo] = useState("");
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
+
+  const [shortDepartmentId, setShortDepartmentId] = useState("");
+  const [shortClassId, setShortClassId] = useState("");
+  const [shortSemesterId, setShortSemesterId] = useState("");
+  const [shortRows, setShortRows] = useState<ShortRow[]>([]);
+  const [shortLoading, setShortLoading] = useState(false);
+  const [shortStruckOffLoading, setShortStruckOffLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/departments")
@@ -214,6 +236,67 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     if (tab === "report") loadReport();
   }, [tab, loadReport]);
 
+  const shortClassOptions = useMemo(
+    () =>
+      allClasses
+        .filter((c) => !shortDepartmentId || c.department_id === shortDepartmentId)
+        .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` })),
+    [allClasses, shortDepartmentId],
+  );
+
+  const shortSemesterOptions = useMemo(
+    () =>
+      allSemesters
+        .filter((s) => !shortClassId || s.class_id === shortClassId)
+        .map((s) => ({
+          value: s.id,
+          label: `Sem ${s.semester_number} — ${s.term_type} (${s.status})`,
+        })),
+    [allSemesters, shortClassId],
+  );
+
+  const loadShortAttendance = useCallback(async () => {
+    if (!shortSemesterId) {
+      setShortRows([]);
+      return;
+    }
+    setShortLoading(true);
+    try {
+      const params = new URLSearchParams({ semester_id: shortSemesterId });
+      const res = await fetch(`/api/admin/student-attendance/short?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok) setShortRows(data.students);
+      else toast.error(data.error || "Could not load short attendance.");
+    } finally {
+      setShortLoading(false);
+    }
+  }, [shortSemesterId]);
+
+  useEffect(() => {
+    if (tab === "short") loadShortAttendance();
+  }, [tab, loadShortAttendance]);
+
+  async function handleStruckOffAll() {
+    if (shortRows.length === 0) return;
+    setShortStruckOffLoading(true);
+    try {
+      const res = await fetch("/api/admin/student-attendance/short", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_ids: shortRows.map((r) => r.student_id) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to struck off students.");
+        return;
+      }
+      toast.success(`${shortRows.length} student(s) marked as Struck Off.`);
+      setShortRows([]);
+    } finally {
+      setShortStruckOffLoading(false);
+    }
+  }
+
   const reportSummary = useMemo(() => {
     const parts: string[] = [];
     if (reportDepartmentId)
@@ -260,6 +343,12 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "report" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
           >
             Attendance Report
+          </button>
+          <button
+            onClick={() => setTab("short")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === "short" ? "bg-red-600 text-white" : "text-slate-600 dark:text-slate-300"}`}
+          >
+            Short Attendance
           </button>
         </div>
       </div>
@@ -335,21 +424,28 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 ) : rows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
-                      No active students found for this class.
+                      No students found for this class.
                     </td>
                   </tr>
                 ) : (
                   rows.map((r) => {
-                    const statusReadOnly = role === "coordinator" && r.already_marked;
+                    const statusReadOnly = (role === "coordinator" && r.already_marked) || r.locked;
                     const statusColors: Record<string, string> = {
                       present: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
                       absent: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
                       leave: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
                     };
                     return (
-                      <tr key={r.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <tr key={r.student_id} className={`${r.locked ? "bg-red-50/40 dark:bg-red-900/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"}`}>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                            {r.locked && (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                                Struck Off
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">{r.roll_no || "—"}</div>
                         </td>
                         <td className="px-4 py-3">
@@ -389,7 +485,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                         <td className="px-4 py-3">
                           <input
                             type="text"
-                            disabled={r.status === "present"}
+                            disabled={r.locked || r.status === "present"}
                             value={r.reason}
                             onChange={(e) => updateRow(r.student_id, { reason: e.target.value })}
                             className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
@@ -399,9 +495,10 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                         <td className="px-4 py-3">
                           <input
                             type="text"
+                            disabled={r.locked}
                             value={r.call_remarks}
                             onChange={(e) => updateRow(r.student_id, { call_remarks: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
                             placeholder="Optional"
                           />
                         </td>
@@ -425,6 +522,117 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === "short" && (
+        <div>
+          <div className="mb-4 flex flex-col gap-3 card-3d p-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                  Department
+                </label>
+                <SearchableSelect
+                  options={departments}
+                  value={departments.find((d) => d.value === shortDepartmentId) || null}
+                  onChange={(opt) => {
+                    setShortDepartmentId(opt ? (opt as SelectOption).value : "");
+                    setShortClassId("");
+                    setShortSemesterId("");
+                  }}
+                  placeholder="Select department"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                  Class + Session
+                </label>
+                <SearchableSelect
+                  options={shortClassOptions}
+                  value={shortClassOptions.find((c) => c.value === shortClassId) || null}
+                  onChange={(opt) => {
+                    setShortClassId(opt ? (opt as SelectOption).value : "");
+                    setShortSemesterId("");
+                  }}
+                  placeholder="Select class"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                  Semester
+                </label>
+                <SearchableSelect
+                  options={shortSemesterOptions}
+                  value={shortSemesterOptions.find((s) => s.value === shortSemesterId) || null}
+                  onChange={(opt) => setShortSemesterId(opt ? (opt as SelectOption).value : "")}
+                  placeholder="Select semester"
+                />
+              </div>
+            </div>
+            {shortRows.length > 0 && (
+              <button
+                onClick={handleStruckOffAll}
+                disabled={shortStruckOffLoading}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {shortStruckOffLoading ? <ButtonLoader /> : null}
+                Struck Off All ({shortRows.length})
+              </button>
+            )}
+          </div>
+
+          <div className="overflow-hidden card-3d">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                <tr>
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Cell No</th>
+                  <th className="px-4 py-3">Presents</th>
+                  <th className="px-4 py-3">Absents</th>
+                  <th className="px-4 py-3">Leaves</th>
+                  <th className="px-4 py-3">Attendance %</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {shortLoading ? (
+                  <TableLoader colSpan={6} />
+                ) : !shortSemesterId ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                      Select a semester to find students with short attendance.
+                    </td>
+                  </tr>
+                ) : shortRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                      No active students with attendance below 50% found.
+                    </td>
+                  </tr>
+                ) : (
+                  shortRows.map((r) => (
+                    <tr key={r.student_id} className="bg-red-50/30 hover:bg-red-50/60 dark:bg-red-900/5 dark:hover:bg-red-900/10">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {r.roll_no || "—"} · {r.class_name} ({r.session})
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.contact || "—"}</td>
+                      <td className="px-4 py-3 font-medium text-emerald-600 dark:text-emerald-400">{r.presents}</td>
+                      <td className="px-4 py-3 font-medium text-red-600 dark:text-red-400">{r.absents}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.leaves}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                          {r.percentage !== null ? `${r.percentage}%` : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

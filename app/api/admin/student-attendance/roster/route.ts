@@ -28,26 +28,33 @@ export async function GET(request: NextRequest) {
 
   const students = await query<Record<string, unknown>>(
     `select st.id as student_id, st.name, st.roll_no, st.contact,
-            r.status, r.reason, r.call_remarks,
+            st.status as student_status,
+            r.status as att_status, r.reason, r.call_remarks,
             (r.status is not null) as already_marked
      from students st
      left join student_attendance_records r
        on r.student_id = st.id and r.attendance_date = $1
-     where st.class_id = $2 and st.deleted_at is null and st.status = 'active'
+     where st.class_id = $2 and st.deleted_at is null
+       and st.status in ('active', 'struck_off')
      order by (st.roll_no is null), st.roll_no, st.name`,
     [date, classId]
   );
 
-  const rows = students.map((st) => ({
-    student_id: st.student_id,
-    name: st.name,
-    roll_no: st.roll_no,
-    contact: st.contact,
-    status: st.status ?? "present",
-    reason: st.reason ?? "",
-    call_remarks: st.call_remarks ?? "",
-    already_marked: (st.already_marked as boolean) ?? false,
-  }));
+  const rows = students.map((st) => {
+    const isStruckOff = st.student_status === "struck_off";
+    return {
+      student_id: st.student_id,
+      name: st.name,
+      roll_no: st.roll_no,
+      contact: st.contact,
+      student_status: st.student_status,
+      locked: isStruckOff,
+      status: isStruckOff ? "absent" : ((st.att_status ?? "present") as string),
+      reason: (st.reason as string) ?? "",
+      call_remarks: (st.call_remarks as string) ?? "",
+      already_marked: (st.already_marked as boolean) ?? false,
+    };
+  });
 
   return NextResponse.json({ semester, rows });
 }
@@ -118,32 +125,6 @@ export async function POST(request: NextRequest) {
   } finally {
     client.release();
   }
-
-  // Auto-strike students whose overall semester attendance drops below 50%
-  // Only triggers when at least 5 attendance days have been recorded (present+absent).
-  // Only affects currently 'active' students; leaves already-struck-off alone.
-  const studentIds = d.rows.map((r) => r.student_id);
-  await query(
-    `update students s
-     set status = 'struck_off',
-         status_changed_by_name = 'By System due to Attendance Below 50%',
-         updated_at = now()
-     where s.id = any($1::uuid[])
-       and s.deleted_at is null
-       and s.status = 'active'
-       and exists (
-         select 1 from (
-           select
-             count(*) filter (where sar.status in ('present','absent')) as total_days,
-             count(*) filter (where sar.status = 'present')::float /
-               nullif(count(*) filter (where sar.status in ('present','absent')), 0) as pct
-           from student_attendance_records sar
-           where sar.student_id = s.id and sar.semester_id = $2
-         ) stats
-         where stats.total_days >= 5 and stats.pct < 0.5
-       )`,
-    [studentIds, d.semester_id]
-  );
 
   return NextResponse.json({ success: true });
 }
