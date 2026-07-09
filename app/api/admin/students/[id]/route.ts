@@ -63,12 +63,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     sets.push(`status_changed_by_name = $${i++}`);
     values.push(session!.name);
   }
-  if (rest.status && !["left", "dropped", "freezed"].includes(rest.status)) {
-    sets.push(`status_change_date = $${i++}`);
-    values.push(null);
-    sets.push(`status_change_semester = $${i++}`);
-    values.push(null);
-  }
+  // Note: status_change_date and status_change_semester come through the loop above
+  // already set to null by the frontend for active/struck_off — no duplicate block needed.
   sets.push("updated_at = now()");
   values.push(id);
 
