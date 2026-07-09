@@ -73,7 +73,7 @@ interface Props {
 
 export default function StudentManagementPage({ role }: Props) {
   const canAdd    = role === "admin" || role === "coordinator";
-  const canEdit   = role === "admin" || role === "coordinator";
+  const canEdit   = role === "admin" || role === "coordinator" || role === "hod";
   const canDelete = role === "admin" || role === "coordinator";
   const canRegen  = role === "admin" || role === "coordinator";
 
