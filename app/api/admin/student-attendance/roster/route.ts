@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
 
   const students = await query<Record<string, unknown>>(
     `select st.id as student_id, st.name, st.roll_no, st.contact,
-            r.status, r.reason, r.call_remarks
+            r.status, r.reason, r.call_remarks,
+            (r.status is not null) as already_marked
      from students st
      left join student_attendance_records r
        on r.student_id = st.id and r.attendance_date = $1
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
     status: st.status ?? "present",
     reason: st.reason ?? "",
     call_remarks: st.call_remarks ?? "",
+    already_marked: (st.already_marked as boolean) ?? false,
   }));
 
   return NextResponse.json({ semester, rows });
@@ -82,18 +84,31 @@ export async function POST(request: NextRequest) {
 
   const userId = session?.userId ?? null;
 
+  const isCoordinator = session?.role === "coordinator";
+
   const client = await pool.connect();
   try {
     await client.query("begin");
     for (const row of d.rows) {
-      await client.query(
-        `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
-         values ($1,$2,$3,$4,$5,$6,$7)
-         on conflict (student_id, attendance_date)
-         do update set semester_id = excluded.semester_id, status = excluded.status, reason = excluded.reason,
-                        call_remarks = excluded.call_remarks, marked_by = excluded.marked_by, updated_at = now()`,
-        [row.student_id, d.semester_id, d.attendance_date, row.status, row.reason || null, row.call_remarks || null, userId]
-      );
+      if (isCoordinator) {
+        // Coordinators can only mark attendance for the first time — cannot overwrite existing records
+        await client.query(
+          `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
+           values ($1,$2,$3,$4,$5,$6,$7)
+           on conflict (student_id, attendance_date) do nothing`,
+          [row.student_id, d.semester_id, d.attendance_date, row.status, row.reason || null, row.call_remarks || null, userId]
+        );
+      } else {
+        // Admins can update existing records
+        await client.query(
+          `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
+           values ($1,$2,$3,$4,$5,$6,$7)
+           on conflict (student_id, attendance_date)
+           do update set semester_id = excluded.semester_id, status = excluded.status, reason = excluded.reason,
+                          call_remarks = excluded.call_remarks, marked_by = excluded.marked_by, updated_at = now()`,
+          [row.student_id, d.semester_id, d.attendance_date, row.status, row.reason || null, row.call_remarks || null, userId]
+        );
+      }
     }
     await client.query("commit");
   } catch (err) {
@@ -104,6 +119,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Auto-strike students whose overall semester attendance drops below 50%
+  // Only triggers when at least 5 attendance days have been recorded (present+absent).
   // Only affects currently 'active' students; leaves already-struck-off alone.
   const studentIds = d.rows.map((r) => r.student_id);
   await query(
@@ -114,13 +130,17 @@ export async function POST(request: NextRequest) {
      where s.id = any($1::uuid[])
        and s.deleted_at is null
        and s.status = 'active'
-       and (
-         select
-           count(*) filter (where sar.status = 'present')::float /
-           nullif(count(*) filter (where sar.status in ('present','absent')), 0)
-         from student_attendance_records sar
-         where sar.student_id = s.id and sar.semester_id = $2
-       ) < 0.5`,
+       and exists (
+         select 1 from (
+           select
+             count(*) filter (where sar.status in ('present','absent')) as total_days,
+             count(*) filter (where sar.status = 'present')::float /
+               nullif(count(*) filter (where sar.status in ('present','absent')), 0) as pct
+           from student_attendance_records sar
+           where sar.student_id = s.id and sar.semester_id = $2
+         ) stats
+         where stats.total_days >= 5 and stats.pct < 0.5
+       )`,
     [studentIds, d.semester_id]
   );
 

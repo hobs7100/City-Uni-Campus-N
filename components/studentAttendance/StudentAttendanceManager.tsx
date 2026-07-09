@@ -30,6 +30,7 @@ interface RosterRow {
   status: "present" | "absent" | "leave";
   reason: string;
   call_remarks: string;
+  already_marked: boolean;
 }
 
 interface ReportRow {
@@ -60,7 +61,7 @@ const flagStyles: Record<string, string> = {
   struck_off: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
 };
 
-export default function StudentAttendanceManager() {
+export default function StudentAttendanceManager({ role = "admin" }: { role?: "admin" | "coordinator" }) {
   const [tab, setTab] = useState<"mark" | "report">("mark");
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [allClasses, setAllClasses] = useState<ClassOption[]>([]);
@@ -338,57 +339,88 @@ export default function StudentAttendanceManager() {
                     </td>
                   </tr>
                 ) : (
-                  rows.map((r) => (
-                    <tr key={r.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">
-                          {r.name}
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          {r.roll_no || "—"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {r.contact || "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={r.status}
-                          onChange={(e) =>
-                            updateRow(r.student_id, {
-                              status: e.target.value as RosterRow["status"],
-                            })
-                          }
-                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                        >
-                          <option value="present">Present</option>
-                          <option value="absent">Absent</option>
-                          <option value="leave">Leave</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          disabled={r.status === "present"}
-                          value={r.reason}
-                          onChange={(e) => updateRow(r.student_id, { reason: e.target.value })}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
-                          placeholder="Optional"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={r.call_remarks}
-                          onChange={(e) =>
-                            updateRow(r.student_id, { call_remarks: e.target.value })
-                          }
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          placeholder="Optional"
-                        />
-                      </td>
-                    </tr>
-                  ))
+                  rows.map((r) => {
+                    const isReadOnly = role === "coordinator" && r.already_marked;
+                    const statusColors: Record<string, string> = {
+                      present: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+                      absent: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+                      leave: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+                    };
+                    return (
+                      <tr key={r.student_id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${isReadOnly ? "opacity-80" : ""}`}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <div>
+                              <div className="font-medium text-slate-800 dark:text-slate-100">
+                                {r.name}
+                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">
+                                {r.roll_no || "—"}
+                              </div>
+                            </div>
+                            {isReadOnly && (
+                              <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 dark:bg-slate-700 dark:text-slate-500">
+                                saved
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {r.contact || "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isReadOnly ? (
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusColors[r.status] ?? ""}`}>
+                              {r.status}
+                            </span>
+                          ) : (
+                            <select
+                              value={r.status}
+                              onChange={(e) =>
+                                updateRow(r.student_id, {
+                                  status: e.target.value as RosterRow["status"],
+                                })
+                              }
+                              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            >
+                              <option value="present">Present</option>
+                              <option value="absent">Absent</option>
+                              <option value="leave">Leave</option>
+                            </select>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isReadOnly ? (
+                            <span className="text-sm text-slate-500 dark:text-slate-400">{r.reason || "—"}</span>
+                          ) : (
+                            <input
+                              type="text"
+                              disabled={r.status === "present"}
+                              value={r.reason}
+                              onChange={(e) => updateRow(r.student_id, { reason: e.target.value })}
+                              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
+                              placeholder="Optional"
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isReadOnly ? (
+                            <span className="text-sm text-slate-500 dark:text-slate-400">{r.call_remarks || "—"}</span>
+                          ) : (
+                            <input
+                              type="text"
+                              value={r.call_remarks}
+                              onChange={(e) =>
+                                updateRow(r.student_id, { call_remarks: e.target.value })
+                              }
+                              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              placeholder="Optional"
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
