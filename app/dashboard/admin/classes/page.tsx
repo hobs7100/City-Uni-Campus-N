@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, FileText, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -21,6 +21,7 @@ interface ClassRow {
   type: "ADP" | "BS" | "DIT" | "LLB" | "BS-Bridging";
   total_semesters: number;
   status: "active" | "blocked";
+  scheme_of_studies_url: string | null;
 }
 
 const typeOptions = [
@@ -36,7 +37,7 @@ const statusOptions = [
   { value: "blocked", label: "Blocked" },
 ];
 
-const semestersByType: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8 };
+const semestersByType: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8, "BS-Bridging": 4 };
 
 const emptyForm = {
   id: "",
@@ -46,6 +47,7 @@ const emptyForm = {
   affiliation_id: null as string | null,
   type: "BS" as ClassRow["type"],
   status: "active" as "active" | "blocked",
+  scheme_of_studies_url: null as string | null,
 };
 
 export default function ClassesPage() {
@@ -60,6 +62,9 @@ export default function ClassesPage() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<ClassRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [schemeUploading, setSchemeUploading] = useState(false);
+  const [schemeFileName, setSchemeFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +104,7 @@ export default function ClassesPage() {
   function openCreate() {
     setForm(emptyForm);
     setEditing(false);
+    setSchemeFileName(null);
     setModalOpen(true);
   }
 
@@ -111,9 +117,54 @@ export default function ClassesPage() {
       affiliation_id: item.affiliation_id,
       type: item.type,
       status: item.status,
+      scheme_of_studies_url: item.scheme_of_studies_url,
     });
     setEditing(true);
+    setSchemeFileName(item.scheme_of_studies_url ? "Existing file uploaded" : null);
     setModalOpen(true);
+  }
+
+  async function handleSchemeFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast.error("Only PDF files are allowed.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be under 10 MB.");
+      return;
+    }
+    setSchemeUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+        const res = await fetch("/api/admin/classes/upload-scheme", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileBase64: base64 }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || "Upload failed.");
+          setSchemeUploading(false);
+          return;
+        }
+        setForm((prev) => ({ ...prev, scheme_of_studies_url: data.url }));
+        setSchemeFileName(file.name);
+        toast.success("Scheme of Studies uploaded.");
+        setSchemeUploading(false);
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read file.");
+        setSchemeUploading(false);
+      };
+    } catch {
+      toast.error("Upload failed.");
+      setSchemeUploading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -188,15 +239,16 @@ export default function ClassesPage() {
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Semesters</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-center">Scheme of Studies</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <TableLoader colSpan={8} />
+              <TableLoader colSpan={9} />
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                   No classes found.
                 </td>
               </tr>
@@ -219,6 +271,21 @@ export default function ClassesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={c.status} />
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {c.scheme_of_studies_url ? (
+                      <a
+                        href={c.scheme_of_studies_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Download Scheme of Studies"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+                      >
+                        <Download size={13} /> Download
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {!readOnly && (
@@ -317,7 +384,7 @@ export default function ClassesPage() {
             />
           </div>
           <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-            This class will have <strong>{semestersByType[form.type]}</strong> semesters
+            This class will have <strong>{semestersByType[form.type] ?? "—"}</strong> semesters
             (auto-calculated from type).
           </p>
           <div>
@@ -336,6 +403,63 @@ export default function ClassesPage() {
               isClearable={false}
             />
           </div>
+
+          {/* Scheme of Studies Upload */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Scheme of Studies <span className="text-xs text-slate-400">(PDF, max 10 MB)</span>
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={handleSchemeFileChange}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={schemeUploading}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <Upload size={14} />
+                {schemeUploading ? "Uploading…" : "Choose PDF"}
+              </button>
+
+              {form.scheme_of_studies_url && (
+                <>
+                  <a
+                    href={form.scheme_of_studies_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300"
+                  >
+                    <FileText size={13} />
+                    {schemeFileName && schemeFileName !== "Existing file uploaded"
+                      ? schemeFileName
+                      : "View current file"}
+                  </a>
+                  <button
+                    type="button"
+                    title="Remove scheme of studies"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, scheme_of_studies_url: null }));
+                      setSchemeFileName(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              )}
+              {!form.scheme_of_studies_url && !schemeUploading && (
+                <span className="text-xs text-slate-400">No file uploaded</span>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -346,7 +470,7 @@ export default function ClassesPage() {
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || schemeUploading}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
             >
               {saving ? "Saving..." : editing ? "Save Changes" : "Create"}

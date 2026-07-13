@@ -12,6 +12,7 @@ const schema = z.object({
   affiliation_id: z.string().uuid().nullable().optional(),
   type: z.enum(["ADP", "BS", "DIT", "LLB", "BS-Bridging"]),
   status: z.enum(["active", "blocked"]).default("active"),
+  scheme_of_studies_url: z.string().url().nullable().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -61,9 +62,9 @@ export async function POST(request: NextRequest) {
   }
 
   const created = await queryOne(
-    `insert into classes (department_id, class_name, session, affiliation_id, type, total_semesters, status)
-     values ($1, $2, $3, $4, $5, $6, $7) returning *`,
-    [d.department_id, d.class_name, d.session, d.affiliation_id || null, d.type, totalSemesters, d.status]
+    `insert into classes (department_id, class_name, session, affiliation_id, type, total_semesters, status, scheme_of_studies_url)
+     values ($1, $2, $3, $4, $5, $6, $7, $8) returning *`,
+    [d.department_id, d.class_name, d.session, d.affiliation_id || null, d.type, totalSemesters, d.status, d.scheme_of_studies_url || null]
   );
   return NextResponse.json({ class: created }, { status: 201 });
 }

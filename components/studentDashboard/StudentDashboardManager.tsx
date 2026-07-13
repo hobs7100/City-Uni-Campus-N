@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Eye,
   FileDown,
+  FileText,
   GraduationCap,
   Save,
   School,
@@ -27,6 +28,7 @@ interface Profile {
   cnic: string | null; contact: string | null; address: string | null;
   email: string | null; profile_image_url: string | null;
   status: string; session: string; department_name: string; class_name: string;
+  scheme_of_studies_url: string | null;
 }
 
 interface ResultCourse {
@@ -311,6 +313,16 @@ export default function StudentDashboardManager() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900 dark:text-white">{profile.class_name}</p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Session: {profile.session}</p>
+                {profile.scheme_of_studies_url && (
+                  <a
+                    href={profile.scheme_of_studies_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+                  >
+                    <FileText size={12} /> View Scheme of Studies
+                  </a>
+                )}
               </div>
 
               <div className="card-3d card-hover p-6">

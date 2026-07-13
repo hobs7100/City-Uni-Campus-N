@@ -10,8 +10,9 @@ const schema = z.object({
   class_name: z.string().min(1).optional(),
   session: z.string().min(4).optional(),
   affiliation_id: z.string().uuid().nullable().optional(),
-  type: z.enum(["ADP", "BS", "DIT", "LLB"]).optional(),
+  type: z.enum(["ADP", "BS", "DIT", "LLB", "BS-Bridging"]).optional(),
   status: z.enum(["active", "blocked"]).optional(),
+  scheme_of_studies_url: z.string().url().nullable().optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
