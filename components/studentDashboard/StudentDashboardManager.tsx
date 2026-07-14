@@ -315,7 +315,7 @@ export default function StudentDashboardManager() {
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Session: {profile.session}</p>
                 {profile.scheme_of_studies_url && (
                   <a
-                    href={profile.scheme_of_studies_url}
+                    href={`/api/admin/classes/${profile.class_id}/scheme`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"

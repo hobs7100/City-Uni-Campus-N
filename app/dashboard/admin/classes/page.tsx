@@ -275,10 +275,10 @@ export default function ClassesPage() {
                   <td className="px-4 py-3 text-center">
                     {c.scheme_of_studies_url ? (
                       <a
-                        href={c.scheme_of_studies_url}
+                        href={`/api/admin/classes/${c.id}/scheme`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Download Scheme of Studies"
+                        title="View Scheme of Studies PDF"
                         className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
                       >
                         <Download size={13} /> Download
@@ -430,7 +430,11 @@ export default function ClassesPage() {
               {form.scheme_of_studies_url && (
                 <>
                   <a
-                    href={form.scheme_of_studies_url}
+                    href={
+                      form.id
+                        ? `/api/admin/classes/${form.id}/scheme`
+                        : form.scheme_of_studies_url ?? "#"
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300"
