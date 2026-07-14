@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/requireRole";
-import { uploadRawToCloudinary } from "@/lib/cloudinary";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 
 export async function POST(request: NextRequest) {
   const { response } = await requireRole("admin", "coordinator");
@@ -11,6 +11,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "fileBase64 is required." }, { status: 400 });
   }
 
-  const { url } = await uploadRawToCloudinary(body.fileBase64, "scheme-of-studies");
+  // resource_type "auto" lets Cloudinary detect PDF and serve it with
+  // Content-Type: application/pdf and a .pdf URL extension.
+  const { url } = await uploadToCloudinary(body.fileBase64, "scheme-of-studies");
   return NextResponse.json({ url });
 }

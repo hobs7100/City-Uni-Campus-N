@@ -85,6 +85,20 @@ export async function PATCH(
        and td.day_name = $4
        and tp.start_time < $5
        and tp.end_time > $6
+       -- Allow same-title courses even with different codes (combined-class scenario)
+       and (
+         select lower(c.title)
+         from allocation_semesters ase
+         join courses c on c.id = ase.course_id
+         where ase.allocation_id = tc.allocation_id
+         limit 1
+       ) is distinct from (
+         select lower(c.title)
+         from allocation_semesters ase
+         join courses c on c.id = ase.course_id
+         where ase.allocation_id = $3
+         limit 1
+       )
      limit 1`,
     [cellId, allocation.teacher_id, allocation_id, day.day_name, period.end_time, period.start_time]
   );
