@@ -13,6 +13,8 @@ const schema = z.object({
   type: z.enum(["ADP", "BS", "DIT", "LLB", "BS-Bridging"]).optional(),
   status: z.enum(["active", "blocked"]).optional(),
   scheme_of_studies_url: z.string().url().nullable().optional(),
+  scheme_public_id: z.string().nullable().optional(),
+  scheme_resource_type: z.string().nullable().optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

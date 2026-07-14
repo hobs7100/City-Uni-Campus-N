@@ -3,39 +3,6 @@ import { queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import cloudinary from "@/lib/cloudinary";
 
-/**
- * Parse a Cloudinary secure_url back into the parts needed to regenerate a
- * fresh signed delivery URL.
- *
- * Handles:
- *   image  – https://res.cloudinary.com/{cloud}/image/upload/v…/{path}.pdf
- *   raw    – https://res.cloudinary.com/{cloud}/raw/upload/v…/{path}
- */
-function parseCloudinaryUrl(
-  url: string
-): { resourceType: "image" | "raw" | "video"; publicId: string; format: string } | null {
-  const m = url.match(
-    /res\.cloudinary\.com\/[^/]+\/(image|raw|video)\/upload\/(?:v\d+\/)?(.+)$/
-  );
-  if (!m) return null;
-
-  const resourceType = m[1] as "image" | "raw" | "video";
-  let path = m[2];
-  let format = "";
-
-  // For image/video resources Cloudinary appends the format as a file extension.
-  // Strip it so public_id matches what the SDK expects.
-  if (resourceType !== "raw") {
-    const dot = path.lastIndexOf(".");
-    if (dot !== -1) {
-      format = path.slice(dot + 1);
-      path = path.slice(0, dot);
-    }
-  }
-
-  return { resourceType, publicId: path, format };
-}
-
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -44,8 +11,13 @@ export async function GET(
   if (response) return response;
 
   const { id } = await params;
-  const row = await queryOne<{ scheme_of_studies_url: string | null }>(
-    `select scheme_of_studies_url from classes where id = $1`,
+  const row = await queryOne<{
+    scheme_of_studies_url: string | null;
+    scheme_public_id: string | null;
+    scheme_resource_type: string | null;
+  }>(
+    `select scheme_of_studies_url, scheme_public_id, scheme_resource_type
+     from classes where id = $1`,
     [id]
   );
 
@@ -56,23 +28,49 @@ export async function GET(
     );
   }
 
-  const stored = row.scheme_of_studies_url;
-  const parsed = parseCloudinaryUrl(stored);
+  const publicId = row.scheme_public_id;
+  const resourceType = (row.scheme_resource_type ?? "image") as "image" | "raw" | "video";
 
-  if (parsed) {
-    // Generate a fresh signed URL via the SDK — works whether the resource is
-    // public or authenticated, and guarantees the correct Content-Type header
-    // is honoured by Cloudinary's CDN.
-    const signedUrl = cloudinary.url(parsed.publicId, {
-      resource_type: parsed.resourceType,
-      format: parsed.format || "pdf",
+  if (publicId) {
+    // Generate a time-limited signed download URL via the SDK.
+    // fl_attachment forces the browser to download the file (Content-Disposition: attachment)
+    // with Content-Type: application/pdf. This works for both public and
+    // authenticated Cloudinary resources.
+    const downloadUrl = cloudinary.url(publicId, {
+      resource_type: resourceType,
+      format: "pdf",
+      flags: "attachment:scheme-of-studies.pdf",
       sign_url: true,
       secure: true,
       type: "upload",
     });
-    return NextResponse.redirect(signedUrl, { status: 302 });
+    return NextResponse.redirect(downloadUrl, { status: 302 });
   }
 
-  // Fallback: redirect straight to whatever URL is stored.
-  return NextResponse.redirect(stored, { status: 302 });
+  // Fallback for older rows that only have the raw URL stored.
+  // Try to parse the public_id from the URL and generate a signed URL.
+  const m = row.scheme_of_studies_url.match(
+    /res\.cloudinary\.com\/[^/]+\/(image|raw|video)\/upload\/(?:v\d+\/)?(.+)$/
+  );
+  if (m) {
+    const rt = m[1] as "image" | "raw" | "video";
+    let path = m[2];
+    let fmt = "pdf";
+    if (rt !== "raw") {
+      const dot = path.lastIndexOf(".");
+      if (dot !== -1) { fmt = path.slice(dot + 1); path = path.slice(0, dot); }
+    }
+    const downloadUrl = cloudinary.url(path, {
+      resource_type: rt,
+      format: fmt,
+      flags: "attachment:scheme-of-studies.pdf",
+      sign_url: true,
+      secure: true,
+      type: "upload",
+    });
+    return NextResponse.redirect(downloadUrl, { status: 302 });
+  }
+
+  // Last resort: redirect to the raw stored URL.
+  return NextResponse.redirect(row.scheme_of_studies_url, { status: 302 });
 }

@@ -22,6 +22,8 @@ interface ClassRow {
   total_semesters: number;
   status: "active" | "blocked";
   scheme_of_studies_url: string | null;
+  scheme_public_id: string | null;
+  scheme_resource_type: string | null;
 }
 
 const typeOptions = [
@@ -48,6 +50,8 @@ const emptyForm = {
   type: "BS" as ClassRow["type"],
   status: "active" as "active" | "blocked",
   scheme_of_studies_url: null as string | null,
+  scheme_public_id: null as string | null,
+  scheme_resource_type: null as string | null,
 };
 
 export default function ClassesPage() {
@@ -118,6 +122,8 @@ export default function ClassesPage() {
       type: item.type,
       status: item.status,
       scheme_of_studies_url: item.scheme_of_studies_url,
+      scheme_public_id: item.scheme_public_id ?? null,
+      scheme_resource_type: item.scheme_resource_type ?? null,
     });
     setEditing(true);
     setSchemeFileName(item.scheme_of_studies_url ? "Existing file uploaded" : null);
@@ -152,7 +158,12 @@ export default function ClassesPage() {
           setSchemeUploading(false);
           return;
         }
-        setForm((prev) => ({ ...prev, scheme_of_studies_url: data.url }));
+        setForm((prev) => ({
+          ...prev,
+          scheme_of_studies_url: data.url,
+          scheme_public_id: data.publicId ?? null,
+          scheme_resource_type: data.resourceType ?? "image",
+        }));
         setSchemeFileName(file.name);
         toast.success("Scheme of Studies uploaded.");
         setSchemeUploading(false);
@@ -448,7 +459,7 @@ export default function ClassesPage() {
                     type="button"
                     title="Remove scheme of studies"
                     onClick={() => {
-                      setForm((prev) => ({ ...prev, scheme_of_studies_url: null }));
+                      setForm((prev) => ({ ...prev, scheme_of_studies_url: null, scheme_public_id: null, scheme_resource_type: null }));
                       setSchemeFileName(null);
                       if (fileInputRef.current) fileInputRef.current.value = "";
                     }}

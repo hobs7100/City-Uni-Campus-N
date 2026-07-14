@@ -11,8 +11,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "fileBase64 is required." }, { status: 400 });
   }
 
-  // resource_type "auto" lets Cloudinary detect PDF and serve it with
-  // Content-Type: application/pdf and a .pdf URL extension.
-  const { url } = await uploadToCloudinary(body.fileBase64, "scheme-of-studies");
-  return NextResponse.json({ url });
+  // resource_type "auto" — Cloudinary detects the PDF and stores it as
+  // an image resource with format "pdf". We return both the delivery URL
+  // and the public_id so callers can generate fresh download URLs later.
+  const { url, publicId } = await uploadToCloudinary(body.fileBase64, "scheme-of-studies");
+  return NextResponse.json({ url, publicId, resourceType: "image" });
 }
