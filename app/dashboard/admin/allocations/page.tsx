@@ -61,6 +61,7 @@ interface Allocation {
   rate: string;
   is_combined: boolean;
   semesters: AllocationSemester[];
+  result_uploaded: boolean;
 }
 
 const allocationTypeOptions = [
@@ -504,15 +505,16 @@ export default function AllocationsPage() {
               <th className="px-4 py-3 print:border print:border-indigo-400">Class(es)</th>
               <th className="px-4 py-3 print:border print:border-indigo-400">Type</th>
               <th className="px-4 py-3 print:border print:border-indigo-400">Rate (PKR)</th>
+              <th className="px-4 py-3 print:border print:border-indigo-400">Result</th>
               <th className="px-4 py-3 text-right print:hidden">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <TableLoader colSpan={6} />
+              <TableLoader colSpan={7} />
             ) : filteredAllocations.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                   No allocations found.
                 </td>
               </tr>
@@ -551,6 +553,17 @@ export default function AllocationsPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300 print:border print:border-indigo-200 print:text-slate-800">
                     {a.rate}
+                  </td>
+                  <td className="px-4 py-3 print:border print:border-indigo-200">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                        a.result_uploaded
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                      }`}
+                    >
+                      {a.result_uploaded ? "Uploaded" : "Pending"}
+                    </span>
                   </td>
                   <td className="px-4 py-3 print:hidden">
                     {!readOnly && (

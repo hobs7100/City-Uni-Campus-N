@@ -7,6 +7,7 @@ import {
   BookOpen,
   CalendarClock,
   CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
   Eye,
   FileDown,
@@ -28,6 +29,7 @@ interface CourseRow {
   allocation_type: string;
   rate: string;
   is_combined: boolean;
+  semester_id: string;
   semester_number: number;
   term_type: string;
   class_name: string;
@@ -35,6 +37,7 @@ interface CourseRow {
   payment_status?: "paid" | "pending" | "n/a";
   outline_url?: string | null;
   delivered_lectures?: number;
+  result_uploaded: boolean;
 }
 
 interface GroupedCourseRow {
@@ -48,10 +51,24 @@ interface GroupedCourseRow {
   is_combined: boolean;
   semester_number: number;
   term_type: string;
-  classes: { class_id: string; class_name: string; session: string }[];
+  classes: { class_id: string; class_name: string; session: string; semester_id: string }[];
   outline_url?: string | null;
   delivered_lectures: number;
   payment_status?: "paid" | "pending" | "n/a";
+  result_uploaded_count: number;
+}
+
+interface ResRosterRow {
+  student_id: string;
+  name: string;
+  roll_no: string | null;
+  student_status: string;
+  mid: number;
+  sessional: number;
+  final: number;
+  practical: number;
+  total: number | null;
+  status: "pass" | "fail" | "freezed" | "drop";
 }
 
 interface TimetableSummary {
@@ -151,6 +168,7 @@ function todayStr() {
 const tabs = [
   { id: "overview", label: "Overview", icon: ClipboardList },
   { id: "courses", label: "My Courses", icon: BookOpen },
+  { id: "results", label: "Upload Result", icon: ClipboardCheck },
   { id: "timetable", label: "Timetable", icon: CalendarClock },
   { id: "mark", label: "Mark Attendance", icon: CheckCircle2 },
   { id: "students", label: "Student Attendance", icon: GraduationCap },
@@ -200,6 +218,17 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [reportCourseFilter, setReportCourseFilter] = useState<{
     label: string;
   } | null>(null);
+
+  // Upload Result tab state
+  const [resAllocId, setResAllocId] = useState("");
+  const [resSemesterId, setResSemesterId] = useState("");
+  const [resCourseId, setResCourseId] = useState("");
+  const [resRoster, setResRoster] = useState<ResRosterRow[]>([]);
+  const [resRosterLoading, setResRosterLoading] = useState(false);
+  const [resSaving, setResSaving] = useState(false);
+  const [resExportActive, setResExportActive] = useState(false);
+  const [resExamType, setResExamType] = useState<"MID" | "SEMESTER">("MID");
+  const [resTeacherName, setResTeacherName] = useState("");
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
@@ -316,6 +345,86 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     }
   }, [reportFrom, reportTo, reportCourseId, reportClassId]);
 
+  const loadResRoster = useCallback(async () => {
+    if (!resSemesterId || !resCourseId) { setResRoster([]); return; }
+    setResRosterLoading(true);
+    try {
+      const res = await fetch(`/api/teacher/results/roster?semester_id=${resSemesterId}&course_id=${resCourseId}`);
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed to load roster."); setResRoster([]); return; }
+      setResRoster((data.rows ?? []).map((r: ResRosterRow) => ({ ...r, total: r.mid + r.sessional + r.final })));
+      setResTeacherName(data.teacher_name || "");
+    } finally {
+      setResRosterLoading(false);
+    }
+  }, [resSemesterId, resCourseId]);
+
+  function updateResCell(
+    studentId: string,
+    field: "roll_no" | "mid" | "sessional" | "final" | "practical" | "status",
+    value: string,
+  ) {
+    setResRoster((prev) =>
+      prev.map((r) => {
+        if (r.student_id !== studentId) return r;
+        const next = { ...r };
+        if (field === "roll_no") next.roll_no = value;
+        else if (field === "status") next.status = value as ResRosterRow["status"];
+        else {
+          const num = Number(value) || 0;
+          (next as unknown as Record<string, number>)[field] = num;
+        }
+        if (field === "mid" || field === "sessional" || field === "final") {
+          next.total = next.mid + next.sessional + next.final;
+        }
+        return next;
+      })
+    );
+  }
+
+  async function handleSaveResRoster() {
+    if (!resSemesterId || !resCourseId || resRoster.length === 0) return;
+    setResSaving(true);
+    try {
+      const res = await fetch("/api/teacher/results/roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          semester_id: resSemesterId,
+          course_id: resCourseId,
+          rows: resRoster.map((r) => ({
+            student_id: r.student_id,
+            roll_no: r.roll_no,
+            mid: r.mid,
+            sessional: r.sessional,
+            final: r.final,
+            practical: r.practical,
+            status: r.status,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Something went wrong."); return; }
+      toast.success("Results saved successfully.");
+      loadResRoster();
+      loadCourses();
+    } finally {
+      setResSaving(false);
+    }
+  }
+
+  async function handleResExportSheet() {
+    const styleEl = document.createElement("style");
+    styleEl.id = "__export-sheet-portrait";
+    styleEl.textContent = "@page { size: A4 portrait !important; }";
+    document.head.appendChild(styleEl);
+    setResExportActive(true);
+    await new Promise((r) => setTimeout(r, 150));
+    window.print();
+    setResExportActive(false);
+    document.head.removeChild(styleEl);
+  }
+
   const loadNotifications = useCallback(async () => {
     setNotifLoading(true);
     try {
@@ -346,13 +455,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   }, [loadCourses]);
 
   useEffect(() => {
+    if (tab === "results") loadResRoster();
     if (tab === "timetable") loadTimetables();
     if (tab === "mark") loadRoster();
     if (tab === "students") loadStudentReport();
     if (tab === "report") loadAttendanceReport();
     if (tab === "notifications") loadNotifications();
     if (tab === "profile") loadProfile();
-  }, [tab, loadTimetables, loadRoster, loadStudentReport, loadAttendanceReport, loadNotifications, loadProfile]);
+  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadAttendanceReport, loadNotifications, loadProfile]);
 
   useEffect(() => {
     if (selectedTimetableId) loadTimetableDetail(selectedTimetableId);
@@ -495,12 +605,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           outline_url: c.outline_url,
           delivered_lectures: c.delivered_lectures ?? 0,
           payment_status: c.payment_status,
-          classes: [{ class_id: c.class_id, class_name: c.class_name, session: c.session }],
+          result_uploaded_count: c.result_uploaded ? 1 : 0,
+          classes: [{ class_id: c.class_id, class_name: c.class_name, session: c.session, semester_id: c.semester_id }],
         });
       } else {
         const existing = map.get(c.allocation_id)!;
         if (!existing.classes.some((cl) => cl.class_id === c.class_id)) {
-          existing.classes.push({ class_id: c.class_id, class_name: c.class_name, session: c.session });
+          existing.classes.push({ class_id: c.class_id, class_name: c.class_name, session: c.session, semester_id: c.semester_id });
+          if (c.result_uploaded) existing.result_uploaded_count += 1;
         }
       }
     }
@@ -594,7 +706,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           {(() => {
             const rows = coursesSubTab === "active" ? groupedActive : groupedInactive;
             const isInactive = coursesSubTab === "inactive";
-            const colSpan = isInactive ? 8 : 7;
+            const colSpan = isInactive ? 9 : 8;
             return (
               <div className="overflow-hidden card-3d card-hover">
                 <table className="w-full border-collapse text-left text-sm">
@@ -606,6 +718,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                       <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Delivered</th>
                       <th className="px-4 py-3">Outline</th>
+                      <th className="px-4 py-3">Result</th>
                       {isInactive && <th className="px-4 py-3">Payment</th>}
                       <th className="px-4 py-3">Actions</th>
                     </tr>
@@ -659,6 +772,17 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                               <span className="text-xs text-slate-400">—</span>
                             )}
                           </td>
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const total = c.classes.length;
+                              const uploaded = c.result_uploaded_count;
+                              if (uploaded === total && total > 0)
+                                return <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Uploaded</span>;
+                              if (uploaded > 0)
+                                return <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-400">Partial</span>;
+                              return <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">Pending</span>;
+                            })()}
+                          </td>
                           {isInactive && (
                             <td className="px-4 py-3">
                               <span
@@ -696,6 +820,201 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     )}
                   </tbody>
                 </table>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {tab === "results" && (
+        <div className="space-y-6">
+          {/* Course selector */}
+          <div className="card-3d p-4">
+            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Select Course</h3>
+            {groupedActive.length === 0 ? (
+              <p className="text-sm text-slate-400">No active courses found.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {groupedActive.map((c) => (
+                  <button
+                    key={c.allocation_id}
+                    onClick={() => {
+                      setResAllocId(c.allocation_id);
+                      setResCourseId(c.course_id);
+                      if (!c.is_combined) {
+                        setResSemesterId(c.classes[0]?.semester_id ?? "");
+                      } else {
+                        setResSemesterId("");
+                      }
+                      setResRoster([]);
+                    }}
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      resAllocId === c.allocation_id
+                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+                        : "border-slate-300 text-slate-600 hover:border-indigo-400 dark:border-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    {c.course_code} — {c.course_title}
+                    {c.is_combined && <span className="ml-1 text-xs text-slate-400">(Combined)</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Class picker for combined allocations */}
+          {resAllocId && (() => {
+            const sel = groupedActive.find((c) => c.allocation_id === resAllocId);
+            if (!sel || !sel.is_combined) return null;
+            return (
+              <div className="card-3d p-4">
+                <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Select Class</h3>
+                <div className="flex flex-wrap gap-2">
+                  {sel.classes.map((cl) => (
+                    <button
+                      key={cl.class_id}
+                      onClick={() => { setResSemesterId(cl.semester_id); setResRoster([]); }}
+                      className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                        resSemesterId === cl.semester_id
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+                          : "border-slate-300 text-slate-600 hover:border-indigo-400 dark:border-slate-700 dark:text-slate-300"
+                      }`}
+                    >
+                      {cl.class_name} ({cl.session})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Load roster button */}
+          {resAllocId && resSemesterId && resRoster.length === 0 && !resRosterLoading && (
+            <div className="flex gap-3">
+              <button
+                onClick={loadResRoster}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Load Students
+              </button>
+            </div>
+          )}
+
+          {/* Loading */}
+          {resRosterLoading && <DataFetchLoader />}
+
+          {/* Roster table */}
+          {resRoster.length > 0 && (() => {
+            const selAlloc = groupedActive.find((c) => c.allocation_id === resAllocId);
+            const selClass = selAlloc?.classes.find((cl) => cl.semester_id === resSemesterId);
+            return (
+              <div>
+                {/* Print-only header */}
+                {resExportActive && (
+                  <div className="hidden print:block mb-4">
+                    <h2 className="text-base font-bold">Result Sheet — {selAlloc?.course_code} {selAlloc?.course_title}</h2>
+                    {selClass && <p className="text-sm">Class: {selClass.class_name} ({selClass.session})</p>}
+                    <p className="text-sm">Teacher: {resTeacherName}</p>
+                    <p className="text-sm">Date: {formatDateOnly(new Date().toISOString())}</p>
+                  </div>
+                )}
+
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 print:hidden">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {selAlloc?.course_code} — {selAlloc?.course_title}
+                      {selClass && <span className="ml-2 text-slate-400">{selClass.class_name} ({selClass.session})</span>}
+                    </p>
+                    <p className="text-xs text-slate-400">{resRoster.length} students</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleResExportSheet}
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      <FileDown size={14} /> Export Sheet
+                    </button>
+                    <button
+                      onClick={handleSaveResRoster}
+                      disabled={resSaving}
+                      className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                    >
+                      {resSaving ? <ButtonLoader /> : null} Save Results
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto card-3d">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                      <tr>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">#</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Roll No</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Student Name</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Mid</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Sessional</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Final</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Practical</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Total</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {resRoster.map((r, idx) => (
+                        <tr key={r.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                          <td className="border border-slate-100 px-3 py-2 text-slate-500 dark:border-slate-800">{idx + 1}</td>
+                          <td className="border border-slate-100 px-3 py-2 dark:border-slate-800">
+                            {resExportActive ? (
+                              <span>{r.roll_no ?? "—"}</span>
+                            ) : (
+                              <input
+                                type="text"
+                                value={r.roll_no ?? ""}
+                                onChange={(e) => updateResCell(r.student_id, "roll_no", e.target.value)}
+                                className="w-24 rounded border border-slate-200 px-1.5 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+                              />
+                            )}
+                          </td>
+                          <td className="border border-slate-100 px-3 py-2 font-medium dark:border-slate-800">{r.name}</td>
+                          {(["mid", "sessional", "final", "practical"] as const).map((field) => (
+                            <td key={field} className="border border-slate-100 px-3 py-2 dark:border-slate-800">
+                              {resExportActive ? (
+                                <span>{r[field]}</span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={r[field]}
+                                  onChange={(e) => updateResCell(r.student_id, field, e.target.value)}
+                                  className="w-16 rounded border border-slate-200 px-1.5 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+                                />
+                              )}
+                            </td>
+                          ))}
+                          <td className="border border-slate-100 px-3 py-2 font-semibold text-indigo-600 dark:border-slate-800 dark:text-indigo-400">
+                            {r.total ?? (r.mid + r.sessional + r.final)}
+                          </td>
+                          <td className="border border-slate-100 px-3 py-2 dark:border-slate-800">
+                            {resExportActive ? (
+                              <span>{r.status}</span>
+                            ) : (
+                              <select
+                                value={r.status}
+                                onChange={(e) => updateResCell(r.student_id, "status", e.target.value)}
+                                className="rounded border border-slate-200 px-1.5 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+                              >
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                                <option value="freezed">Freezed</option>
+                                <option value="drop">Drop</option>
+                              </select>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             );
           })()}

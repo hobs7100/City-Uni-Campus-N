@@ -54,7 +54,13 @@ export async function GET(request: NextRequest) {
                join classes cl on cl.id = s.class_id
                where als.allocation_id = a.id),
               '[]'
-            ) as semesters
+            ) as semesters,
+            exists (
+              select 1 from results r
+              join allocation_semesters als2 on als2.semester_id = r.semester_id
+                and als2.allocation_id = a.id
+              where r.course_id = a.course_id
+            ) as result_uploaded
      from allocations a
      join courses c on c.id = a.course_id
      join teachers t on t.id = a.teacher_id

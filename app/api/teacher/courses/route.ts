@@ -23,12 +23,17 @@ export async function GET(_request: NextRequest) {
     class_name: string;
     session: string;
     outline_url: string | null;
+    result_uploaded: boolean;
   }>(
     `select a.id as allocation_id, c.id as course_id, c.code as course_code, c.title as course_title,
             c.credit_hours, a.allocation_type, a.rate, a.is_combined,
             s.id as semester_id, s.semester_number, s.term_type, s.status as semester_status,
             cl.id as class_id, cl.class_name, cl.session,
-            sc.course_outline_url as outline_url
+            sc.course_outline_url as outline_url,
+            exists (
+              select 1 from results r
+              where r.semester_id = als.semester_id and r.course_id = a.course_id
+            ) as result_uploaded
      from allocations a
      join courses c on c.id = a.course_id
      join allocation_semesters als on als.allocation_id = a.id
