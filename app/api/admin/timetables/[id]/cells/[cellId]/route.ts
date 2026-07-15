@@ -111,9 +111,12 @@ export async function PATCH(
     );
   }
 
-  // For combined lectures: if already placed in another timetable, the slot must match
+  // For combined lectures: if already placed on the SAME DAY in another timetable,
+  // the time slot must match exactly (can't have overlapping times on the same day).
+  // Different days are freely allowed — the combined course may appear on different
+  // days in different classes (each is its own session of the shared course).
   if (allocation.is_combined) {
-    const existingPlacement = await queryOne<{
+    const conflictingPlacement = await queryOne<{
       day_name: string;
       start_time: string;
       end_time: string;
@@ -129,18 +132,15 @@ export async function PATCH(
        where tc.allocation_id = $1
          and tc.id != $2
          and tc.timetable_id != $3
+         and td.day_name = $4
+         and (tp.start_time != $5 or tp.end_time != $6)
        limit 1`,
-      [allocation_id, cellId, id]
+      [allocation_id, cellId, id, day.day_name, period.start_time, period.end_time]
     );
-    if (
-      existingPlacement &&
-      (existingPlacement.day_name !== day.day_name ||
-        existingPlacement.start_time !== period.start_time ||
-        existingPlacement.end_time !== period.end_time)
-    ) {
+    if (conflictingPlacement) {
       return NextResponse.json(
         {
-          error: `Combined lecture already placed in ${existingPlacement.class_name} (${existingPlacement.session}) on ${existingPlacement.day_name} ${existingPlacement.start_time}–${existingPlacement.end_time}. All combined classes must share the exact same slot.`,
+          error: `Combined lecture already placed in ${conflictingPlacement.class_name} (${conflictingPlacement.session}) on ${conflictingPlacement.day_name} at ${conflictingPlacement.start_time}–${conflictingPlacement.end_time}. On the same day all combined classes must share the exact same time slot.`,
         },
         { status: 409 }
       );
