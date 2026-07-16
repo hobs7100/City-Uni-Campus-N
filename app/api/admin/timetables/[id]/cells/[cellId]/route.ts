@@ -116,6 +116,7 @@ export async function PATCH(
   // Different days are freely allowed — the combined course may appear on different
   // days in different classes (each is its own session of the shared course).
   if (allocation.is_combined) {
+    // Check 1: same day in another timetable → time must match exactly.
     const conflictingPlacement = await queryOne<{
       day_name: string;
       start_time: string;
@@ -140,7 +141,41 @@ export async function PATCH(
     if (conflictingPlacement) {
       return NextResponse.json(
         {
-          error: `Combined lecture already placed in ${conflictingPlacement.class_name} (${conflictingPlacement.session}) on ${conflictingPlacement.day_name} at ${conflictingPlacement.start_time}–${conflictingPlacement.end_time}. On the same day all combined classes must share the exact same time slot.`,
+          error: `Combined lecture already placed in ${conflictingPlacement.class_name} (${conflictingPlacement.session}) on ${conflictingPlacement.day_name} at ${conflictingPlacement.start_time}–${conflictingPlacement.end_time}. All combined classes must share the exact same time slot on the same day.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Check 2: if this combined allocation is already placed in other timetables,
+    // the target day must be one of the days already established — you cannot
+    // add a new day that the other combined-class timetables don't have.
+    const dayCounts = await queryOne<{ placed_count: string; day_match_count: string }>(
+      `select
+         count(tc.id)::text as placed_count,
+         count(case when td.day_name = $3 then 1 end)::text as day_match_count
+       from timetable_cells tc
+       join timetable_days td on td.id = tc.day_id
+       where tc.allocation_id = $1
+         and tc.timetable_id != $2
+         and tc.id != $4`,
+      [allocation_id, id, day.day_name, cellId]
+    );
+
+    if (dayCounts && Number(dayCounts.placed_count) > 0 && Number(dayCounts.day_match_count) === 0) {
+      // Fetch the established days to show a helpful error message.
+      const existingDaysResult = await query<{ day_name: string }>(
+        `select distinct td.day_name
+         from timetable_cells tc
+         join timetable_days td on td.id = tc.day_id
+         where tc.allocation_id = $1 and tc.timetable_id != $2
+         order by td.day_name`,
+        [allocation_id, id]
+      );
+      const dayList = existingDaysResult.rows.map((r) => r.day_name).join(", ");
+      return NextResponse.json(
+        {
+          error: `Combined lecture is already scheduled on ${dayList} in the other combined class(es). You can only place it on those same days.`,
         },
         { status: 409 }
       );
