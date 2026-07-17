@@ -93,6 +93,19 @@ interface ResultSheetSemester {
   courses: ResultSheetCourse[];
 }
 
+interface DsRow {
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  teacher_name: string;
+  datesheet_id: string | null;
+  paper_date: string;
+  bundle_received_date: string;
+  return_date: string;
+  result_uploaded: boolean;
+}
+
 const statusBadgeClass: Record<string, string> = {
   pass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
   fail: "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
@@ -100,7 +113,7 @@ const statusBadgeClass: Record<string, string> = {
   drop: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
 };
 
-type Tab = "failed" | "upload" | "freezed" | "dropped" | "search";
+type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet";
 
 export default function ResultsManager() {
   const [tab, setTab] = useState<Tab>("failed");
@@ -399,6 +412,51 @@ export default function ResultsManager() {
     }
   }
 
+  // ---------------- Mid Exam Date Sheet ----------------
+  const [dsDeptId, setDsDeptId] = useState("");
+  const [dsClassId, setDsClassId] = useState("");
+  const [dsSemesterId, setDsSemesterId] = useState("");
+  const [dsRows, setDsRows] = useState<DsRow[]>([]);
+  const [dsLoading, setDsLoading] = useState(false);
+  const [dsBulkSaving, setDsBulkSaving] = useState(false);
+  const [dsRowSaving, setDsRowSaving] = useState<Record<string, boolean>>({});
+
+  const classesForDs = useMemo(
+    () => allClasses.filter((c) => !dsDeptId || c.department_id === dsDeptId),
+    [allClasses, dsDeptId],
+  );
+  const semestersForDs = useMemo(
+    () => allSemesters.filter((s) => s.class_id === dsClassId && s.status === "active"),
+    [allSemesters, dsClassId],
+  );
+
+  const loadDs = useCallback(async () => {
+    if (!dsSemesterId) return;
+    setDsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/mid-exam-datesheet?semester_id=${dsSemesterId}`);
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to load date sheet.");
+        return;
+      }
+      setDsRows(
+        (data.rows ?? []).map((r: DsRow) => ({
+          ...r,
+          paper_date: r.paper_date ?? "",
+          bundle_received_date: r.bundle_received_date ?? "",
+          return_date: r.return_date ?? "",
+        })),
+      );
+    } finally {
+      setDsLoading(false);
+    }
+  }, [dsSemesterId]);
+
+  useEffect(() => {
+    if (tab === "datesheet") loadDs();
+  }, [tab, loadDs]);
+
   const printMode =
     tab === "failed"
       ? "failed"
@@ -448,6 +506,7 @@ export default function ResultsManager() {
             ["freezed", "Freezed Students"],
             ["dropped", "Dropped Students"],
             ["search", "Search Result"],
+            ["datesheet", "Mid Exam Date Sheet"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button
@@ -1156,6 +1215,250 @@ export default function ResultsManager() {
             <p className="py-10 text-center text-sm text-slate-400">
               Search and select a student to view their result sheet.
             </p>
+          )}
+        </div>
+      )}
+
+      {tab === "datesheet" && (
+        <div>
+          {/* Filters */}
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div className="w-56">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Department</label>
+              <SearchableSelect
+                options={departments}
+                value={departments.find((d) => d.value === dsDeptId) || null}
+                onChange={(v) => {
+                  setDsDeptId((v as SelectOption | null)?.value || "");
+                  setDsClassId("");
+                  setDsSemesterId("");
+                  setDsRows([]);
+                }}
+              />
+            </div>
+            <div className="w-56">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Class</label>
+              <SearchableSelect
+                options={classesForDs.map((c) => ({
+                  value: c.id,
+                  label: `${c.class_name} (${c.session})`,
+                }))}
+                value={
+                  classesForDs
+                    .filter((c) => c.id === dsClassId)
+                    .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` }))[0] || null
+                }
+                onChange={(v) => {
+                  setDsClassId((v as SelectOption | null)?.value || "");
+                  setDsSemesterId("");
+                  setDsRows([]);
+                }}
+                isDisabled={!dsDeptId}
+              />
+            </div>
+            <div className="w-64">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Semester (Active only)</label>
+              <SearchableSelect
+                options={semestersForDs.map((s) => ({
+                  value: s.id,
+                  label: `Semester ${s.semester_number} – ${s.term_type}`,
+                }))}
+                value={
+                  semestersForDs
+                    .filter((s) => s.id === dsSemesterId)
+                    .map((s) => ({
+                      value: s.id,
+                      label: `Semester ${s.semester_number} – ${s.term_type}`,
+                    }))[0] || null
+                }
+                onChange={(v) => {
+                  setDsSemesterId((v as SelectOption | null)?.value || "");
+                  setDsRows([]);
+                }}
+                isDisabled={!dsClassId}
+              />
+            </div>
+            {dsSemesterId && (
+              <button
+                onClick={loadDs}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <Search size={15} /> Refresh
+              </button>
+            )}
+          </div>
+
+          {!dsSemesterId ? (
+            <p className="py-10 text-center text-sm text-slate-400">
+              Select a department, class, and active semester to view the date sheet.
+            </p>
+          ) : dsLoading ? (
+            <DataFetchLoader />
+          ) : (
+            <>
+              <div className="overflow-x-auto card-3d shadow-sm">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800">
+                      <th className="px-3 py-2">Course</th>
+                      <th className="px-3 py-2">Teacher</th>
+                      <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                      <th className="px-3 py-2">Paper Date</th>
+                      <th className="px-3 py-2">Bundle Received</th>
+                      <th className="px-3 py-2">Return Date</th>
+                      <th className="px-3 py-2 text-center">Result</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dsRows.map((r) => (
+                      <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                        <td className="px-3 py-1.5">
+                          <div className="font-medium">{r.course_title}</div>
+                          <div className="text-xs text-slate-400">{r.course_code}</div>
+                        </td>
+                        <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
+                        <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="date"
+                            value={r.paper_date}
+                            onChange={(e) =>
+                              setDsRows((prev) =>
+                                prev.map((row) =>
+                                  row.course_id === r.course_id
+                                    ? { ...row, paper_date: e.target.value }
+                                    : row,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="date"
+                            value={r.bundle_received_date}
+                            onChange={(e) =>
+                              setDsRows((prev) =>
+                                prev.map((row) =>
+                                  row.course_id === r.course_id
+                                    ? { ...row, bundle_received_date: e.target.value }
+                                    : row,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="date"
+                            value={r.return_date}
+                            onChange={(e) =>
+                              setDsRows((prev) =>
+                                prev.map((row) =>
+                                  row.course_id === r.course_id
+                                    ? { ...row, return_date: e.target.value }
+                                    : row,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              r.result_uploaded
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                            }`}
+                          >
+                            {r.result_uploaded ? "Uploaded" : "Pending"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <button
+                            onClick={async () => {
+                              setDsRowSaving((p) => ({ ...p, [r.course_id]: true }));
+                              try {
+                                const res = await fetch("/api/admin/mid-exam-datesheet", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    semester_id: dsSemesterId,
+                                    course_id: r.course_id,
+                                    paper_date: r.paper_date || null,
+                                    bundle_received_date: r.bundle_received_date || null,
+                                    return_date: r.return_date || null,
+                                  }),
+                                });
+                                if (!res.ok) {
+                                  const d = await res.json();
+                                  toast.error(d.error || "Failed to save.");
+                                } else {
+                                  toast.success(`Saved — ${r.course_code}`);
+                                }
+                              } finally {
+                                setDsRowSaving((p) => ({ ...p, [r.course_id]: false }));
+                              }
+                            }}
+                            disabled={dsRowSaving[r.course_id]}
+                            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                          >
+                            {dsRowSaving[r.course_id] ? <ButtonLoader /> : <Save size={12} />} Save
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {dsRows.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-400">
+                          No courses found for this semester.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {dsRows.length > 0 && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={async () => {
+                      setDsBulkSaving(true);
+                      try {
+                        const res = await fetch("/api/admin/mid-exam-datesheet", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            semester_id: dsSemesterId,
+                            rows: dsRows.map((r) => ({
+                              course_id: r.course_id,
+                              paper_date: r.paper_date || null,
+                              bundle_received_date: r.bundle_received_date || null,
+                              return_date: r.return_date || null,
+                            })),
+                          }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          toast.error(data.error || "Failed to save.");
+                          return;
+                        }
+                        toast.success(`Saved ${data.saved} course(s).`);
+                      } finally {
+                        setDsBulkSaving(false);
+                      }
+                    }}
+                    disabled={dsBulkSaving}
+                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {dsBulkSaving ? <ButtonLoader /> : <Save size={16} />} Upload / Save Changes
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

@@ -60,6 +60,14 @@ interface Notification {
   id: string; title: string; message: string; is_read: boolean; created_at: string;
 }
 
+interface StudentDsRow {
+  course_id: string;
+  course_title: string;
+  course_code: string;
+  credit_hours: string;
+  paper_date: string | null;
+}
+
 /* ─── helpers ─────────────────────────────────────────────── */
 const flagLabel: Record<string, string> = { ok: "OK", warning: "Warning", struck_off: "Struck Off" };
 const flagCls: Record<string, string> = {
@@ -77,6 +85,7 @@ const statusCls: Record<string, string> = {
 const TABS = [
   { id: "overview",       label: "Overview",       icon: ClipboardList },
   { id: "results",        label: "Results",         icon: GraduationCap },
+  { id: "datesheet",      label: "Mid Exam Date Sheet", icon: FileText },
   { id: "attendance",     label: "Attendance",      icon: Activity },
   { id: "notifications",  label: "Notifications",   icon: Bell },
   { id: "profile",        label: "Profile",         icon: User },
@@ -112,6 +121,10 @@ export default function StudentDashboardManager() {
   } | null>(null);
   const [attRecords, setAttRecords] = useState<{ attendance_date: string; status: string; reason: string | null }[]>([]);
   const [simpleAttLoading, setSimpleAttLoading] = useState(false);
+
+  /* mid exam date sheet */
+  const [dsRows, setDsRows] = useState<StudentDsRow[]>([]);
+  const [dsLoading, setDsLoading] = useState(false);
 
   /* notifications */
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -172,6 +185,17 @@ export default function StudentDashboardManager() {
     }
   }, [attFrom, attTo]);
 
+  const loadDatesheet = useCallback(async () => {
+    setDsLoading(true);
+    try {
+      const res = await fetch("/api/student/mid-exam-datesheet");
+      const data = await res.json();
+      if (res.ok) setDsRows(data.rows ?? []);
+    } finally {
+      setDsLoading(false);
+    }
+  }, []);
+
   const loadNotifications = useCallback(async () => {
     setNotifLoading(true);
     try {
@@ -187,9 +211,10 @@ export default function StudentDashboardManager() {
 
   useEffect(() => {
     if (tab === "results")       loadResults();
+    if (tab === "datesheet")     loadDatesheet();
     if (tab === "attendance")    loadSimpleAtt();
     if (tab === "notifications") loadNotifications();
-  }, [tab, loadResults, loadSimpleAtt, loadNotifications]);
+  }, [tab, loadResults, loadDatesheet, loadSimpleAtt, loadNotifications]);
 
   /* details modal open */
   async function openDetails(semesterId: string, courseId: string, courseTitle: string, teacherName: string) {
@@ -542,6 +567,60 @@ export default function StudentDashboardManager() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── MID EXAM DATE SHEET ── */}
+      {tab === "datesheet" && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mid Exam Date Sheet</h2>
+            <button
+              onClick={loadDatesheet}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Refresh
+            </button>
+          </div>
+          {dsLoading ? (
+            <DataFetchLoader label="Loading date sheet…" />
+          ) : dsRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">
+              No date sheet entries available yet. Check back later.
+            </div>
+          ) : (
+            <div className="overflow-x-auto card-3d shadow-sm">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800">
+                    <th className="px-4 py-2">Course</th>
+                    <th className="px-4 py-2 text-center">Cr. Hrs</th>
+                    <th className="px-4 py-2">Paper Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dsRows.map((r) => (
+                    <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
+                        <div className="text-xs text-slate-400">{r.course_code}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-center">{r.credit_hours}</td>
+                      <td className="px-4 py-2.5">
+                        {r.paper_date ? (
+                          <span className="font-medium text-indigo-700 dark:text-indigo-400">
+                            {formatDateOnly(r.paper_date)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Not scheduled</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

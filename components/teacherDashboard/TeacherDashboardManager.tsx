@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Eye,
   FileDown,
+  FileText,
   GraduationCap,
   Save,
   User,
@@ -161,6 +162,23 @@ interface Profile {
   department_name: string;
 }
 
+interface TeacherDsRow {
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  teacher_name: string;
+  class_name: string;
+  session: string;
+  semester_id: string;
+  semester_number: number;
+  term_type: string;
+  paper_date: string | null;
+  bundle_received_date: string | null;
+  return_date: string | null;
+  result_uploaded: boolean;
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -170,6 +188,7 @@ const tabs = [
   { id: "courses", label: "My Courses", icon: BookOpen },
   { id: "results", label: "Upload Result", icon: ClipboardCheck },
   { id: "timetable", label: "Timetable", icon: CalendarClock },
+  { id: "datesheet", label: "Mid Exam Date Sheet", icon: FileText },
   { id: "mark", label: "Mark Attendance", icon: CheckCircle2 },
   { id: "students", label: "Student Attendance", icon: GraduationCap },
   { id: "report", label: "My Attendance", icon: FileDown },
@@ -242,6 +261,21 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     account_number: "",
   });
   const [passwordForm, setPasswordForm] = useState({ current_password: "", new_password: "" });
+
+  // Mid Exam Date Sheet tab state
+  const [dsRows, setDsRows] = useState<TeacherDsRow[]>([]);
+  const [dsLoading, setDsLoading] = useState(false);
+
+  const loadDatesheet = useCallback(async () => {
+    setDsLoading(true);
+    try {
+      const res = await fetch("/api/teacher/mid-exam-datesheet");
+      const data = await res.json();
+      if (res.ok) setDsRows(data.rows ?? []);
+    } finally {
+      setDsLoading(false);
+    }
+  }, []);
 
   const loadCourses = useCallback(async () => {
     setCoursesLoading(true);
@@ -457,6 +491,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   useEffect(() => {
     if (tab === "results") loadResRoster();
     if (tab === "timetable") loadTimetables();
+    if (tab === "datesheet") loadDatesheet();
     if (tab === "mark") loadRoster();
     if (tab === "students") loadStudentReport();
     if (tab === "report") loadAttendanceReport();
@@ -1101,6 +1136,103 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {tab === "datesheet" && (
+        <div>
+          <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-white">
+            Mid Exam Date Sheet
+          </h2>
+          {dsLoading ? (
+            <DataFetchLoader />
+          ) : dsRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">
+              No active-semester date sheet entries found for your courses.
+            </div>
+          ) : (
+            (() => {
+              // Group by semester_id (class + semester)
+              const groups = Array.from(
+                dsRows.reduce((map, r) => {
+                  const key = r.semester_id;
+                  if (!map.has(key)) {
+                    map.set(key, {
+                      label: `${r.class_name} (${r.session}) — Semester ${r.semester_number} ${r.term_type}`,
+                      rows: [] as TeacherDsRow[],
+                    });
+                  }
+                  map.get(key)!.rows.push(r);
+                  return map;
+                }, new Map<string, { label: string; rows: TeacherDsRow[] }>()),
+              );
+              return (
+                <div className="space-y-6">
+                  {groups.map(([semId, group]) => (
+                    <div key={semId}>
+                      <p className="mb-2 text-sm font-semibold text-indigo-700 dark:text-indigo-400">
+                        {group.label}
+                      </p>
+                      <div className="overflow-x-auto card-3d shadow-sm">
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800">
+                              <th className="px-3 py-2">Course</th>
+                              <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                              <th className="px-3 py-2">Paper Date</th>
+                              <th className="px-3 py-2">Bundle Received</th>
+                              <th className="px-3 py-2">Return Date</th>
+                              <th className="px-3 py-2 text-center">Result</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.rows.map((r) => (
+                              <tr
+                                key={r.course_id}
+                                className="border-b border-slate-100 dark:border-slate-800"
+                              >
+                                <td className="px-3 py-2">
+                                  <div className="font-medium">{r.course_title}</div>
+                                  <div className="text-xs text-slate-400">{r.course_code}</div>
+                                </td>
+                                <td className="px-3 py-2 text-center">{r.credit_hours}</td>
+                                <td className="px-3 py-2">
+                                  {r.paper_date ? formatDateOnly(r.paper_date) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {r.return_date ? formatDateOnly(r.return_date) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                      r.result_uploaded
+                                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                        : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                    }`}
+                                  >
+                                    {r.result_uploaded ? "Uploaded" : "Pending"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
           )}
         </div>
       )}
