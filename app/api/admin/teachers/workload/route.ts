@@ -53,5 +53,5 @@ export async function GET() {
     []
   );
 
-  return NextResponse.json({ rows: rows.rows });
+  return NextResponse.json({ rows });
 }

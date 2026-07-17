@@ -54,5 +54,5 @@ export async function GET() {
     [session!.userId]
   );
 
-  return NextResponse.json({ rows: rows.rows });
+  return NextResponse.json({ rows });
 }
