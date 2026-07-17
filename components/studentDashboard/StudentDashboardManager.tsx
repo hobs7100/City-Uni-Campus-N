@@ -28,6 +28,7 @@ interface Profile {
   cnic: string | null; contact: string | null; address: string | null;
   email: string | null; profile_image_url: string | null;
   status: string; session: string; department_name: string; class_name: string;
+  class_id: string;
   scheme_of_studies_url: string | null;
 }
 

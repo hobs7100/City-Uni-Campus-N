@@ -172,7 +172,7 @@ export async function PATCH(
          order by td.day_name`,
         [allocation_id, id]
       );
-      const dayList = existingDaysResult.rows.map((r) => r.day_name).join(", ");
+      const dayList = existingDaysResult.map((r) => r.day_name).join(", ");
       return NextResponse.json(
         {
           error: `Combined lecture is already scheduled on ${dayList} in the other combined class(es). You can only place it on those same days.`,

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   // it stores the literal encoded string instead of the decoded bytes,
   // producing a corrupted file. We decode server-side and upload the
   // actual PDF bytes via upload_stream instead.
-  const match = body.fileBase64.match(/^data:[^;]+;base64,(.+)$/s);
+  const match = body.fileBase64.match(/^data:[^;]+;base64,([\s\S]+)$/);
   if (!match) {
     return NextResponse.json({ error: "Invalid file data (expected base64 data URI)." }, { status: 400 });
   }
