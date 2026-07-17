@@ -138,15 +138,14 @@ export async function POST(request: NextRequest) {
     void broadcastId; // stored for audit; not used further in this request
 
     if (notifRows.length > 0) {
-      const valuePlaceholders = notifRows
-        .map((_, idx) => `(${idx * 4 + 1}, ${idx * 4 + 2}, ${idx * 4 + 3}, ${idx * 4 + 4})`)
-        .join(", ");
-      const flatVals = notifRows.flatMap(([type, id]) => [type, id, d.subject, d.body]);
+      const types = notifRows.map(([type]) => type);
+      const ids   = notifRows.map(([, id]) => id);
 
+      // unnest avoids dynamic placeholder numbering; cast text[] → enum explicitly
       await client.query(
-        `insert into notifications (recipient_type, recipient_id, title, message)
-         values ${valuePlaceholders}`,
-        flatVals
+        "insert into notifications (recipient_type, recipient_id, title, message) " +
+        "select unnest($1::text[])::notification_recipient_type, unnest($2::uuid[]), $3, $4",
+        [types, ids, d.subject, d.body]
       );
     }
 
