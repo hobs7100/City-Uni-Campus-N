@@ -139,9 +139,9 @@ export async function POST(request: NextRequest) {
 
     if (notifRows.length > 0) {
       const valuePlaceholders = notifRows
-        .map((_, idx) => `($${idx * 3 + 1}, $${idx * 3 + 2}, $${idx * 3 + 3})`)
+        .map((_, idx) => `(${idx * 4 + 1}, ${idx * 4 + 2}, ${idx * 4 + 3}, ${idx * 4 + 4})`)
         .join(", ");
-      const flatVals = notifRows.flatMap(([type, id]) => [type, id, d.subject]);
+      const flatVals = notifRows.flatMap(([type, id]) => [type, id, d.subject, d.body]);
 
       await client.query(
         `insert into notifications (recipient_type, recipient_id, title, message)
