@@ -85,16 +85,18 @@ function groupRows(rows: RawRow[]): TeacherGroup[] {
     }
   }
 
-  // Compute workload_assigned: sum credit_hours per distinct allocation_id
-  // (so combined lectures aren't double-counted)
+  // Compute workload_assigned: sum credit_hours per distinct allocation_id.
+  // Each allocation (even combined lectures that span multiple classes) counts once.
   for (const group of map.values()) {
-    const seen = new Map<string, number>();
+    const allocSeen = new Set<string>();
+    let total = 0;
     for (const c of group.courses) {
-      if (!seen.has(c.allocation_id)) {
-        seen.set(c.allocation_id, c.credit_hours);
+      if (!allocSeen.has(c.allocation_id)) {
+        allocSeen.add(c.allocation_id);
+        total += c.credit_hours;
       }
     }
-    group.workload_assigned = Array.from(seen.values()).reduce((a, b) => a + b, 0);
+    group.workload_assigned = total;
   }
 
   return Array.from(map.values());
@@ -206,9 +208,7 @@ function TeacherCard({ group }: { group: TeacherGroup }) {
                     <th className="px-4 py-2 text-left">Course</th>
                     <th className="px-4 py-2 text-left">Class</th>
                     <th className="px-4 py-2 text-left">Session</th>
-                    {group.type === "visiting" && (
-                      <th className="px-4 py-2 text-center">Credit Hours</th>
-                    )}
+                    <th className="px-4 py-2 text-center">Credit Hours</th>
                     <th className="px-4 py-2 text-center">Result Status</th>
                   </tr>
                 </thead>
@@ -223,11 +223,9 @@ function TeacherCard({ group }: { group: TeacherGroup }) {
                       </td>
                       <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{c.class_name}</td>
                       <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{c.session}</td>
-                      {group.type === "visiting" && (
-                        <td className="px-4 py-2.5 text-center text-slate-600 dark:text-slate-300">
-                          {c.credit_hours}
-                        </td>
-                      )}
+                      <td className="px-4 py-2.5 text-center font-medium text-slate-700 dark:text-slate-200">
+                        {c.credit_hours}
+                      </td>
                       <td className="px-4 py-2.5 text-center">
                         <ResultBadge uploaded={c.result_uploaded} />
                       </td>
