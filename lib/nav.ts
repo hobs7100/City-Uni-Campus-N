@@ -47,6 +47,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     },
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
     { label: "Exams & Results", href: "/dashboard/admin/results", icon: "Award" },
+    { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
   ],
   hod: [
@@ -55,6 +56,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Students", href: "/dashboard/hod?tab=students", icon: "GraduationCap" },
     { label: "Student Attendance", href: "/dashboard/hod?tab=attendance", icon: "ClipboardCheck" },
     { label: "Exam & Results", href: "/dashboard/hod?tab=results", icon: "Award" },
+    { label: "Notifications", href: "/dashboard/hod?tab=notifications", icon: "Bell" },
     { label: "Profile", href: "/dashboard/hod/profile", icon: "UserCog" },
   ],
   coordinator: [

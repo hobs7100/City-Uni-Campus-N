@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Award, BookOpen, Building2, CalendarCheck, ClipboardCheck,
+  Award, Bell, BookOpen, Building2, CalendarCheck, ClipboardCheck,
   FileDown, GraduationCap, LayoutDashboard, School, Search,
   UsersRound, TrendingUp, User, UserCog, UserMinus,
 } from "lucide-react";
@@ -63,14 +63,15 @@ interface ClassOption { id: string; class_name: string; session: string }
 interface SemOption   { id: string; semester_number: number; term_type: string }
 
 const tabs = [
-  { id: "overview",    label: "Dashboard",          icon: LayoutDashboard },
-  { id: "students",    label: "Students",            icon: GraduationCap },
-  { id: "classes",     label: "All Classes",         icon: School },
-  { id: "teachers",    label: "Teachers",            icon: UsersRound },
-  { id: "attendance",  label: "Student Attendance",  icon: ClipboardCheck },
-  { id: "short",       label: "Short Attendance",    icon: UserMinus },
-  { id: "results",     label: "Exam & Results",      icon: Award },
-  { id: "profile",     label: "Profile",             icon: UserCog },
+  { id: "overview",       label: "Dashboard",          icon: LayoutDashboard },
+  { id: "students",       label: "Students",            icon: GraduationCap },
+  { id: "classes",        label: "All Classes",         icon: School },
+  { id: "teachers",       label: "Teachers",            icon: UsersRound },
+  { id: "attendance",     label: "Student Attendance",  icon: ClipboardCheck },
+  { id: "short",          label: "Short Attendance",    icon: UserMinus },
+  { id: "results",        label: "Exam & Results",      icon: Award },
+  { id: "notifications",  label: "Notifications",       icon: Bell },
+  { id: "profile",        label: "Profile",             icon: UserCog },
 ] as const;
 type TabId = (typeof tabs)[number]["id"];
 
@@ -116,6 +117,39 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   const [selectedStudent, setSelectedStudent]   = useState<ResultStudent | null>(null);
   const [resultSemesters, setResultSemesters]   = useState<ResultSemester[]>([]);
   const [resultLoading, setResultLoading]       = useState(false);
+
+  // ── notifications ────────────────────────────────────────────────────────
+  const [notifications, setNotifications]   = useState<{ id: string; title: string; message: string; is_read: boolean; created_at: string }[]>([]);
+  const [notifLoading,  setNotifLoading]    = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    setNotifLoading(true);
+    try {
+      const res  = await fetch("/api/hod/notifications");
+      const data = await res.json();
+      if (res.ok) setNotifications(data.notifications ?? []);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, []);
+
+  async function markNotifRead(id: string) {
+    await fetch("/api/hod/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setNotifications((p) => p.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+  }
+
+  async function markAllNotifsRead() {
+    await fetch("/api/hod/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mark_all: true }),
+    });
+    setNotifications((p) => p.map((n) => ({ ...n, is_read: true })));
+  }
 
   // ── short attendance ──────────────────────────────────────────────────────
   const [shortDeptId,          setShortDeptId]          = useState("");
@@ -196,8 +230,11 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   }, [shortDeptId, shortClassId, shortSemId]);
 
   useEffect(() => {
-    if (tab === "short") loadShortAttendance();
-  }, [tab, loadShortAttendance]);
+    if (tab === "short")         loadShortAttendance();
+    if (tab === "notifications") loadNotifications();
+  }, [tab, loadShortAttendance, loadNotifications]);
+
+  const hodUnread = notifications.filter((n) => !n.is_read).length;
 
   async function handleShortStruckOffAll() {
     const targets = shortRows.filter((r) => r.student_status === "active");
@@ -338,6 +375,11 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
           >
             <t.icon size={14} />
             {t.label}
+            {t.id === "notifications" && hodUnread > 0 && (
+              <span className="ml-0.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                {hodUnread}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -868,6 +910,45 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                 ))
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════ NOTIFICATIONS TAB ════════════════════════ */}
+      {tab === "notifications" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Notifications</h2>
+            <button
+              onClick={markAllNotifsRead}
+              className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              Mark all as read
+            </button>
+          </div>
+          {notifLoading ? (
+            <DataFetchLoader label="Loading…" />
+          ) : notifications.length === 0 ? (
+            <div className="card-3d p-12 text-center text-sm text-slate-400">No notifications yet.</div>
+          ) : (
+            notifications.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => !n.is_read && markNotifRead(n.id)}
+                className={`block w-full rounded-xl border p-4 text-left transition-colors ${
+                  n.is_read
+                    ? "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/40"
+                    : "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-500/10"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-slate-800 dark:text-slate-100">{n.title}</p>
+                  {!n.is_read && <span className="h-2 w-2 rounded-full bg-indigo-600" />}
+                </div>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{n.message}</p>
+                <p className="mt-1 text-xs text-slate-400">{formatDateOnly(n.created_at)}</p>
+              </button>
+            ))
           )}
         </div>
       )}
