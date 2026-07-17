@@ -18,6 +18,7 @@ import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect
 import ProfilePasswordForm from "@/components/ProfilePasswordForm";
 import Logo from "@/components/Logo";
 import StudentManagementPage from "@/components/students/StudentManagementPage";
+import TeacherWorkloadTabs from "@/components/teachers/TeacherWorkloadTabs";
 import type { SingleValue } from "react-select";
 
 interface Department  { id: string; name: string }
@@ -65,6 +66,7 @@ const tabs = [
   { id: "overview",    label: "Dashboard",          icon: LayoutDashboard },
   { id: "students",    label: "Students",            icon: GraduationCap },
   { id: "classes",     label: "All Classes",         icon: School },
+  { id: "teachers",    label: "Teachers",            icon: UsersRound },
   { id: "attendance",  label: "Student Attendance",  icon: ClipboardCheck },
   { id: "short",       label: "Short Attendance",    icon: UserMinus },
   { id: "results",     label: "Exam & Results",      icon: Award },
@@ -413,6 +415,19 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
 
       {/* ══════════════════════ STUDENTS TAB ══════════════════════════════ */}
       {tab === "students" && <StudentManagementPage role="hod" />}
+
+      {/* ══════════════════════ TEACHERS TAB ══════════════════════════════ */}
+      {tab === "teachers" && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Teachers</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Faculty workload and active course allocations for your department
+            </p>
+          </div>
+          <TeacherWorkloadTabs apiEndpoint="/api/hod/teachers/workload" />
+        </div>
+      )}
 
       {/* ══════════════════════ CLASSES TAB ═══════════════════════════════ */}
       {tab === "classes" && (
