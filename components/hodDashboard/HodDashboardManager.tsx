@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { formatDateOnly } from "@/lib/format";
 import { PageLoader, DataFetchLoader, TableLoader, ButtonLoader } from "@/components/ui/Loaders";
+import RichTextViewer from "@/components/ui/RichTextViewer";
 import toast from "react-hot-toast";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
@@ -932,10 +933,9 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
             <div className="card-3d p-12 text-center text-sm text-slate-400">No notifications yet.</div>
           ) : (
             notifications.map((n) => (
-              <button
+              <div
                 key={n.id}
-                onClick={() => !n.is_read && markNotifRead(n.id)}
-                className={`block w-full rounded-xl border p-4 text-left transition-colors ${
+                className={`rounded-xl border p-4 transition-colors ${
                   n.is_read
                     ? "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/40"
                     : "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-500/10"
@@ -943,11 +943,20 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
               >
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-slate-800 dark:text-slate-100">{n.title}</p>
-                  {!n.is_read && <span className="h-2 w-2 rounded-full bg-indigo-600" />}
+                  {!n.is_read && (
+                    <button
+                      onClick={() => markNotifRead(n.id)}
+                      className="flex items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-indigo-700"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-white" /> Mark read
+                    </button>
+                  )}
                 </div>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{n.message}</p>
-                <p className="mt-1 text-xs text-slate-400">{formatDateOnly(n.created_at)}</p>
-              </button>
+                <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                  <RichTextViewer html={n.message} />
+                </div>
+                <p className="mt-2 text-xs text-slate-400">{formatDateOnly(n.created_at)}</p>
+              </div>
             ))
           )}
         </div>

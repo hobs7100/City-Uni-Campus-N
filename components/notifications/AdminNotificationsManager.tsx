@@ -5,6 +5,8 @@ import toast from "react-hot-toast";
 import { Bell, Send, Inbox, Filter, Users } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
 import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
+import RichTextEditor from "@/components/ui/RichTextEditor";
+import RichTextViewer from "@/components/ui/RichTextViewer";
 
 /* ─── types ──────────────────────────────────────────────────────────────── */
 interface Department { id: string; name: string }
@@ -23,9 +25,13 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-/* ─── helpers ─────────────────────────────────────────────────────────────── */
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Strip HTML tags and return plain text to test if body is empty */
+function htmlHasContent(html: string) {
+  return html.replace(/<[^>]*>/g, "").trim().length > 0;
 }
 
 /* ─── component ───────────────────────────────────────────────────────────── */
@@ -42,7 +48,7 @@ export default function AdminNotificationsManager() {
   const [fClass,   setFClass]   = useState("");
   const [fDate,    setFDate]    = useState(today());
   const [fSubject, setFSubject] = useState("");
-  const [fBody,    setFBody]    = useState("");
+  const [fBody,    setFBody]    = useState("");      // HTML string from editor
   const [posting,  setPosting]  = useState(false);
 
   /* ── all-notifications filters ─────────────────────────────────────────── */
@@ -119,10 +125,10 @@ export default function AdminNotificationsManager() {
 
   /* ── post notification ──────────────────────────────────────────────────── */
   async function handlePost() {
-    if (!fDept)    { toast.error("Please select a department."); return; }
-    if (!fDate)    { toast.error("Please select a date."); return; }
-    if (!fSubject.trim()) { toast.error("Subject / Purpose is required."); return; }
-    if (!fBody.trim())    { toast.error("Body of notification is required."); return; }
+    if (!fDept)               { toast.error("Please select a department."); return; }
+    if (!fDate)               { toast.error("Please select a date."); return; }
+    if (!fSubject.trim())     { toast.error("Subject / Purpose is required."); return; }
+    if (!htmlHasContent(fBody)) { toast.error("Body of notification is required."); return; }
 
     setPosting(true);
     try {
@@ -135,7 +141,7 @@ export default function AdminNotificationsManager() {
           session:           fSession || null,
           notification_date: fDate,
           subject:           fSubject.trim(),
-          body:              fBody.trim(),
+          body:              fBody,
         }),
       });
       const data = await res.json();
@@ -149,7 +155,6 @@ export default function AdminNotificationsManager() {
     }
   }
 
-  /* ── select classes label helper ─────────────────────────────────────────── */
   function classLabel(cls: ClassRow) {
     return `${cls.class_name} (${cls.session})`;
   }
@@ -190,103 +195,102 @@ export default function AdminNotificationsManager() {
 
       {/* ══════════════════ NEW NOTIFICATION TAB ════════════════════════════ */}
       {tab === "new" && (
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-4xl">
           <div className="card-3d p-6 space-y-5">
             <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
               Compose Notification
             </h2>
 
-            {/* Department */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Department <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={fDept}
-                onChange={(e) => setFDept(e.target.value)}
-                className="input-base w-full"
-              >
-                <option value="">— Select Department —</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
+            {/* Row 1: Dept / Session / Class */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Department <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={fDept}
+                  onChange={(e) => setFDept(e.target.value)}
+                  className="input-base w-full"
+                >
+                  <option value="">— Select —</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Session <span className="text-slate-400 font-normal normal-case">(optional)</span>
+                </label>
+                <select
+                  value={fSession}
+                  onChange={(e) => { setFSession(e.target.value); setFClass(""); }}
+                  disabled={!fDept}
+                  className="input-base w-full disabled:opacity-50"
+                >
+                  <option value="">— All Sessions —</option>
+                  {formSessions.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Class <span className="text-slate-400 font-normal normal-case">(optional)</span>
+                </label>
+                <select
+                  value={fClass}
+                  onChange={(e) => setFClass(e.target.value)}
+                  disabled={!fDept}
+                  className="input-base w-full disabled:opacity-50"
+                >
+                  <option value="">— All Classes —</option>
+                  {formClasses.map((c) => (
+                    <option key={c.id} value={c.id}>{classLabel(c)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* Session */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Session <span className="text-slate-400 font-normal normal-case">(optional — leave blank for all)</span>
-              </label>
-              <select
-                value={fSession}
-                onChange={(e) => { setFSession(e.target.value); setFClass(""); }}
-                disabled={!fDept}
-                className="input-base w-full disabled:opacity-50"
-              >
-                <option value="">— All Sessions —</option>
-                {formSessions.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+            {/* Row 2: Date / Subject */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={fDate}
+                  onChange={(e) => setFDate(e.target.value)}
+                  className="input-base w-full"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Subject / Purpose <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={fSubject}
+                  onChange={(e) => setFSubject(e.target.value)}
+                  placeholder="e.g. Mid Term Exam Schedule"
+                  className="input-base w-full"
+                />
+              </div>
             </div>
 
-            {/* Class */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Class <span className="text-slate-400 font-normal normal-case">(optional — leave blank for all)</span>
-              </label>
-              <select
-                value={fClass}
-                onChange={(e) => setFClass(e.target.value)}
-                disabled={!fDept}
-                className="input-base w-full disabled:opacity-50"
-              >
-                <option value="">— All Classes —</option>
-                {formClasses.map((c) => (
-                  <option key={c.id} value={c.id}>{classLabel(c)}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Date */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Date <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={fDate}
-                onChange={(e) => setFDate(e.target.value)}
-                className="input-base w-full"
-              />
-            </div>
-
-            {/* Subject */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Subject / Purpose <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={fSubject}
-                onChange={(e) => setFSubject(e.target.value)}
-                placeholder="e.g. Mid Term Exam Schedule"
-                className="input-base w-full"
-              />
-            </div>
-
-            {/* Body */}
+            {/* Body — rich text editor */}
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Body of Notification <span className="text-red-500">*</span>
               </label>
-              <textarea
-                rows={5}
+              <RichTextEditor
                 value={fBody}
-                onChange={(e) => setFBody(e.target.value)}
+                onChange={setFBody}
                 placeholder="Write the full notification message here…"
-                className="input-base w-full resize-none"
+                minHeight={240}
               />
             </div>
 
@@ -430,7 +434,9 @@ export default function AdminNotificationsManager() {
                     </div>
                   </div>
 
-                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{b.body}</p>
+                  <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800/50">
+                    <RichTextViewer html={b.body} />
+                  </div>
 
                   <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700">
                     <span className="text-[11px] text-slate-400">

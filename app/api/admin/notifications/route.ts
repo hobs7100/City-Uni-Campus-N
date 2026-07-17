@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
     teacherRows = await query<{ id: string }>(
       `select distinct a.teacher_id as id
        from allocations a
-       join semesters sm on sm.id = a.semester_id
+       join allocation_semesters als on als.allocation_id = a.id
+       join semesters sm on sm.id = als.semester_id
        where sm.class_id = $1`,
       [d.class_id]
     );
