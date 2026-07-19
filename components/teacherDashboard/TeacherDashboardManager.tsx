@@ -284,12 +284,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [studentReportCourse, setStudentReportCourse] = useState<{ course_title: string; is_combined: boolean } | null>(null);
 
   // ── Search Student tab ────────────────────────────────────────────────────
-  const [tsAllStudents, setTsAllStudents]       = useState<TsStudentOption[]>([]);
-  const [tsStudentsLoaded, setTsStudentsLoaded] = useState(false);
-  const [tsStudentId, setTsStudentId]           = useState("");
-  const [tsStudentInfo, setTsStudentInfo]       = useState<TsStudentOption | null>(null);
-  const [tsAttSemesters, setTsAttSemesters]     = useState<TsSemAtt[]>([]);
-  const [tsAttLoading, setTsAttLoading]         = useState(false);
+  const [tsAllStudents, setTsAllStudents]   = useState<TsStudentOption[]>([]);
+  const [tsStudentsLoading, setTsStudentsLoading] = useState(false);
+  const [tsStudentId, setTsStudentId]       = useState("");
+  const [tsStudentInfo, setTsStudentInfo]   = useState<TsStudentOption | null>(null);
+  const [tsAttSemesters, setTsAttSemesters] = useState<TsSemAtt[]>([]);
+  const [tsAttLoading, setTsAttLoading]     = useState(false);
 
   const [reportRows, setReportRows] = useState<AttendanceReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
@@ -369,16 +369,18 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
   // ── Search-Student callbacks ───────────────────────────────────────────────
   const loadTsStudents = useCallback(async () => {
-    if (tsStudentsLoaded) return;
+    setTsStudentsLoading(true);
     try {
       const res  = await fetch("/api/teacher/search-student");
       const data = await res.json();
-      if (res.ok) {
-        setTsAllStudents(data.students ?? []);
-        setTsStudentsLoaded(true);
-      }
-    } catch { /* silent */ }
-  }, [tsStudentsLoaded]);
+      if (res.ok) setTsAllStudents(data.students ?? []);
+      else toast.error(data.error || "Could not load student list.");
+    } catch {
+      toast.error("Could not load student list.");
+    } finally {
+      setTsStudentsLoading(false);
+    }
+  }, []);
 
   const loadTsAttendance = useCallback(async (sid: string) => {
     if (!sid) { setTsAttSemesters([]); return; }

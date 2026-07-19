@@ -6,31 +6,9 @@ export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("teacher");
   if (response) return response;
 
-  const teacherId = session!.userId;
   const studentId = request.nextUrl.searchParams.get("student_id");
 
-  // Classes where this teacher has active-semester allocations
-  const activeClasses = await query<{ class_id: string }>(
-    `select distinct c.id as class_id
-     from classes c
-     join semesters sem on sem.class_id = c.id and sem.status = 'active'
-     join allocation_semesters als on als.semester_id = sem.id
-     join allocations a on a.id = als.allocation_id and a.teacher_id = $1
-     where a.deleted_at is null`,
-    [teacherId]
-  );
-  const classIds = activeClasses.map((r) => r.class_id);
-
-  if (classIds.length === 0) {
-    if (studentId)
-      return NextResponse.json(
-        { error: "No active allocations found." },
-        { status: 403 }
-      );
-    return NextResponse.json({ students: [] });
-  }
-
-  // ── Student list mode ────────────────────────────────────────────────────
+  // ── Student list (all campus students) ──────────────────────────────────
   if (!studentId) {
     const students = await query<{
       id: string;
@@ -42,24 +20,20 @@ export async function GET(request: NextRequest) {
       `select s.id, s.name, s.roll_no, c.class_name, s.session
        from students s
        join classes c on c.id = s.class_id
-       where s.class_id = any($1::uuid[]) and s.deleted_at is null
+       where s.deleted_at is null
        order by c.class_name, s.name`,
-      [classIds]
+      []
     );
     return NextResponse.json({ students });
   }
 
-  // ── Per-student attendance mode (active semester only) ───────────────────
+  // ── Per-student attendance (active semester only) ────────────────────────
   const stuCheck = await query<{ id: string }>(
-    `select s.id from students s
-     where s.id = $1 and s.class_id = any($2::uuid[]) and s.deleted_at is null`,
-    [studentId, classIds]
+    `select id from students where id = $1 and deleted_at is null`,
+    [studentId]
   );
   if (stuCheck.length === 0)
-    return NextResponse.json(
-      { error: "Student not found in your active classes." },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: "Student not found." }, { status: 404 });
 
   // Active semester for this student's class
   const semRows = await query<{
@@ -96,24 +70,24 @@ export async function GET(request: NextRequest) {
      join teachers te on te.id = a.teacher_id
      left join student_course_attendance sca
        on sca.allocation_id = a.id and sca.student_id = $1
-     where als.semester_id = $2 and a.deleted_at is null
+     where als.semester_id = $2
      group by co.title, te.name
      order by co.title`,
     [studentId, sem.semester_id]
   );
 
-  // Overall attendance (admin/coordinator-marked via student_attendance_records)
+  // Overall attendance (admin/coordinator-marked)
   const ovRows = await query<{
     presents: string;
     absents: string;
     leaves: string;
   }>(
     `select
-       count(*) filter (where sar.status = 'present') as presents,
-       count(*) filter (where sar.status = 'absent')  as absents,
-       count(*) filter (where sar.status = 'leave')   as leaves
-     from student_attendance_records sar
-     where sar.student_id = $1 and sar.semester_id = $2`,
+       count(*) filter (where status = 'present') as presents,
+       count(*) filter (where status = 'absent')  as absents,
+       count(*) filter (where status = 'leave')   as leaves
+     from student_attendance_records
+     where student_id = $1 and semester_id = $2`,
     [studentId, sem.semester_id]
   );
 
