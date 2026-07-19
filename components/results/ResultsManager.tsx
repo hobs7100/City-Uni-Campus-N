@@ -480,6 +480,52 @@ export default function ResultsManager() {
     if (tab === "datesheet") loadDs();
   }, [tab, loadDs]);
 
+  // ---------------- Re-Mid Exam Date Sheet ----------------
+  const [rdDeptId, setRdDeptId] = useState("");
+  const [rdClassId, setRdClassId] = useState("");
+  const [rdSemesterId, setRdSemesterId] = useState("");
+  const [rdRows, setRdRows] = useState<RdRow[]>([]);
+  const [rdLoading, setRdLoading] = useState(false);
+  const [rdBulkSaving, setRdBulkSaving] = useState(false);
+  const [rdRowSaving, setRdRowSaving] = useState<Record<string, boolean>>({});
+  const [rdNotifying, setRdNotifying] = useState(false);
+
+  const classesForRd = useMemo(
+    () => allClasses.filter((c) => !rdDeptId || c.department_id === rdDeptId),
+    [allClasses, rdDeptId],
+  );
+  const semestersForRd = useMemo(
+    () => allSemesters.filter((s) => s.class_id === rdClassId && s.status === "active"),
+    [allSemesters, rdClassId],
+  );
+
+  const loadRd = useCallback(async () => {
+    if (!rdSemesterId) return;
+    setRdLoading(true);
+    try {
+      const res = await fetch(`/api/admin/re-mid-exam-datesheet?semester_id=${rdSemesterId}`);
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to load re-mid date sheet.");
+        return;
+      }
+      setRdRows(
+        (data.rows ?? []).map((r: RdRow) => ({
+          ...r,
+          paper_date: r.paper_date ?? "",
+          bundle_received_date: r.bundle_received_date ?? "",
+          return_date: r.return_date ?? "",
+        })),
+      );
+    } finally {
+      setRdLoading(false);
+    }
+  }, [rdSemesterId]);
+
+  useEffect(() => {
+    if (tab === "remid-datesheet") loadRd();
+  }, [tab, loadRd]);
+
   const printMode =
     tab === "failed"
       ? "failed"
@@ -1484,6 +1530,249 @@ export default function ResultsManager() {
                   </button>
                 </div>
               )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Re-Mid Exam Date Sheet ── */}
+      {tab === "remid-datesheet" && (
+        <div>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div className="w-56">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Department</label>
+              <SearchableSelect
+                options={departments}
+                value={departments.find((d) => d.value === rdDeptId) || null}
+                onChange={(v) => {
+                  setRdDeptId((v as SelectOption | null)?.value || "");
+                  setRdClassId(""); setRdSemesterId(""); setRdRows([]);
+                }}
+              />
+            </div>
+            <div className="w-56">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Class</label>
+              <SearchableSelect
+                options={classesForRd.map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` }))}
+                value={
+                  classesForRd
+                    .filter((c) => c.id === rdClassId)
+                    .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` }))[0] || null
+                }
+                onChange={(v) => {
+                  setRdClassId((v as SelectOption | null)?.value || "");
+                  setRdSemesterId(""); setRdRows([]);
+                }}
+                isDisabled={!rdDeptId}
+              />
+            </div>
+            <div className="w-64">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Semester (Active only)</label>
+              <SearchableSelect
+                options={semestersForRd.map((s) => ({ value: s.id, label: `Semester ${s.semester_number} – ${s.term_type}` }))}
+                value={
+                  semestersForRd
+                    .filter((s) => s.id === rdSemesterId)
+                    .map((s) => ({ value: s.id, label: `Semester ${s.semester_number} – ${s.term_type}` }))[0] || null
+                }
+                onChange={(v) => {
+                  setRdSemesterId((v as SelectOption | null)?.value || "");
+                  setRdRows([]);
+                }}
+                isDisabled={!rdClassId}
+              />
+            </div>
+            {rdSemesterId && (
+              <button
+                onClick={loadRd}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <Search size={15} /> Refresh
+              </button>
+            )}
+          </div>
+
+          {!rdSemesterId ? (
+            <p className="py-10 text-center text-sm text-slate-400">
+              Select a department, class, and active semester to view the Re-Mid date sheet.
+            </p>
+          ) : rdLoading ? (
+            <DataFetchLoader />
+          ) : rdRows.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">
+              No courses with mid-absent students found for this semester.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto card-3d shadow-sm">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-amber-50 text-left dark:border-slate-800 dark:bg-amber-500/5">
+                      <th className="px-3 py-2">Course</th>
+                      <th className="px-3 py-2">Teacher</th>
+                      <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                      <th className="px-3 py-2 text-center">Absent Students</th>
+                      <th className="px-3 py-2">Re-Mid Date</th>
+                      <th className="px-3 py-2">Bundle Received</th>
+                      <th className="px-3 py-2">Return Date</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rdRows.map((r) => (
+                      <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                        <td className="px-3 py-1.5">
+                          <div className="font-medium">{r.course_title}</div>
+                          <div className="text-xs text-slate-400">{r.course_code}</div>
+                        </td>
+                        <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
+                        <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
+                        <td className="px-3 py-1.5 text-center">
+                          <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                            {r.absent_count}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="date"
+                            value={r.paper_date}
+                            onChange={(e) =>
+                              setRdRows((prev) =>
+                                prev.map((row) =>
+                                  row.course_id === r.course_id ? { ...row, paper_date: e.target.value } : row,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="date"
+                            value={r.bundle_received_date}
+                            onChange={(e) =>
+                              setRdRows((prev) =>
+                                prev.map((row) =>
+                                  row.course_id === r.course_id ? { ...row, bundle_received_date: e.target.value } : row,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="date"
+                            value={r.return_date}
+                            onChange={(e) =>
+                              setRdRows((prev) =>
+                                prev.map((row) =>
+                                  row.course_id === r.course_id ? { ...row, return_date: e.target.value } : row,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <button
+                            onClick={async () => {
+                              setRdRowSaving((p) => ({ ...p, [r.course_id]: true }));
+                              try {
+                                const res = await fetch("/api/admin/re-mid-exam-datesheet", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    semester_id: rdSemesterId,
+                                    course_id: r.course_id,
+                                    paper_date: r.paper_date || null,
+                                    bundle_received_date: r.bundle_received_date || null,
+                                    return_date: r.return_date || null,
+                                  }),
+                                });
+                                if (!res.ok) {
+                                  const d = await res.json();
+                                  toast.error(d.error || "Failed to save.");
+                                } else {
+                                  toast.success(`Saved — ${r.course_code}`);
+                                }
+                              } finally {
+                                setRdRowSaving((p) => ({ ...p, [r.course_id]: false }));
+                              }
+                            }}
+                            disabled={rdRowSaving[r.course_id]}
+                            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                          >
+                            {rdRowSaving[r.course_id] ? <ButtonLoader /> : <Save size={12} />} Save
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
+                <button
+                  onClick={async () => {
+                    setRdNotifying(true);
+                    try {
+                      const res = await fetch("/api/admin/re-mid-exam-datesheet", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          semester_id: rdSemesterId,
+                          rows: rdRows.map((r) => ({
+                            course_id: r.course_id,
+                            paper_date: r.paper_date || null,
+                            bundle_received_date: r.bundle_received_date || null,
+                            return_date: r.return_date || null,
+                          })),
+                          notify: true,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) { toast.error(data.error || "Failed to save."); return; }
+                      toast.success("Saved & notifications sent to relevant students, teachers and HOD.");
+                    } finally {
+                      setRdNotifying(false);
+                    }
+                  }}
+                  disabled={rdNotifying || rdBulkSaving}
+                  className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {rdNotifying ? <ButtonLoader /> : <FileDown size={16} />} Save & Send Notifications
+                </button>
+                <button
+                  onClick={async () => {
+                    setRdBulkSaving(true);
+                    try {
+                      const res = await fetch("/api/admin/re-mid-exam-datesheet", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          semester_id: rdSemesterId,
+                          rows: rdRows.map((r) => ({
+                            course_id: r.course_id,
+                            paper_date: r.paper_date || null,
+                            bundle_received_date: r.bundle_received_date || null,
+                            return_date: r.return_date || null,
+                          })),
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) { toast.error(data.error || "Failed to save."); return; }
+                      toast.success(`Saved ${data.saved} course(s).`);
+                    } finally {
+                      setRdBulkSaving(false);
+                    }
+                  }}
+                  disabled={rdBulkSaving || rdNotifying}
+                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {rdBulkSaving ? <ButtonLoader /> : <Save size={16} />} Save Changes
+                </button>
+              </div>
             </>
           )}
         </div>
