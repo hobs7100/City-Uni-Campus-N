@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
   );
   if (!student) return NextResponse.json({ error: "Student not found." }, { status: 404 });
 
+  // Exclude lab courses: credit_hours = 1 OR code contains 'Lab'
   const rows = await query(
     `select r.*, co.code as course_code, co.title as course_title, co.credit_hours,
             sem.semester_number, sem.term_type
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
      join courses co on co.id = r.course_id
      join semesters sem on sem.id = r.semester_id
      where r.student_id = $1
+       and NOT (co.credit_hours::numeric = 1 OR co.code ILIKE '%Lab%')
      order by sem.semester_number, co.code`,
     [studentId]
   );

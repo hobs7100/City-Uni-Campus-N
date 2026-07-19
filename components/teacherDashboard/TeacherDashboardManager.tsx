@@ -66,6 +66,9 @@ interface ResRosterRow {
   roll_no: string | null;
   student_status: string;
   mid: number;
+  mid_absent: boolean;
+  re_mid: number | null;
+  re_mid_absent: boolean;
   sessional: number;
   final: number;
   practical: number;
@@ -387,7 +390,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const res = await fetch(`/api/teacher/results/roster?semester_id=${resSemesterId}&course_id=${resCourseId}`);
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Failed to load roster."); setResRoster([]); return; }
-      setResRoster((data.rows ?? []).map((r: ResRosterRow) => ({ ...r, total: r.mid + r.sessional + r.final })));
+      setResRoster((data.rows ?? []).map((r: ResRosterRow) => {
+        const effectiveMid = r.mid_absent
+          ? (r.re_mid_absent || r.re_mid === null ? 0 : r.re_mid)
+          : r.mid;
+        return { ...r, total: effectiveMid + r.sessional + r.final + r.practical };
+      }));
       setResTeacherName(data.teacher_name || "");
     } finally {
       setResRosterLoading(false);
@@ -396,22 +404,29 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
   function updateResCell(
     studentId: string,
-    field: "roll_no" | "mid" | "sessional" | "final" | "practical" | "status",
-    value: string,
+    field: "roll_no" | "mid" | "mid_absent" | "re_mid" | "re_mid_absent" | "sessional" | "final" | "practical" | "status",
+    value: string | number | boolean,
   ) {
     setResRoster((prev) =>
       prev.map((r) => {
         if (r.student_id !== studentId) return r;
         const next = { ...r };
-        if (field === "roll_no") next.roll_no = value;
+        if (field === "roll_no") next.roll_no = value as string;
         else if (field === "status") next.status = value as ResRosterRow["status"];
+        else if (field === "mid_absent") {
+          next.mid_absent = value as boolean;
+          if (!value) { next.re_mid = null; next.re_mid_absent = false; }
+        }
+        else if (field === "re_mid_absent") next.re_mid_absent = value as boolean;
+        else if (field === "re_mid") next.re_mid = Number(value) || 0;
         else {
           const num = Number(value) || 0;
           (next as unknown as Record<string, number>)[field] = num;
         }
-        if (field === "mid" || field === "sessional" || field === "final") {
-          next.total = next.mid + next.sessional + next.final;
-        }
+        const effectiveMid = next.mid_absent
+          ? (next.re_mid_absent || next.re_mid === null ? 0 : next.re_mid)
+          : next.mid;
+        next.total = effectiveMid + next.sessional + next.final + next.practical;
         return next;
       })
     );
@@ -431,6 +446,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             student_id: r.student_id,
             roll_no: r.roll_no,
             mid: r.mid,
+            mid_absent: r.mid_absent,
+            re_mid: r.re_mid,
+            re_mid_absent: r.re_mid_absent,
             sessional: r.sessional,
             final: r.final,
             practical: r.practical,
@@ -658,6 +676,16 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const groupedActive = useMemo(() => groupCourseRows(active), [active]);
   const groupedInactive = useMemo(() => groupCourseRows(inactive), [inactive]);
 
+  /** Non-lab courses only — for the Upload Result tab. */
+  const resGroupedActive = useMemo(
+    () =>
+      groupedActive.filter((c) => {
+        const ch = Number(c.credit_hours);
+        return !(ch === 1 || c.course_code.toLowerCase().includes("lab"));
+      }),
+    [groupedActive],
+  );
+
   function cellFor(dayId: string, periodId: string) {
     return timetableDetail?.cells.find((c) => c.day_id === dayId && c.period_id === periodId);
   }
@@ -867,11 +895,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           {/* Course selector */}
           <div className="card-3d p-4">
             <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Select Course</h3>
-            {groupedActive.length === 0 ? (
+            {resGroupedActive.length === 0 ? (
               <p className="text-sm text-slate-400">No active courses found.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {groupedActive.map((c) => (
+                {resGroupedActive.map((c) => (
                   <button
                     key={c.allocation_id}
                     onClick={() => {
@@ -900,7 +928,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
           {/* Class picker for combined allocations */}
           {resAllocId && (() => {
-            const sel = groupedActive.find((c) => c.allocation_id === resAllocId);
+            const sel = resGroupedActive.find((c) => c.allocation_id === resAllocId);
             if (!sel || !sel.is_combined) return null;
             return (
               <div className="card-3d p-4">
@@ -941,7 +969,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
           {/* Roster table */}
           {resRoster.length > 0 && (() => {
-            const selAlloc = groupedActive.find((c) => c.allocation_id === resAllocId);
+            const selAlloc = resGroupedActive.find((c) => c.allocation_id === resAllocId);
             const selClass = selAlloc?.classes.find((cl) => cl.semester_id === resSemesterId);
             return (
               <div>
@@ -987,7 +1015,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">#</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Roll No</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Student Name</th>
-                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Mid</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Mid / Re-Mid</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Sessional</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Final</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Practical</th>
@@ -1012,14 +1040,77 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             )}
                           </td>
                           <td className="border border-slate-100 px-3 py-2 font-medium dark:border-slate-800">{r.name}</td>
-                          {(["mid", "sessional", "final", "practical"] as const).map((field) => (
+
+                          {/* ── Mid / Re-Mid cell ── */}
+                          <td className="border border-slate-100 px-3 py-2 dark:border-slate-800">
+                            {resExportActive ? (
+                              <div className="space-y-0.5 text-xs">
+                                {r.mid_absent ? (
+                                  <>
+                                    <span className="inline-block rounded bg-red-50 px-1.5 py-0.5 text-red-600 dark:bg-red-500/10 dark:text-red-400">Absent</span>
+                                    {r.re_mid !== null && !r.re_mid_absent
+                                      ? <div className="text-[10px] text-slate-500">Re-Mid: {r.re_mid}</div>
+                                      : r.re_mid_absent
+                                        ? <div className="text-[10px] text-red-500">Re-Mid: Absent</div>
+                                        : null}
+                                  </>
+                                ) : (
+                                  <span>{r.mid}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number" min={0}
+                                    value={r.mid_absent ? "" : r.mid}
+                                    disabled={r.mid_absent}
+                                    onChange={(e) => updateResCell(r.student_id, "mid", e.target.value)}
+                                    className="w-16 rounded border border-slate-200 px-1.5 py-0.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:disabled:bg-slate-800"
+                                  />
+                                </div>
+                                <label className="flex cursor-pointer items-center gap-1 text-[11px] text-slate-500">
+                                  <input
+                                    type="checkbox"
+                                    checked={r.mid_absent}
+                                    onChange={(e) => updateResCell(r.student_id, "mid_absent", e.target.checked)}
+                                    className="h-3 w-3 accent-red-500"
+                                  />
+                                  Absent
+                                </label>
+                                {r.mid_absent && (
+                                  <div className="rounded border border-dashed border-amber-200 bg-amber-50/60 p-1.5 dark:border-amber-700/40 dark:bg-amber-500/5">
+                                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Re-Mid</p>
+                                    <input
+                                      type="number" min={0}
+                                      value={r.re_mid_absent ? "" : (r.re_mid ?? "")}
+                                      disabled={r.re_mid_absent}
+                                      onChange={(e) => updateResCell(r.student_id, "re_mid", e.target.value)}
+                                      className="mb-1 w-16 rounded border border-slate-200 px-1.5 py-0.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:disabled:bg-slate-800"
+                                    />
+                                    <label className="flex cursor-pointer items-center gap-1 text-[11px] text-slate-500">
+                                      <input
+                                        type="checkbox"
+                                        checked={r.re_mid_absent}
+                                        onChange={(e) => updateResCell(r.student_id, "re_mid_absent", e.target.checked)}
+                                        className="h-3 w-3 accent-red-500"
+                                      />
+                                      Also Absent
+                                    </label>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* ── Sessional / Final / Practical ── */}
+                          {(["sessional", "final", "practical"] as const).map((field) => (
                             <td key={field} className="border border-slate-100 px-3 py-2 dark:border-slate-800">
                               {resExportActive ? (
                                 <span>{r[field]}</span>
                               ) : (
                                 <input
-                                  type="number"
-                                  min={0}
+                                  type="number" min={0}
                                   value={r[field]}
                                   onChange={(e) => updateResCell(r.student_id, field, e.target.value)}
                                   className="w-16 rounded border border-slate-200 px-1.5 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-900"

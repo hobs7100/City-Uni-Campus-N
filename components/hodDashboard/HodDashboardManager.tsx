@@ -46,7 +46,8 @@ interface SemAtt {
 
 interface ResultCourse {
   course_code: string; course_title: string;
-  mid: number; sessional: number; final: number; practical: number; total: number; status: string;
+  mid: number; mid_absent: boolean; re_mid: number | null; re_mid_absent: boolean;
+  sessional: number; final: number; practical: number; total: number; status: string;
 }
 interface ResultSemester { semester_number: number; term_type: string; courses: ResultCourse[] }
 interface ResultStudent {
@@ -879,7 +880,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                         <thead className="text-xs uppercase text-slate-500 dark:text-slate-400">
                           <tr>
                             <th className="px-4 py-2">Course</th>
-                            <th className="px-4 py-2 text-center">Mid</th>
+                            <th className="px-4 py-2 text-center">Mid / Re-Mid</th>
                             <th className="px-4 py-2 text-center">Sessional</th>
                             <th className="px-4 py-2 text-center">Final</th>
                             <th className="px-4 py-2 text-center">Practical</th>
@@ -894,7 +895,18 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                                 <div className="font-medium text-slate-800 dark:text-slate-100">{c.course_title}</div>
                                 <div className="text-xs text-slate-400">{c.course_code}</div>
                               </td>
-                              <td className="px-4 py-2 text-center">{c.mid}</td>
+                              <td className="px-4 py-2 text-center">
+                                  {c.mid_absent ? (
+                                    <div className="space-y-0.5">
+                                      <span className="inline-block rounded bg-red-50 px-1.5 py-0.5 text-xs text-red-600 dark:bg-red-500/10 dark:text-red-400">Absent</span>
+                                      {c.re_mid !== null && !c.re_mid_absent
+                                        ? <div className="text-[11px] font-medium text-slate-700 dark:text-slate-200">Re-Mid: {c.re_mid}</div>
+                                        : c.re_mid_absent
+                                          ? <div className="text-[11px] text-red-500">Re-Mid: Absent</div>
+                                          : null}
+                                    </div>
+                                  ) : c.mid}
+                                </td>
                               <td className="px-4 py-2 text-center">{c.sessional}</td>
                               <td className="px-4 py-2 text-center">{c.final}</td>
                               <td className="px-4 py-2 text-center">{c.practical}</td>

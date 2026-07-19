@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
+// Exclude lab courses: credit_hours = 1 OR code contains 'Lab'
+const LAB_EXCLUDE = `NOT (co.credit_hours::numeric = 1 OR co.code ILIKE '%Lab%')`;
+
 export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("hod");
   if (response) return response;
@@ -79,6 +82,7 @@ export async function POST(request: NextRequest) {
      join courses co on co.id = r.course_id
      join semesters sem on sem.id = r.semester_id
      where r.student_id = $1
+       and ${LAB_EXCLUDE}
      order by sem.semester_number, co.code`,
     [studentId]
   );

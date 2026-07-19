@@ -29,6 +29,9 @@ interface RosterRow {
   roll_no: string | null;
   student_status: string;
   mid: number;
+  mid_absent: boolean;
+  re_mid: number | null;
+  re_mid_absent: boolean;
   sessional: number;
   final: number;
   practical: number;
@@ -80,6 +83,9 @@ interface ResultSheetCourse {
   course_title: string;
   credit_hours: number;
   mid: number;
+  mid_absent: boolean;
+  re_mid: number | null;
+  re_mid_absent: boolean;
   sessional: number;
   final: number;
   practical: number;
@@ -223,7 +229,9 @@ export default function ResultsManager() {
     () => allSemesters.find((s) => s.id === upSemesterId),
     [allSemesters, upSemesterId],
   );
-  const coursesForUploadSemester = selectedUploadSemester?.courses ?? [];
+  const coursesForUploadSemester = (selectedUploadSemester?.courses ?? []).filter(
+    (c) => !(c.credit_hours === 1 || c.code.toLowerCase().includes("lab")),
+  );
 
   const loadRoster = useCallback(async () => {
     if (!upSemesterId || !upCourseId) return;
@@ -239,7 +247,12 @@ export default function ResultsManager() {
         return;
       }
       setRosterRows(
-        (data.rows ?? []).map((r: RosterRow) => ({ ...r, total: r.mid + r.sessional + r.final })),
+        (data.rows ?? []).map((r: RosterRow) => {
+          const effectiveMid = r.mid_absent
+            ? (r.re_mid_absent || r.re_mid === null ? 0 : r.re_mid)
+            : r.mid;
+          return { ...r, total: effectiveMid + r.sessional + r.final + r.practical };
+        }),
       );
       setInstructorName(data.teacher_name || "");
     } finally {
@@ -257,22 +270,29 @@ export default function ResultsManager() {
 
   function updateRosterCell(
     studentId: string,
-    field: "roll_no" | "mid" | "sessional" | "final" | "practical" | "status",
-    value: string,
+    field: "roll_no" | "mid" | "mid_absent" | "re_mid" | "re_mid_absent" | "sessional" | "final" | "practical" | "status",
+    value: string | number | boolean,
   ) {
     setRosterRows((prev) =>
       prev.map((r) => {
         if (r.student_id !== studentId) return r;
         const next = { ...r };
-        if (field === "roll_no") next.roll_no = value;
+        if (field === "roll_no") next.roll_no = value as string;
         else if (field === "status") next.status = value as RosterRow["status"];
+        else if (field === "mid_absent") {
+          next.mid_absent = value as boolean;
+          if (!value) { next.re_mid = null; next.re_mid_absent = false; }
+        }
+        else if (field === "re_mid_absent") next.re_mid_absent = value as boolean;
+        else if (field === "re_mid") next.re_mid = Number(value) || 0;
         else {
           const num = Number(value) || 0;
           (next as unknown as Record<string, number>)[field] = num;
         }
-        if (field === "mid" || field === "sessional" || field === "final") {
-          next.total = next.mid + next.sessional + next.final;
-        }
+        const effectiveMid = next.mid_absent
+          ? (next.re_mid_absent || next.re_mid === null ? 0 : next.re_mid)
+          : next.mid;
+        next.total = effectiveMid + next.sessional + next.final + next.practical;
         return next;
       }),
     );
@@ -304,6 +324,9 @@ export default function ResultsManager() {
             student_id: r.student_id,
             roll_no: r.roll_no,
             mid: r.mid,
+            mid_absent: r.mid_absent,
+            re_mid: r.re_mid,
+            re_mid_absent: r.re_mid_absent,
             sessional: r.sessional,
             final: r.final,
             practical: r.practical,
@@ -472,7 +495,9 @@ export default function ResultsManager() {
   const exportHalfLen = Math.ceil(rosterRows.length / 2);
   const exportLeftRows = rosterRows.slice(0, exportHalfLen);
   const exportRightRows = rosterRows.slice(exportHalfLen);
-  const exportAppeared = rosterRows.filter((r) => r.mid > 0 || r.sessional > 0 || r.final > 0).length;
+  const exportAppeared = rosterRows.filter(
+    (r) => !r.mid_absent || (r.re_mid !== null && !r.re_mid_absent),
+  ).length;
   const exportAbsent = rosterRows.length - exportAppeared;
 
   return (

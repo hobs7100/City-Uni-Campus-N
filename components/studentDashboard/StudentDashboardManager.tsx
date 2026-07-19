@@ -35,7 +35,8 @@ interface Profile {
 
 interface ResultCourse {
   course_code: string; course_title: string; credit_hours: string;
-  mid: string; sessional: string; final: string; practical: string;
+  mid: string; mid_absent: boolean; re_mid: string | null; re_mid_absent: boolean;
+  sessional: string; final: string; practical: string;
   total: string; status: string;
 }
 interface SemesterResult {
@@ -533,7 +534,7 @@ export default function StudentDashboardManager() {
                       <thead className="bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/40 dark:text-slate-400">
                         <tr>
                           <th className="px-4 py-3">Course</th>
-                          <th className="px-4 py-3 text-center">Mid</th>
+                          <th className="px-4 py-3 text-center">Mid / Re-Mid</th>
                           <th className="px-4 py-3 text-center">Sessional</th>
                           <th className="px-4 py-3 text-center">Final</th>
                           <th className="px-4 py-3 text-center">Practical</th>
@@ -553,7 +554,18 @@ export default function StudentDashboardManager() {
                                 <p className="font-medium text-slate-800 dark:text-slate-100">{c.course_title}</p>
                                 <p className="text-xs text-slate-400">{c.course_code} · {c.credit_hours} cr</p>
                               </td>
-                              <td className="px-4 py-3 text-center">{c.mid}</td>
+                              <td className="px-4 py-3 text-center">
+                                  {c.mid_absent ? (
+                                    <div className="space-y-0.5">
+                                      <span className="inline-block rounded bg-red-50 px-1.5 py-0.5 text-xs text-red-600 dark:bg-red-500/10 dark:text-red-400">Absent</span>
+                                      {c.re_mid !== null && !c.re_mid_absent
+                                        ? <div className="text-[11px] font-medium text-slate-700 dark:text-slate-200">Re-Mid: {c.re_mid}</div>
+                                        : c.re_mid_absent
+                                          ? <div className="text-[11px] text-red-500">Re-Mid: Absent</div>
+                                          : null}
+                                    </div>
+                                  ) : c.mid}
+                                </td>
                               <td className="px-4 py-3 text-center">{c.sessional}</td>
                               <td className="px-4 py-3 text-center">{c.final}</td>
                               <td className="px-4 py-3 text-center">{c.practical}</td>
