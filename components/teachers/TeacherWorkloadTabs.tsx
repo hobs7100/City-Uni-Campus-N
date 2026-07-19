@@ -28,8 +28,11 @@ interface CourseEntry {
   course_code: string;
   course_title: string;
   credit_hours: number;
-  class_name: string;
-  session: string;
+  /** All classes sharing this allocation (combined lectures merged here) */
+  class_names: string[];
+  /** Unique sessions across merged classes */
+  sessions: string[];
+  /** false if any class still has no result uploaded */
   result_uploaded: boolean;
 }
 
@@ -67,36 +70,45 @@ function groupRows(rows: RawRow[]): TeacherGroup[] {
     const group = map.get(r.teacher_id)!;
 
     if (r.allocation_id && r.course_title && r.class_name) {
-      // Avoid duplicating the same (allocation_id, class_name, session) row
-      const already = group.courses.find(
-        (c) => c.allocation_id === r.allocation_id && c.class_name === r.class_name && c.session === r.session
-      );
-      if (!already) {
+      const existing = group.courses.find((c) => c.allocation_id === r.allocation_id);
+      if (existing) {
+        // Combined lecture — merge this class into the existing entry
+        if (!existing.class_names.includes(r.class_name)) {
+          existing.class_names.push(r.class_name);
+        }
+        const sess = r.session ?? "";
+        if (sess && !existing.sessions.includes(sess)) {
+          existing.sessions.push(sess);
+        }
+        // result_uploaded = false if ANY class is still pending
+        if (!r.result_uploaded) existing.result_uploaded = false;
+      } else {
         group.courses.push({
           allocation_id: r.allocation_id,
           course_code: r.course_code ?? "",
           course_title: r.course_title,
           credit_hours: r.credit_hours ? Number(r.credit_hours) : 0,
-          class_name: r.class_name,
-          session: r.session ?? "",
+          class_names: [r.class_name],
+          sessions: r.session ? [r.session] : [],
           result_uploaded: r.result_uploaded,
         });
       }
     }
   }
 
-  // Compute workload_assigned: sum credit_hours per distinct allocation_id.
-  // Each allocation (even combined lectures that span multiple classes) counts once.
+  // Compute workload_assigned: one credit_hours per allocation_id (combined counts once).
+  // Then sort each teacher's courses by first class name.
   for (const group of map.values()) {
-    const allocSeen = new Set<string>();
     let total = 0;
     for (const c of group.courses) {
-      if (!allocSeen.has(c.allocation_id)) {
-        allocSeen.add(c.allocation_id);
-        total += c.credit_hours;
-      }
+      total += c.credit_hours;
     }
     group.workload_assigned = total;
+
+    // Sort by first class name alphabetically
+    group.courses.sort((a, b) =>
+      (a.class_names[0] ?? "").localeCompare(b.class_names[0] ?? "")
+    );
   }
 
   return Array.from(map.values());
@@ -213,24 +225,45 @@ function TeacherCard({ group }: { group: TeacherGroup }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {group.courses.map((c, i) => (
-                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium text-slate-800 dark:text-slate-100">{c.course_title}</p>
-                        {c.course_code && (
-                          <p className="text-[11px] text-slate-400">{c.course_code}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{c.class_name}</td>
-                      <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{c.session}</td>
-                      <td className="px-4 py-2.5 text-center font-medium text-slate-700 dark:text-slate-200">
-                        {c.credit_hours}
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <ResultBadge uploaded={c.result_uploaded} />
-                      </td>
-                    </tr>
-                  ))}
+                  {group.courses.map((c, i) => {
+                    const isCombined = c.class_names.length > 1;
+                    return (
+                      <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium text-slate-800 dark:text-slate-100">{c.course_title}</p>
+                          {c.course_code && (
+                            <p className="text-[11px] text-slate-400">{c.course_code}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
+                          {isCombined ? (
+                            <div className="flex flex-wrap gap-1">
+                              {c.class_names.sort((a, b) => a.localeCompare(b)).map((cn) => (
+                                <span
+                                  key={cn}
+                                  className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                                >
+                                  {cn}
+                                </span>
+                              ))}
+                              <span className="self-center text-[10px] text-slate-400">(combined)</span>
+                            </div>
+                          ) : (
+                            c.class_names[0]
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                          {c.sessions.join(", ")}
+                        </td>
+                        <td className="px-4 py-2.5 text-center font-medium text-slate-700 dark:text-slate-200">
+                          {c.credit_hours}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <ResultBadge uploaded={c.result_uploaded} />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
