@@ -385,15 +385,21 @@ export default function StudentDashboardManager() {
             <tr style="background:#f1f5f9">
               <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:110px">Course Code</th>
               <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600">Course Title</th>
+              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:center;color:#475569;font-weight:600;width:90px">Attendance</th>
               <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:105px">Paper Date</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.map((r) => `<tr>
+            ${rows.map((r) => {
+              const pct = r.att_percentage;
+              const attColor = pct >= 75 ? "#15803d" : "#b91c1c";
+              const attBg    = pct >= 75 ? "#dcfce7"  : "#fee2e2";
+              return `<tr>
               <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_code}</td>
-              <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_title}${r.att_percentage < 75 ? `&nbsp;<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">NOT ALLOWED FOR MID EXAM</span>` : ""}</td>
+              <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_title}${pct < 75 ? `&nbsp;<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">NOT ALLOWED FOR MID EXAM</span>` : ""}</td>
+              <td style="border:1px solid #e2e8f0;padding:6px 10px;text-align:center"><span style="display:inline-block;background:${attBg};color:${attColor};font-weight:700;font-size:11px;padding:2px 7px;border-radius:4px">${pct.toFixed(1)}%</span></td>
               <td style="border:1px solid #e2e8f0;padding:6px 10px;font-weight:500">${r.paper_date ? fmtDate(r.paper_date) : "—"}</td>
-            </tr>`).join("")}
+            </tr>`;}).join("")}
           </tbody>
         </table>
       </div>`;

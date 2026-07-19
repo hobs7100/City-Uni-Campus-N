@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
        ) as result_uploaded
      from semester_courses sc
      join courses c on c.id = sc.course_id
-     left join allocation_semesters als on als.semester_id = $1 and als.course_id = sc.course_id
-     left join allocations a on a.id = als.allocation_id
+     left join allocation_semesters als on als.semester_id = $1
+     left join allocations a on a.id = als.allocation_id and a.course_id = sc.course_id
      left join teachers t on t.id = a.teacher_id
      left join mid_exam_datesheets med on med.semester_id = $1 and med.course_id = sc.course_id
      where sc.semester_id = $1
