@@ -89,7 +89,7 @@ interface SlipCourseRow {
   credit_hours: string; paper_date: string | null; att_percentage: number;
 }
 interface SlipData {
-  student: { id: string; name: string; father_name: string | null; class_name: string; session: string; department: string };
+  student: { id: string; name: string; father_name: string | null; class_name: string; session: string; department: string; profile_image_url: string | null };
   semester: { id: string; semester_number: number; term_type: string };
   overall_attendance: number;
   rows: SlipCourseRow[];
@@ -399,47 +399,58 @@ export default function StudentDashboardManager() {
       </div>`;
     };
 
+    const photoHtml = data.student.profile_image_url
+      ? `<img src="${data.student.profile_image_url}" alt="Photo"
+             style="width:90px;height:110px;object-fit:cover;border-radius:4px;border:2px solid #e2e8f0;display:block"/>`
+      : `<div style="width:90px;height:110px;border-radius:4px;border:2px dashed #cbd5e1;background:#f1f5f9;display:flex;align-items:center;justify-content:center">
+           <span style="font-size:9px;color:#94a3b8;text-align:center;line-height:1.4">No<br/>Photo</span>
+         </div>`;
+
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Roll Number Slip</title>
 <style>
-  @page{size:A4;margin:14mm}
+  @page{size:A4 portrait;margin:14mm}
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;margin:0;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   *{box-sizing:border-box}
 </style></head><body>
 <div style="border:2px solid #3730a3;border-radius:8px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#3730a3 0%,#4f46e5 55%,#6366f1 100%);padding:20px 24px;text-align:center">
-    <div style="display:inline-block;background:white;border-radius:8px;padding:8px 16px;margin-bottom:12px">
-      <img src="${window.location.origin}/images/logo.png" alt="City College" style="height:50px;width:auto;display:block"/>
+  <div style="background:#ffffff;padding:18px 24px;border-bottom:2px solid #3730a3;display:flex;align-items:center;justify-content:space-between;gap:16px">
+    <img src="${window.location.origin}/images/logo.png" alt="City College" style="height:54px;width:auto;display:block;flex-shrink:0"/>
+    <div style="text-align:center;flex:1">
+      <div style="color:#3730a3;font-size:20px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Roll Number Slip</div>
+      <div style="color:#64748b;font-size:11px">Mid Term Examination &mdash; ${data.semester.term_type} ${data.student.session}</div>
     </div>
-    <div style="color:white;font-size:19px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">Roll Number Slip</div>
-    <div style="color:#c7d2fe;font-size:11.5px">Exam: Mid Term Examination &mdash; ${data.semester.term_type} ${data.student.session}</div>
+    <div style="width:54px;flex-shrink:0"></div>
   </div>
-  <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:12px 24px">
-    <table style="width:100%;border-collapse:collapse;font-size:11.5px">
-      <tr>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:115px">Student Name</td>
-        <td style="padding:3px 8px;font-weight:600;color:#1e293b">${data.student.name}</td>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:80px">Class</td>
-        <td style="padding:3px 8px;color:#1e293b">${data.student.class_name}</td>
-      </tr>
-      <tr>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Father&rsquo;s Name</td>
-        <td style="padding:3px 8px;color:#1e293b">${data.student.father_name || "&mdash;"}</td>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Session</td>
-        <td style="padding:3px 8px;color:#1e293b">${data.student.session}</td>
-      </tr>
-      <tr>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Department</td>
-        <td style="padding:3px 8px;color:#1e293b">${data.student.department}</td>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Semester</td>
-        <td style="padding:3px 8px;color:#1e293b">Semester ${data.semester.semester_number}</td>
-      </tr>
-      <tr>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Issue Date</td>
-        <td style="padding:3px 8px;color:#1e293b">${today}</td>
-        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Attendance</td>
-        <td style="padding:3px 8px;font-weight:600;color:${data.overall_attendance >= 75 ? "#15803d" : "#b91c1c"}">${data.overall_attendance.toFixed(1)}%</td>
-      </tr>
-    </table>
+  <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:14px 24px">
+    <div style="display:flex;align-items:flex-start;gap:18px">
+      <table style="flex:1;border-collapse:collapse;font-size:11.5px">
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:115px">Student Name</td>
+          <td style="padding:4px 8px;font-weight:600;color:#1e293b">${data.student.name}</td>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:80px">Class</td>
+          <td style="padding:4px 8px;color:#1e293b">${data.student.class_name}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Father&rsquo;s Name</td>
+          <td style="padding:4px 8px;color:#1e293b">${data.student.father_name || "&mdash;"}</td>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Session</td>
+          <td style="padding:4px 8px;color:#1e293b">${data.student.session}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Department</td>
+          <td style="padding:4px 8px;color:#1e293b">${data.student.department}</td>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Semester</td>
+          <td style="padding:4px 8px;color:#1e293b">Semester ${data.semester.semester_number}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Issue Date</td>
+          <td style="padding:4px 8px;color:#1e293b">${today}</td>
+          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Attendance</td>
+          <td style="padding:4px 8px;font-weight:600;color:${data.overall_attendance >= 75 ? "#15803d" : "#b91c1c"}">${data.overall_attendance.toFixed(1)}%</td>
+        </tr>
+      </table>
+      <div style="flex-shrink:0">${photoHtml}</div>
+    </div>
   </div>
   <div style="padding:16px 24px">
     ${renderGroup("Date Sheet \u2013 Theory", theoryRows, "#3730a3")}

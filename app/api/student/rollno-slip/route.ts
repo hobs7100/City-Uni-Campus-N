@@ -12,10 +12,11 @@ export async function GET() {
   const student = await queryOne<{
     id: string; name: string; father_name: string | null;
     class_id: string; class_name: string; session: string;
-    status: string; department_name: string;
+    status: string; department_name: string; profile_image_url: string | null;
   }>(
     `select st.id, st.name, st.father_name, st.class_id, cl.class_name,
-            st.session, st.status, d.name as department_name
+            st.session, st.status, d.name as department_name,
+            st.profile_image_url
      from students st
      join classes cl on cl.id = st.class_id
      join departments d on d.id = st.department_id
@@ -159,6 +160,7 @@ export async function GET() {
       class_name: student.class_name,
       session: student.session,
       department: student.department_name,
+      profile_image_url: student.profile_image_url ?? null,
     },
     semester: {
       id: semester.id,
