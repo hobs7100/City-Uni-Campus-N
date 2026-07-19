@@ -112,6 +112,18 @@ interface DsRow {
   result_uploaded: boolean;
 }
 
+interface RdRow {
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  teacher_name: string;
+  paper_date: string;
+  absent_count: number;
+  bundle_received_date: string;
+  return_date: string;
+}
+
 const statusBadgeClass: Record<string, string> = {
   pass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
   fail: "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",

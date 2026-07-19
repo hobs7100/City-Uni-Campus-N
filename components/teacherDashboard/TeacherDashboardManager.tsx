@@ -184,6 +184,22 @@ interface TeacherDsRow {
   result_uploaded: boolean;
 }
 
+interface TeacherRdRow {
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  class_name: string;
+  session: string;
+  semester_id: string;
+  semester_number: number;
+  term_type: string;
+  paper_date: string | null;
+  absent_count: number;
+  bundle_received_date: string | null;
+  return_date: string | null;
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1274,7 +1290,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     map.get(key)!.rows.push(r);
                     return map;
                   }, new Map<string, { label: string; rows: TeacherRdRow[] }>()),
-                );
+                ) as [string, { label: string; rows: TeacherRdRow[] }][];
                 return (
                   <div className="space-y-6">
                     {groups.map(([semId, group]) => (

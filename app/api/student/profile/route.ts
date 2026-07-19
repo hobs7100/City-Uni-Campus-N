@@ -26,6 +26,7 @@ export async function GET(_request: NextRequest) {
 const patchSchema = z.object({
   contact: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
+  profile_image_url: z.string().url().optional().nullable(),
   current_password: z.string().optional(),
   new_password: z.string().min(6).optional(),
 });
@@ -57,10 +58,11 @@ export async function PATCH(request: NextRequest) {
     `update students set
        contact = coalesce($1, contact),
        address = coalesce($2, address),
+       profile_image_url = coalesce($3, profile_image_url),
        updated_at = now()
-     where id = $3
-     returning id, name, contact, address`,
-    [d.contact ?? null, d.address ?? null, session!.userId]
+     where id = $4
+     returning id, name, contact, address, profile_image_url`,
+    [d.contact ?? null, d.address ?? null, d.profile_image_url ?? null, session!.userId]
   );
 
   return NextResponse.json({ student });

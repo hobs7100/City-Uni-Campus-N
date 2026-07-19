@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Activity,
+  AlertCircle,
   Bell,
   BookOpen,
+  Camera,
   ChevronDown,
   ChevronUp,
   ClipboardList,
@@ -13,10 +15,12 @@ import {
   FileDown,
   FileText,
   GraduationCap,
+  Printer,
   Save,
   School,
   RefreshCcw,
   ShieldCheck,
+  Ticket,
   User,
   X,
 } from "lucide-react";
@@ -72,6 +76,25 @@ interface StudentDsRow {
   paper_date: string | null;
 }
 
+interface StudentRdRow {
+  course_id: string;
+  course_title: string;
+  course_code: string;
+  credit_hours: string;
+  paper_date: string | null;
+}
+
+interface SlipCourseRow {
+  course_id: string; course_title: string; course_code: string;
+  credit_hours: string; paper_date: string | null; att_percentage: number;
+}
+interface SlipData {
+  student: { id: string; name: string; father_name: string | null; class_name: string; session: string; department: string };
+  semester: { id: string; semester_number: number; term_type: string };
+  overall_attendance: number;
+  rows: SlipCourseRow[];
+}
+
 /* ─── helpers ─────────────────────────────────────────────── */
 const flagLabel: Record<string, string> = { ok: "OK", warning: "Warning", struck_off: "Struck Off" };
 const flagCls: Record<string, string> = {
@@ -87,13 +110,14 @@ const statusCls: Record<string, string> = {
 
 /* ─── tabs ────────────────────────────────────────────────── */
 const TABS = [
-  { id: "overview",       label: "Overview",       icon: ClipboardList },
-  { id: "results",        label: "Results",         icon: GraduationCap },
+  { id: "overview",       label: "Overview",            icon: ClipboardList },
+  { id: "results",        label: "Results",             icon: GraduationCap },
   { id: "datesheet",      label: "Mid Exam Date Sheet", icon: FileText },
-  { id: "remid-datesheet", label: "Re-Mid Date Sheet",     icon: RefreshCcw },
-  { id: "attendance",     label: "Attendance",      icon: Activity },
-  { id: "notifications",  label: "Notifications",   icon: Bell },
-  { id: "profile",        label: "Profile",         icon: User },
+  { id: "remid-datesheet", label: "Re-Mid Date Sheet",  icon: RefreshCcw },
+  { id: "rollno-slip",    label: "Roll No. Slip",       icon: Ticket },
+  { id: "attendance",     label: "Attendance",          icon: Activity },
+  { id: "notifications",  label: "Notifications",       icon: Bell },
+  { id: "profile",        label: "Profile",             icon: User },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -141,6 +165,11 @@ export default function StudentDashboardManager() {
   const [profileForm, setProfileForm] = useState({ contact: "", address: "" });
   const [passwordForm, setPasswordForm] = useState({ current_password: "", new_password: "" });
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  /* roll no. slip */
+  const [slipLoading, setSlipLoading] = useState(false);
+  const [slipBlock, setSlipBlock] = useState<{ title: string; message: string } | null>(null);
 
   /* ── loaders ── */
   const loadProfile = useCallback(async () => {
@@ -298,6 +327,173 @@ export default function StudentDashboardManager() {
       toast.success("Password changed.");
       setPasswordForm({ current_password: "", new_password: "" });
     } finally { setSaving(false); }
+  }
+
+  /* profile picture upload */
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const reader = new FileReader();
+      const base64: string = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const upRes = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: base64, folder: "students" }),
+      });
+      const upData = await upRes.json();
+      if (!upRes.ok) { toast.error(upData.error || "Upload failed."); return; }
+      const pRes = await fetch("/api/student/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_image_url: upData.url }),
+      });
+      if (!pRes.ok) { toast.error("Failed to save photo."); return; }
+      toast.success("Profile picture updated.");
+      loadProfile();
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = "";
+    }
+  }
+
+  /* roll no. slip */
+  function printSlip(data: SlipData) {
+    const today = new Date().toLocaleDateString("en-PK", {
+      year: "numeric", month: "long", day: "numeric",
+    });
+
+    const theoryRows = data.rows.filter((r) => Number(r.credit_hours) !== 1);
+    const practicalRows = data.rows.filter((r) => Number(r.credit_hours) === 1);
+
+    const fmtDate = (d: string) =>
+      new Date(d + "T00:00:00").toLocaleDateString("en-PK", {
+        day: "2-digit", month: "short", year: "numeric",
+      });
+
+    const renderGroup = (label: string, rows: SlipCourseRow[], headerBg: string) => {
+      if (rows.length === 0) return "";
+      return `<div style="margin-bottom:18px">
+        <div style="background:${headerBg};color:white;padding:5px 12px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:4px 4px 0 0">${label}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead>
+            <tr style="background:#f1f5f9">
+              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:110px">Course Code</th>
+              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600">Course Title</th>
+              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:105px">Paper Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r) => `<tr>
+              <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_code}</td>
+              <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_title}${r.att_percentage < 75 ? `&nbsp;<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">NOT ALLOWED FOR MID EXAM</span>` : ""}</td>
+              <td style="border:1px solid #e2e8f0;padding:6px 10px;font-weight:500">${r.paper_date ? fmtDate(r.paper_date) : "—"}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+    };
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Roll Number Slip</title>
+<style>
+  @page{size:A4;margin:14mm}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;margin:0;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  *{box-sizing:border-box}
+</style></head><body>
+<div style="border:2px solid #3730a3;border-radius:8px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#3730a3 0%,#4f46e5 55%,#6366f1 100%);padding:20px 24px;text-align:center">
+    <div style="display:inline-block;background:white;border-radius:8px;padding:8px 16px;margin-bottom:12px">
+      <img src="${window.location.origin}/images/logo.png" alt="City College" style="height:50px;width:auto;display:block"/>
+    </div>
+    <div style="color:white;font-size:19px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px">Roll Number Slip</div>
+    <div style="color:#c7d2fe;font-size:11.5px">Exam: Mid Term Examination &mdash; ${data.semester.term_type} ${data.student.session}</div>
+  </div>
+  <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:12px 24px">
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+      <tr>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:115px">Student Name</td>
+        <td style="padding:3px 8px;font-weight:600;color:#1e293b">${data.student.name}</td>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:80px">Class</td>
+        <td style="padding:3px 8px;color:#1e293b">${data.student.class_name}</td>
+      </tr>
+      <tr>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Father&rsquo;s Name</td>
+        <td style="padding:3px 8px;color:#1e293b">${data.student.father_name || "&mdash;"}</td>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Session</td>
+        <td style="padding:3px 8px;color:#1e293b">${data.student.session}</td>
+      </tr>
+      <tr>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Department</td>
+        <td style="padding:3px 8px;color:#1e293b">${data.student.department}</td>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Semester</td>
+        <td style="padding:3px 8px;color:#1e293b">Semester ${data.semester.semester_number}</td>
+      </tr>
+      <tr>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Issue Date</td>
+        <td style="padding:3px 8px;color:#1e293b">${today}</td>
+        <td style="padding:3px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Attendance</td>
+        <td style="padding:3px 8px;font-weight:600;color:${data.overall_attendance >= 75 ? "#15803d" : "#b91c1c"}">${data.overall_attendance.toFixed(1)}%</td>
+      </tr>
+    </table>
+  </div>
+  <div style="padding:16px 24px">
+    ${renderGroup("Date Sheet \u2013 Theory", theoryRows, "#3730a3")}
+    ${renderGroup("Date Sheet \u2013 Practical", practicalRows, "#047857")}
+  </div>
+  <div style="margin:0 24px 16px;border:1px solid #e2e8f0;border-radius:4px;padding:12px">
+    <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;border-bottom:1px solid #f1f5f9;padding-bottom:4px">Instructions</div>
+    <ol style="margin:0;padding-left:16px;font-size:10px;color:#475569;line-height:1.85">
+      <li>Students will not be allowed to enter the examination hall without a valid Roll Number Slip and Original Student ID Card.</li>
+      <li>Report to the examination hall at least 30 minutes before the scheduled examination time.</li>
+      <li>Students arriving more than 15 minutes late after the commencement of the examination will not be permitted to enter.</li>
+      <li>Mobile phones, smart watches, earphones, programmable calculators, and all unauthorized electronic devices are strictly prohibited inside the examination hall.</li>
+      <li>Any form of cheating, possession of unauthorized material, or misconduct will result in disciplinary action according to university rules.</li>
+      <li>Maintain complete silence and follow all instructions given by the invigilators throughout the examination.</li>
+    </ol>
+  </div>
+  <div style="background:#3730a3;padding:8px 24px;display:flex;justify-content:space-between;align-items:center">
+    <span style="color:#c7d2fe;font-size:9px">This is a computer-generated slip and does not require a signature.</span>
+    <span style="color:#c7d2fe;font-size:9px">City College &mdash; University Campus</span>
+  </div>
+</div>
+</body></html>`;
+
+    const win = window.open("", "_blank", "width=920,height=720");
+    if (!win) { toast.error("Pop-up blocked. Please allow pop-ups for this site and try again."); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 600);
+  }
+
+  async function generateSlip() {
+    setSlipLoading(true);
+    try {
+      const res = await fetch("/api/student/rollno-slip");
+      const data = await res.json();
+      if (!res.ok) { toast.error("Failed to validate slip. Please try again."); return; }
+      if (!data.allowed) {
+        const titles: Record<string, string> = {
+          inactive_student: "Enrollment Inactive",
+          no_active_semester: "No Active Semester",
+          no_datesheet: "Date Sheet Not Available",
+          low_attendance: "Insufficient Attendance",
+        };
+        setSlipBlock({
+          title: titles[data.reason as string] ?? "Cannot Generate Slip",
+          message: data.message,
+        });
+        return;
+      }
+      printSlip(data as SlipData);
+    } finally {
+      setSlipLoading(false);
+    }
   }
 
   const unread = notifications.filter((n) => !n.is_read).length;
@@ -602,6 +798,46 @@ export default function StudentDashboardManager() {
         </div>
       )}
 
+      {/* ── ROLL NO. SLIP ── */}
+      {tab === "rollno-slip" && (
+        <div className="space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Roll Number Slip</h2>
+          </div>
+
+          {/* requirements card */}
+          <div className="card-3d p-5">
+            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Eligibility Requirements</h3>
+            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+              {[
+                "Your enrollment status must be Active.",
+                "The Mid Exam Date Sheet for the current semester must have been published by Admin.",
+                "Your overall attendance must be ≥ 75%.",
+                "If attendance for any individual course is below 75%, that course will be marked \u201cNot Allowed for Mid Exam\u201d on the slip \u2014 but the slip will still be generated.",
+              ].map((txt, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400">
+                    {i + 1}
+                  </span>
+                  <span>{txt}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={generateSlip}
+              disabled={slipLoading}
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-md hover:bg-indigo-700 disabled:opacity-60 active:scale-95 transition-transform"
+            >
+              {slipLoading ? <ButtonLoader /> : <Printer size={18} />}
+              {slipLoading ? "Validating…" : "Generate Slip"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── MID EXAM DATE SHEET ── */}
       {tab === "remid-datesheet" && (
         <div>
@@ -848,6 +1084,34 @@ export default function StudentDashboardManager() {
       {/* ── PROFILE ── */}
       {tab === "profile" && profile && (
         <div className="space-y-6">
+          {/* ── Profile Picture ── */}
+          <div className="card-3d p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-100">Profile Picture</h2>
+            <div className="flex items-center gap-5">
+              <div className="relative h-24 w-24 shrink-0">
+                {profile.profile_image_url ? (
+                  <img src={profile.profile_image_url} alt={profile.name}
+                    className="h-24 w-24 rounded-full object-cover ring-2 ring-indigo-200 dark:ring-indigo-500/30" />
+                ) : (
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-500/10">
+                    <User size={40} className="text-indigo-400" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
+                  Upload a clear photo. JPEG or PNG, max 5 MB.
+                </p>
+                <label className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 ${uploadingPhoto ? "pointer-events-none opacity-50" : ""}`}>
+                  {uploadingPhoto ? <ButtonLoader /> : <Camera size={15} />}
+                  {uploadingPhoto ? "Uploading…" : "Change Photo"}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                    onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div className="card-3d p-6">
             <h2 className="mb-5 text-base font-semibold text-slate-800 dark:text-slate-100">Personal Information</h2>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -904,6 +1168,35 @@ export default function StudentDashboardManager() {
               <button onClick={handleChangePassword} disabled={saving}
                 className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
                 Change Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SLIP BLOCK MODAL ── */}
+      {slipBlock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="card-3d w-full max-w-md overflow-hidden">
+            <div className="flex items-start justify-between border-b border-slate-200 p-5 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/10">
+                  <AlertCircle size={20} className="text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="font-semibold text-slate-900 dark:text-white">{slipBlock.title}</h3>
+              </div>
+              <button onClick={() => setSlipBlock(null)}
+                className="ml-4 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-slate-600 dark:text-slate-400">{slipBlock.message}</p>
+            </div>
+            <div className="flex justify-end border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+              <button onClick={() => setSlipBlock(null)}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">
+                Close
               </button>
             </div>
           </div>
