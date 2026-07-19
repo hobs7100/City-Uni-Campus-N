@@ -1282,46 +1282,58 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         <p className="mb-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
                           {group.label}
                         </p>
-                        <div className="overflow-x-auto card-3d shadow-sm">
-                          <table className="w-full border-collapse text-sm">
-                            <thead>
-                              <tr className="border-b border-slate-200 bg-amber-50 text-left dark:border-slate-800 dark:bg-amber-500/5">
-                                <th className="px-3 py-2">Course</th>
-                                <th className="px-3 py-2 text-center">Cr. Hrs</th>
-                                <th className="px-3 py-2 text-center">Absent Students</th>
-                                <th className="px-3 py-2">Re-Mid Date</th>
-                                <th className="px-3 py-2">Bundle Received</th>
-                                <th className="px-3 py-2">Return Date</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {group.rows.map((r) => (
-                                <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
-                                  <td className="px-3 py-2">
-                                    <div className="font-medium">{r.course_title}</div>
-                                    <div className="text-xs text-slate-400">{r.course_code}</div>
-                                  </td>
-                                  <td className="px-3 py-2 text-center">{r.credit_hours}</td>
-                                  <td className="px-3 py-2 text-center">
-                                    <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
-                                      {r.absent_count}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    {r.paper_date ? (
-                                      <span className="font-medium text-amber-700 dark:text-amber-400">{formatDateOnly(r.paper_date)}</span>
-                                    ) : <span className="text-slate-400">—</span>}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    {r.return_date ? formatDateOnly(r.return_date) : <span className="text-slate-400">—</span>}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="space-y-3">
+                          {[
+                            { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-amber-50 dark:bg-amber-500/5" },
+                            { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
+                          ].map(({ label, isPractical, hdrCls }) => {
+                            const subRows = group.rows.filter((r: TeacherRdRow) => (Number(r.credit_hours) === 1) === isPractical);
+                            if (subRows.length === 0) return null;
+                            return (
+                              <div key={label}>
+                                <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+                                <div className="overflow-x-auto card-3d shadow-sm">
+                                  <table className="w-full border-collapse text-sm">
+                                    <thead>
+                                      <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
+                                        <th className="px-3 py-2">Course</th>
+                                        <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                                        <th className="px-3 py-2 text-center">Absent Students</th>
+                                        <th className="px-3 py-2">Re-Mid Date</th>
+                                        <th className="px-3 py-2">Bundle Received</th>
+                                        <th className="px-3 py-2">Return Date</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {subRows.map((r: TeacherRdRow) => (
+                                        <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                                          <td className="px-3 py-2">
+                                            <div className="font-medium">{r.course_title}</div>
+                                            <div className="text-xs text-slate-400">{r.course_code}</div>
+                                          </td>
+                                          <td className="px-3 py-2 text-center">{r.credit_hours}</td>
+                                          <td className="px-3 py-2 text-center">
+                                            <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                                              {r.absent_count}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            {r.paper_date ? <span className="font-medium text-amber-700 dark:text-amber-400">{formatDateOnly(r.paper_date)}</span> : <span className="text-slate-400">—</span>}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            {r.return_date ? formatDateOnly(r.return_date) : <span className="text-slate-400">—</span>}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -1366,59 +1378,58 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                       <p className="mb-2 text-sm font-semibold text-indigo-700 dark:text-indigo-400">
                         {group.label}
                       </p>
-                      <div className="overflow-x-auto card-3d shadow-sm">
-                        <table className="w-full border-collapse text-sm">
-                          <thead>
-                            <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800">
-                              <th className="px-3 py-2">Course</th>
-                              <th className="px-3 py-2 text-center">Cr. Hrs</th>
-                              <th className="px-3 py-2">Paper Date</th>
-                              <th className="px-3 py-2">Bundle Received</th>
-                              <th className="px-3 py-2">Return Date</th>
-                              <th className="px-3 py-2 text-center">Result</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {group.rows.map((r) => (
-                              <tr
-                                key={r.course_id}
-                                className="border-b border-slate-100 dark:border-slate-800"
-                              >
-                                <td className="px-3 py-2">
-                                  <div className="font-medium">{r.course_title}</div>
-                                  <div className="text-xs text-slate-400">{r.course_code}</div>
-                                </td>
-                                <td className="px-3 py-2 text-center">{r.credit_hours}</td>
-                                <td className="px-3 py-2">
-                                  {r.paper_date ? formatDateOnly(r.paper_date) : (
-                                    <span className="text-slate-400">—</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2">
-                                  {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : (
-                                    <span className="text-slate-400">—</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2">
-                                  {r.return_date ? formatDateOnly(r.return_date) : (
-                                    <span className="text-slate-400">—</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                      r.result_uploaded
-                                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                        : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                                    }`}
-                                  >
-                                    {r.result_uploaded ? "Uploaded" : "Pending"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="space-y-3">
+                        {[
+                          { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-slate-50 dark:bg-slate-800" },
+                          { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
+                        ].map(({ label, isPractical, hdrCls }) => {
+                          const subRows = group.rows.filter((r: TeacherDsRow) => (Number(r.credit_hours) === 1) === isPractical);
+                          if (subRows.length === 0) return null;
+                          return (
+                            <div key={label}>
+                              <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+                              <div className="overflow-x-auto card-3d shadow-sm">
+                                <table className="w-full border-collapse text-sm">
+                                  <thead>
+                                    <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
+                                      <th className="px-3 py-2">Course</th>
+                                      <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                                      <th className="px-3 py-2">Paper Date</th>
+                                      <th className="px-3 py-2">Bundle Received</th>
+                                      <th className="px-3 py-2">Return Date</th>
+                                      <th className="px-3 py-2 text-center">Result</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {subRows.map((r: TeacherDsRow) => (
+                                      <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                                        <td className="px-3 py-2">
+                                          <div className="font-medium">{r.course_title}</div>
+                                          <div className="text-xs text-slate-400">{r.course_code}</div>
+                                        </td>
+                                        <td className="px-3 py-2 text-center">{r.credit_hours}</td>
+                                        <td className="px-3 py-2">
+                                          {r.paper_date ? formatDateOnly(r.paper_date) : <span className="text-slate-400">—</span>}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {r.return_date ? formatDateOnly(r.return_date) : <span className="text-slate-400">—</span>}
+                                        </td>
+                                        <td className="px-3 py-2 text-center">
+                                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.result_uploaded ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"}`}>
+                                            {r.result_uploaded ? "Uploaded" : "Pending"}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

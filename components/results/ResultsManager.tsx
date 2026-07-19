@@ -1368,132 +1368,137 @@ export default function ResultsManager() {
             <DataFetchLoader />
           ) : (
             <>
-              <div className="overflow-x-auto card-3d shadow-sm">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800">
-                      <th className="px-3 py-2">Course</th>
-                      <th className="px-3 py-2">Teacher</th>
-                      <th className="px-3 py-2 text-center">Cr. Hrs</th>
-                      <th className="px-3 py-2">Paper Date</th>
-                      <th className="px-3 py-2">Bundle Received</th>
-                      <th className="px-3 py-2">Return Date</th>
-                      <th className="px-3 py-2 text-center">Result</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dsRows.map((r) => (
-                      <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
-                        <td className="px-3 py-1.5">
-                          <div className="font-medium">{r.course_title}</div>
-                          <div className="text-xs text-slate-400">{r.course_code}</div>
-                        </td>
-                        <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
-                        <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
-                        <td className="px-3 py-1.5">
-                          <input
-                            type="date"
-                            value={r.paper_date}
-                            onChange={(e) =>
-                              setDsRows((prev) =>
-                                prev.map((row) =>
-                                  row.course_id === r.course_id
-                                    ? { ...row, paper_date: e.target.value }
-                                    : row,
-                                ),
-                              )
-                            }
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <input
-                            type="date"
-                            value={r.bundle_received_date}
-                            onChange={(e) =>
-                              setDsRows((prev) =>
-                                prev.map((row) =>
-                                  row.course_id === r.course_id
-                                    ? { ...row, bundle_received_date: e.target.value }
-                                    : row,
-                                ),
-                              )
-                            }
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <input
-                            type="date"
-                            value={r.return_date}
-                            onChange={(e) =>
-                              setDsRows((prev) =>
-                                prev.map((row) =>
-                                  row.course_id === r.course_id
-                                    ? { ...row, return_date: e.target.value }
-                                    : row,
-                                ),
-                              )
-                            }
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5 text-center">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              r.result_uploaded
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                            }`}
-                          >
-                            {r.result_uploaded ? "Uploaded" : "Pending"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <button
-                            onClick={async () => {
-                              setDsRowSaving((p) => ({ ...p, [r.course_id]: true }));
-                              try {
-                                const res = await fetch("/api/admin/mid-exam-datesheet", {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    semester_id: dsSemesterId,
-                                    course_id: r.course_id,
-                                    paper_date: r.paper_date || null,
-                                    bundle_received_date: r.bundle_received_date || null,
-                                    return_date: r.return_date || null,
-                                  }),
-                                });
-                                if (!res.ok) {
-                                  const d = await res.json();
-                                  toast.error(d.error || "Failed to save.");
-                                } else {
-                                  toast.success(`Saved — ${r.course_code}`);
-                                }
-                              } finally {
-                                setDsRowSaving((p) => ({ ...p, [r.course_id]: false }));
-                              }
-                            }}
-                            disabled={dsRowSaving[r.course_id]}
-                            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-                          >
-                            {dsRowSaving[r.course_id] ? <ButtonLoader /> : <Save size={12} />} Save
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {dsRows.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-400">
-                          No courses found for this semester.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              {[
+                { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-slate-50 dark:bg-slate-800" },
+                { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
+              ].map(({ label, isPractical, hdrCls }) => {
+                const rows = dsRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={label} className="mb-5">
+                    <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</h3>
+                    <div className="overflow-x-auto card-3d shadow-sm">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
+                            <th className="px-3 py-2">Course</th>
+                            <th className="px-3 py-2">Teacher</th>
+                            <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                            <th className="px-3 py-2">Paper Date</th>
+                            <th className="px-3 py-2">Bundle Received</th>
+                            <th className="px-3 py-2">Return Date</th>
+                            <th className="px-3 py-2 text-center">Result</th>
+                            <th className="px-3 py-2" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r) => (
+                            <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                              <td className="px-3 py-1.5">
+                                <div className="font-medium">{r.course_title}</div>
+                                <div className="text-xs text-slate-400">{r.course_code}</div>
+                              </td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
+                              <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
+                              <td className="px-3 py-1.5">
+                                <input
+                                  type="date"
+                                  value={r.paper_date}
+                                  onChange={(e) =>
+                                    setDsRows((prev) =>
+                                      prev.map((row) =>
+                                        row.course_id === r.course_id
+                                          ? { ...row, paper_date: e.target.value }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <input
+                                  type="date"
+                                  value={r.bundle_received_date}
+                                  onChange={(e) =>
+                                    setDsRows((prev) =>
+                                      prev.map((row) =>
+                                        row.course_id === r.course_id
+                                          ? { ...row, bundle_received_date: e.target.value }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <input
+                                  type="date"
+                                  value={r.return_date}
+                                  onChange={(e) =>
+                                    setDsRows((prev) =>
+                                      prev.map((row) =>
+                                        row.course_id === r.course_id
+                                          ? { ...row, return_date: e.target.value }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                              </td>
+                              <td className="px-3 py-1.5 text-center">
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                    r.result_uploaded
+                                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                      : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                  }`}
+                                >
+                                  {r.result_uploaded ? "Uploaded" : "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <button
+                                  onClick={async () => {
+                                    setDsRowSaving((p) => ({ ...p, [r.course_id]: true }));
+                                    try {
+                                      const res = await fetch("/api/admin/mid-exam-datesheet", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          semester_id: dsSemesterId,
+                                          course_id: r.course_id,
+                                          paper_date: r.paper_date || null,
+                                          bundle_received_date: r.bundle_received_date || null,
+                                          return_date: r.return_date || null,
+                                        }),
+                                      });
+                                      if (!res.ok) {
+                                        const d = await res.json();
+                                        toast.error(d.error || "Failed to save.");
+                                      } else {
+                                        toast.success(`Saved — ${r.course_code}`);
+                                      }
+                                    } finally {
+                                      setDsRowSaving((p) => ({ ...p, [r.course_id]: false }));
+                                    }
+                                  }}
+                                  disabled={dsRowSaving[r.course_id]}
+                                  className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                                >
+                                  {dsRowSaving[r.course_id] ? <ButtonLoader /> : <Save size={12} />} Save
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
               {dsRows.length > 0 && (
                 <div className="mt-3 flex justify-end">
                   <button
@@ -1604,113 +1609,125 @@ export default function ResultsManager() {
             </p>
           ) : (
             <>
-              <div className="overflow-x-auto card-3d shadow-sm">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-amber-50 text-left dark:border-slate-800 dark:bg-amber-500/5">
-                      <th className="px-3 py-2">Course</th>
-                      <th className="px-3 py-2">Teacher</th>
-                      <th className="px-3 py-2 text-center">Cr. Hrs</th>
-                      <th className="px-3 py-2 text-center">Absent Students</th>
-                      <th className="px-3 py-2">Re-Mid Date</th>
-                      <th className="px-3 py-2">Bundle Received</th>
-                      <th className="px-3 py-2">Return Date</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rdRows.map((r) => (
-                      <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
-                        <td className="px-3 py-1.5">
-                          <div className="font-medium">{r.course_title}</div>
-                          <div className="text-xs text-slate-400">{r.course_code}</div>
-                        </td>
-                        <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
-                        <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
-                        <td className="px-3 py-1.5 text-center">
-                          <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
-                            {r.absent_count}
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <input
-                            type="date"
-                            value={r.paper_date}
-                            onChange={(e) =>
-                              setRdRows((prev) =>
-                                prev.map((row) =>
-                                  row.course_id === r.course_id ? { ...row, paper_date: e.target.value } : row,
-                                ),
-                              )
-                            }
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <input
-                            type="date"
-                            value={r.bundle_received_date}
-                            onChange={(e) =>
-                              setRdRows((prev) =>
-                                prev.map((row) =>
-                                  row.course_id === r.course_id ? { ...row, bundle_received_date: e.target.value } : row,
-                                ),
-                              )
-                            }
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <input
-                            type="date"
-                            value={r.return_date}
-                            onChange={(e) =>
-                              setRdRows((prev) =>
-                                prev.map((row) =>
-                                  row.course_id === r.course_id ? { ...row, return_date: e.target.value } : row,
-                                ),
-                              )
-                            }
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <button
-                            onClick={async () => {
-                              setRdRowSaving((p) => ({ ...p, [r.course_id]: true }));
-                              try {
-                                const res = await fetch("/api/admin/re-mid-exam-datesheet", {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    semester_id: rdSemesterId,
-                                    course_id: r.course_id,
-                                    paper_date: r.paper_date || null,
-                                    bundle_received_date: r.bundle_received_date || null,
-                                    return_date: r.return_date || null,
-                                  }),
-                                });
-                                if (!res.ok) {
-                                  const d = await res.json();
-                                  toast.error(d.error || "Failed to save.");
-                                } else {
-                                  toast.success(`Saved — ${r.course_code}`);
-                                }
-                              } finally {
-                                setRdRowSaving((p) => ({ ...p, [r.course_id]: false }));
-                              }
-                            }}
-                            disabled={rdRowSaving[r.course_id]}
-                            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-                          >
-                            {rdRowSaving[r.course_id] ? <ButtonLoader /> : <Save size={12} />} Save
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {[
+                { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-amber-50 dark:bg-amber-500/5" },
+                { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
+              ].map(({ label, isPractical, hdrCls }) => {
+                const rows = rdRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={label} className="mb-5">
+                    <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</h3>
+                    <div className="overflow-x-auto card-3d shadow-sm">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
+                            <th className="px-3 py-2">Course</th>
+                            <th className="px-3 py-2">Teacher</th>
+                            <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                            <th className="px-3 py-2 text-center">Absent Students</th>
+                            <th className="px-3 py-2">Re-Mid Date</th>
+                            <th className="px-3 py-2">Bundle Received</th>
+                            <th className="px-3 py-2">Return Date</th>
+                            <th className="px-3 py-2" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r) => (
+                            <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                              <td className="px-3 py-1.5">
+                                <div className="font-medium">{r.course_title}</div>
+                                <div className="text-xs text-slate-400">{r.course_code}</div>
+                              </td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
+                              <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
+                              <td className="px-3 py-1.5 text-center">
+                                <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                                  {r.absent_count}
+                                </span>
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <input
+                                  type="date"
+                                  value={r.paper_date}
+                                  onChange={(e) =>
+                                    setRdRows((prev) =>
+                                      prev.map((row) =>
+                                        row.course_id === r.course_id ? { ...row, paper_date: e.target.value } : row,
+                                      ),
+                                    )
+                                  }
+                                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <input
+                                  type="date"
+                                  value={r.bundle_received_date}
+                                  onChange={(e) =>
+                                    setRdRows((prev) =>
+                                      prev.map((row) =>
+                                        row.course_id === r.course_id ? { ...row, bundle_received_date: e.target.value } : row,
+                                      ),
+                                    )
+                                  }
+                                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <input
+                                  type="date"
+                                  value={r.return_date}
+                                  onChange={(e) =>
+                                    setRdRows((prev) =>
+                                      prev.map((row) =>
+                                        row.course_id === r.course_id ? { ...row, return_date: e.target.value } : row,
+                                      ),
+                                    )
+                                  }
+                                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <button
+                                  onClick={async () => {
+                                    setRdRowSaving((p) => ({ ...p, [r.course_id]: true }));
+                                    try {
+                                      const res = await fetch("/api/admin/re-mid-exam-datesheet", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          semester_id: rdSemesterId,
+                                          course_id: r.course_id,
+                                          paper_date: r.paper_date || null,
+                                          bundle_received_date: r.bundle_received_date || null,
+                                          return_date: r.return_date || null,
+                                        }),
+                                      });
+                                      if (!res.ok) {
+                                        const d = await res.json();
+                                        toast.error(d.error || "Failed to save.");
+                                      } else {
+                                        toast.success(`Saved — ${r.course_code}`);
+                                      }
+                                    } finally {
+                                      setRdRowSaving((p) => ({ ...p, [r.course_id]: false }));
+                                    }
+                                  }}
+                                  disabled={rdRowSaving[r.course_id]}
+                                  className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                                >
+                                  {rdRowSaving[r.course_id] ? <ButtonLoader /> : <Save size={12} />} Save
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
 
               <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
                 <button

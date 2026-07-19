@@ -621,36 +621,50 @@ export default function StudentDashboardManager() {
               You have no Re-Mid exam scheduled. Either you did not miss the Mid exam, or the date sheet has not been published yet.
             </div>
           ) : (
-            <div className="overflow-x-auto card-3d shadow-sm">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-amber-50 text-left dark:border-slate-800 dark:bg-amber-500/5">
-                    <th className="px-4 py-2">Course</th>
-                    <th className="px-4 py-2 text-center">Cr. Hrs</th>
-                    <th className="px-4 py-2">Re-Mid Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rdRows.map((r) => (
-                    <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
-                        <div className="text-xs text-slate-400">{r.course_code}</div>
-                      </td>
-                      <td className="px-4 py-2.5 text-center">{r.credit_hours}</td>
-                      <td className="px-4 py-2.5">
-                        {r.paper_date ? (
-                          <span className="font-medium text-amber-700 dark:text-amber-400">
-                            {formatDateOnly(r.paper_date)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">Not scheduled yet</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-4">
+              {[
+                { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-amber-50 dark:bg-amber-500/5" },
+                { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
+              ].map(({ label, isPractical, hdrCls }) => {
+                const rows = rdRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={label}>
+                    <h3 className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-400">{label}</h3>
+                    <div className="overflow-x-auto card-3d shadow-sm">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
+                            <th className="px-4 py-2">Course</th>
+                            <th className="px-4 py-2 text-center">Cr. Hrs</th>
+                            <th className="px-4 py-2">Re-Mid Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r) => (
+                            <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                              <td className="px-4 py-2.5">
+                                <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
+                                <div className="text-xs text-slate-400">{r.course_code}</div>
+                              </td>
+                              <td className="px-4 py-2.5 text-center">{r.credit_hours}</td>
+                              <td className="px-4 py-2.5">
+                                {r.paper_date ? (
+                                  <span className="font-medium text-amber-700 dark:text-amber-400">
+                                    {formatDateOnly(r.paper_date)}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">Not scheduled yet</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -674,36 +688,50 @@ export default function StudentDashboardManager() {
               No date sheet entries available yet. Check back later.
             </div>
           ) : (
-            <div className="overflow-x-auto card-3d shadow-sm">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800">
-                    <th className="px-4 py-2">Course</th>
-                    <th className="px-4 py-2 text-center">Cr. Hrs</th>
-                    <th className="px-4 py-2">Paper Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dsRows.map((r) => (
-                    <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
-                        <div className="text-xs text-slate-400">{r.course_code}</div>
-                      </td>
-                      <td className="px-4 py-2.5 text-center">{r.credit_hours}</td>
-                      <td className="px-4 py-2.5">
-                        {r.paper_date ? (
-                          <span className="font-medium text-indigo-700 dark:text-indigo-400">
-                            {formatDateOnly(r.paper_date)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">Not scheduled</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-4">
+              {[
+                { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-slate-50 dark:bg-slate-800" },
+                { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
+              ].map(({ label, isPractical, hdrCls }) => {
+                const rows = dsRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={label}>
+                    <h3 className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-400">{label}</h3>
+                    <div className="overflow-x-auto card-3d shadow-sm">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
+                            <th className="px-4 py-2">Course</th>
+                            <th className="px-4 py-2 text-center">Cr. Hrs</th>
+                            <th className="px-4 py-2">Paper Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r) => (
+                            <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                              <td className="px-4 py-2.5">
+                                <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
+                                <div className="text-xs text-slate-400">{r.course_code}</div>
+                              </td>
+                              <td className="px-4 py-2.5 text-center">{r.credit_hours}</td>
+                              <td className="px-4 py-2.5">
+                                {r.paper_date ? (
+                                  <span className="font-medium text-indigo-700 dark:text-indigo-400">
+                                    {formatDateOnly(r.paper_date)}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">Not scheduled</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
