@@ -104,37 +104,21 @@ export async function GET() {
     });
   }
 
-  // ── Per-course attendance (same day-of-week query as course-attendance API) ─
+  // ── Per-course attendance — teacher-marked (student_course_attendance) ──────
   const courseAttRows = await query<{
     course_id: string; presents: string; absents: string;
   }>(
-    `with tt as (
-       select id as timetable_id
-       from timetables
-       where class_id = $2 and semester_id = $1
-       limit 1
-     ),
-     course_days as (
-       select distinct al.course_id, td.day_name
-       from tt
-       join timetable_cells tc on tc.timetable_id = tt.timetable_id
-                               and tc.allocation_id is not null
-       join timetable_days td  on td.id = tc.day_id
-       join allocations al     on al.id = tc.allocation_id
-     ),
-     att as (
-       select status, trim(to_char(attendance_date, 'Day')) as dow
-       from student_attendance_records
-       where student_id = $3 and semester_id = $1
-     )
-     select
-       cd.course_id,
-       count(case when a.status = 'present' then 1 end)::text as presents,
-       count(case when a.status = 'absent'  then 1 end)::text as absents
-     from course_days cd
-     left join att a on a.dow = cd.day_name
-     group by cd.course_id`,
-    [semester.id, student.class_id, studentId]
+    `select
+       a.course_id,
+       count(case when sca.status = 'present' then 1 end)::text as presents,
+       count(case when sca.status = 'absent'  then 1 end)::text as absents
+     from student_course_attendance sca
+     join allocations a            on a.id  = sca.allocation_id
+     join allocation_semesters als on als.allocation_id = a.id
+                                  and als.semester_id   = $1
+     where sca.student_id = $2
+     group by a.course_id`,
+    [semester.id, studentId]
   );
 
   const attMap = new Map<string, number>();
