@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { FileDown, Save, Search, Snowflake, UserX, XCircle } from "lucide-react";
+import { FileDown, Pencil, Save, Search, Snowflake, Trash2, UserX, XCircle } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { formatDateOnly } from "@/lib/format";
 import { DataFetchLoader, ButtonLoader } from "@/components/ui/Loaders";
@@ -124,6 +124,24 @@ interface RdRow {
   return_date: string;
 }
 
+interface AllResultsRow {
+  semester_id: string;
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  teacher_name: string | null;
+  semester_number: number;
+  term_type: string;
+  class_id: string;
+  class_name: string;
+  session: string;
+  department_id: string;
+  department_name: string;
+  status: string;
+  submitted_at: string | null;
+  student_count: number;
+}
+
 const statusBadgeClass: Record<string, string> = {
   pass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
   fail: "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
@@ -131,7 +149,7 @@ const statusBadgeClass: Record<string, string> = {
   drop: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
 };
 
-type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet" | "remid-datesheet";
+type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet" | "remid-datesheet" | "all-results";
 
 export default function ResultsManager() {
   const [tab, setTab] = useState<Tab>("failed");
@@ -538,6 +556,52 @@ export default function ResultsManager() {
     if (tab === "remid-datesheet") loadRd();
   }, [tab, loadRd]);
 
+  // ── All Results ──────────────────────────────────────────────────────────
+  const [arRows, setArRows]       = useState<AllResultsRow[]>([]);
+  const [arLoading, setArLoading] = useState(false);
+  const [arDeleting, setArDeleting] = useState<string | null>(null);
+
+  const loadAllResults = useCallback(async () => {
+    setArLoading(true);
+    try {
+      const res  = await fetch("/api/admin/results/submissions");
+      const data = await res.json();
+      if (res.ok) setArRows(data.submissions ?? []);
+      else toast.error(data.error || "Failed to load results.");
+    } finally {
+      setArLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "all-results") loadAllResults();
+  }, [tab, loadAllResults]);
+
+  async function handleArDelete(semId: string, courseId: string, label: string) {
+    if (!confirm(`Delete all results for "${label}"?\n\nThe teacher will be required to re-submit.`)) return;
+    const key = `${semId}-${courseId}`;
+    setArDeleting(key);
+    try {
+      const res  = await fetch("/api/admin/results/submissions", {
+        method:  "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ semester_id: semId, course_id: courseId }),
+      });
+      const data = await res.json();
+      if (res.ok) { toast.success("Results deleted. Teacher must re-submit."); loadAllResults(); }
+      else toast.error(data.error || "Failed to delete.");
+    } finally { setArDeleting(null); }
+  }
+
+  function handleArEdit(row: AllResultsRow) {
+    setUpDeptId(row.department_id);
+    setUpClassId(row.class_id);
+    setRosterRows([]);
+    setUpSemesterId(row.semester_id);
+    setUpCourseId(row.course_id);
+    setTab("upload");
+  }
+
   const printMode =
     tab === "failed"
       ? "failed"
@@ -591,6 +655,7 @@ export default function ResultsManager() {
             ["search", "Search Result"],
             ["datesheet", "Mid Exam Date Sheet"],
             ["remid-datesheet", "Re-Mid Exam Date Sheet"],
+            ["all-results",     "All Results"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button
@@ -1803,6 +1868,96 @@ export default function ResultsManager() {
                 </button>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════ ALL RESULTS TAB ══════════════════════════ */}
+      {tab === "all-results" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">All Submitted Results</h2>
+            <button
+              onClick={loadAllResults}
+              className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              ↻ Refresh
+            </button>
+          </div>
+
+          {arLoading ? (
+            <DataFetchLoader />
+          ) : arRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">
+              No results have been submitted by teachers yet.
+            </div>
+          ) : (
+            <div className="overflow-hidden card-3d">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px] border-collapse text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Course</th>
+                      <th className="px-4 py-3">Class</th>
+                      <th className="px-4 py-3">Teacher</th>
+                      <th className="px-4 py-3 text-center">Students</th>
+                      <th className="px-4 py-3">Submitted On</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {arRows.map((r) => {
+                      const key   = `${r.semester_id}-${r.course_id}`;
+                      const isDel = arDeleting === key;
+                      return (
+                        <tr key={key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
+                            <div className="text-xs text-slate-400">{r.course_code} · Sem {r.semester_number} {r.term_type}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {r.class_name}
+                            <div className="text-xs text-slate-400">{r.session}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.teacher_name ?? "—"}</td>
+                          <td className="px-4 py-3 text-center font-semibold text-slate-700 dark:text-slate-200">{r.student_count}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">
+                            {r.submitted_at ? formatDateOnly(r.submitted_at) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              r.status === "submitted"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                            }`}>
+                              {r.status === "submitted" ? "Submitted" : "Pending"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleArEdit(r)}
+                                className="flex items-center gap-1 rounded-md bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300"
+                              >
+                                <Pencil size={12} /> Edit
+                              </button>
+                              <button
+                                onClick={() => handleArDelete(r.semester_id, r.course_id, `${r.course_title} (${r.class_name})`)}
+                                disabled={isDel}
+                                className="flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-400"
+                              >
+                                <Trash2 size={12} /> {isDel ? "Deleting…" : "Delete"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
       )}

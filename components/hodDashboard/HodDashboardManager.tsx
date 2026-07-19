@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Award, Bell, BookOpen, Building2, CalendarCheck, ClipboardCheck,
-  FileDown, FileText, GraduationCap, LayoutDashboard, RefreshCcw, School, Search,
-  UsersRound, TrendingUp, User, UserCog, UserMinus,
+  Award, Bell, BookOpen, Building2, CalendarCheck, ClipboardCheck, ClipboardList,
+  FileDown, FileText, GraduationCap, LayoutDashboard, Pencil, RefreshCcw, Save, School, Search,
+  Trash2, UsersRound, TrendingUp, User, UserCog, UserMinus,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -65,21 +65,53 @@ interface ClassOption { id: string; class_name: string; session: string }
     interface SemOption   { id: string; semester_number: number; term_type: string }
 
     interface HodRdRow {
-    course_id: string;
-    course_code: string;
-    course_title: string;
-    credit_hours: string;
-    class_name: string;
-    sess: string;
-    semester_id: string;
-    semester_number: number;
-    term_type: string;
-    teacher_name: string;
-    absent_count: number;
-    paper_date: string | null;
-    bundle_received_date: string | null;
-    return_date: string | null;
-    }
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  class_name: string;
+  sess: string;
+  semester_id: string;
+  semester_number: number;
+  term_type: string;
+  teacher_name: string;
+  absent_count: number;
+  paper_date: string | null;
+  bundle_received_date: string | null;
+  return_date: string | null;
+}
+
+interface HodAllResultRow {
+  semester_id: string;
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  teacher_name: string | null;
+  semester_number: number;
+  term_type: string;
+  class_id: string;
+  class_name: string;
+  session: string;
+  department_id: string;
+  status: string;
+  submitted_at: string | null;
+  student_count: number;
+}
+
+interface HodArRosterRow {
+  student_id: string;
+  name: string;
+  roll_no: string | null;
+  mid: number;
+  mid_absent: boolean;
+  re_mid: number | null;
+  re_mid_absent: boolean;
+  sessional: number;
+  final: number;
+  practical: number;
+  total: number | null;
+  status: "pass" | "fail" | "freezed" | "drop";
+}
 
 const tabs = [
   { id: "overview",       label: "Dashboard",          icon: LayoutDashboard },
@@ -89,7 +121,8 @@ const tabs = [
   { id: "attendance",     label: "Student Attendance",  icon: ClipboardCheck },
   { id: "short",          label: "Short Attendance",    icon: UserMinus },
   { id: "results",        label: "Exam & Results",      icon: Award },
-  { id: "remid-datesheet", label: "Re-Mid Date Sheet",    icon: RefreshCcw },
+  { id: "all-results",    label: "All Results",          icon: ClipboardList },
+  { id: "remid-datesheet", label: "Re-Mid Date Sheet",   icon: RefreshCcw },
   { id: "notifications",  label: "Notifications",       icon: Bell },
   { id: "profile",        label: "Profile",             icon: UserCog },
 ] as const;
@@ -129,6 +162,79 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   const [attSemesters, setAttSemesters]       = useState<SemAtt[]>([]);
   const [attLoading, setAttLoading]           = useState(false);
   const [attStudentInfo, setAttStudentInfo]   = useState<StudentOption | null>(null);
+
+  // ── all-results tab ──────────────────────────────────────────────────────
+  const [hodArRows, setHodArRows]               = useState<HodAllResultRow[]>([]);
+  const [hodArLoading, setHodArLoading]         = useState(false);
+  const [hodArDeleting, setHodArDeleting]       = useState<string | null>(null);
+  const [hodArSelected, setHodArSelected]       = useState<HodAllResultRow | null>(null);
+  const [hodArRoster, setHodArRoster]           = useState<HodArRosterRow[]>([]);
+  const [hodArRosterLoading, setHodArRosterLoading] = useState(false);
+  const [hodArSaving, setHodArSaving]           = useState(false);
+
+  const loadHodAllResults = useCallback(async () => {
+    setHodArLoading(true);
+    try {
+      const res  = await fetch("/api/admin/results/submissions");
+      const data = await res.json();
+      if (res.ok) setHodArRows(data.submissions ?? []);
+      else toast.error(data.error || "Failed to load results.");
+    } finally { setHodArLoading(false); }
+  }, []);
+
+  async function loadHodArRoster(row: HodAllResultRow) {
+    setHodArSelected(row);
+    setHodArRoster([]);
+    setHodArRosterLoading(true);
+    try {
+      const res  = await fetch(`/api/admin/results/roster?semester_id=${row.semester_id}&course_id=${row.course_id}`);
+      const data = await res.json();
+      if (res.ok) setHodArRoster(data.rows ?? []);
+      else toast.error(data.error || "Failed to load roster.");
+    } finally { setHodArRosterLoading(false); }
+  }
+
+  function updateHodArCell(studentId: string, field: keyof HodArRosterRow, value: unknown) {
+    setHodArRoster((prev) =>
+      prev.map((r) => r.student_id === studentId ? { ...r, [field]: value } : r)
+    );
+  }
+
+  async function handleHodArSave() {
+    if (!hodArSelected) return;
+    setHodArSaving(true);
+    try {
+      const res  = await fetch("/api/admin/results/roster", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ semester_id: hodArSelected.semester_id, course_id: hodArSelected.course_id, rows: hodArRoster }),
+      });
+      const data = await res.json();
+      if (res.ok) toast.success("Results saved.");
+      else toast.error(data.error || "Failed to save.");
+    } finally { setHodArSaving(false); }
+  }
+
+  async function handleHodArDelete(semId: string, courseId: string, label: string) {
+    if (!confirm(`Delete all results for "${label}"?\n\nThe teacher will be required to re-submit.`)) return;
+    const key = `${semId}-${courseId}`;
+    setHodArDeleting(key);
+    try {
+      const res  = await fetch("/api/admin/results/submissions", {
+        method:  "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ semester_id: semId, course_id: courseId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Results deleted. Teacher must re-submit.");
+        if (hodArSelected?.semester_id === semId && hodArSelected?.course_id === courseId) {
+          setHodArSelected(null); setHodArRoster([]);
+        }
+        loadHodAllResults();
+      } else toast.error(data.error || "Failed to delete.");
+    } finally { setHodArDeleting(null); }
+  }
 
   // ── results ───────────────────────────────────────────────────────────────
   const [resultQuery, setResultQuery]           = useState("");
@@ -267,7 +373,8 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
     if (tab === "short")         loadShortAttendance();
     if (tab === "notifications") loadNotifications();
     if (tab === "remid-datesheet") loadRdDatesheet();
-  }, [tab, loadShortAttendance, loadNotifications, loadRdDatesheet]);
+    if (tab === "all-results")   loadHodAllResults();
+  }, [tab, loadShortAttendance, loadNotifications, loadRdDatesheet, loadHodAllResults]);
 
   const hodUnread = notifications.filter((n) => !n.is_read).length;
 
@@ -954,6 +1061,176 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════ ALL RESULTS TAB ═════════════════════════ */}
+      {tab === "all-results" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">All Submitted Results</h2>
+            <button onClick={loadHodAllResults} className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">↻ Refresh</button>
+          </div>
+
+          {hodArLoading ? (
+            <DataFetchLoader />
+          ) : hodArRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">No results have been submitted yet.</div>
+          ) : (
+            <div className="overflow-hidden card-3d">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Course</th>
+                      <th className="px-4 py-3">Class</th>
+                      <th className="px-4 py-3">Teacher</th>
+                      <th className="px-4 py-3 text-center">Students</th>
+                      <th className="px-4 py-3">Submitted On</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {hodArRows.map((r) => {
+                      const key   = `${r.semester_id}-${r.course_id}`;
+                      const isDel = hodArDeleting === key;
+                      const isSel = hodArSelected?.semester_id === r.semester_id && hodArSelected?.course_id === r.course_id;
+                      return (
+                        <tr key={key} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${isSel ? "bg-indigo-50/60 dark:bg-indigo-900/20" : ""}`}>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
+                            <div className="text-xs text-slate-400">{r.course_code} · Sem {r.semester_number} {r.term_type}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {r.class_name}
+                            <div className="text-xs text-slate-400">{r.session}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.teacher_name ?? "—"}</td>
+                          <td className="px-4 py-3 text-center font-semibold">{r.student_count}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">{r.submitted_at ? formatDateOnly(r.submitted_at) : "—"}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${r.status === "submitted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"}`}>
+                              {r.status === "submitted" ? "Submitted" : "Pending"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => isSel ? (setHodArSelected(null), setHodArRoster([])) : loadHodArRoster(r)}
+                                className="flex items-center gap-1 rounded-md bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300"
+                              >
+                                <Pencil size={12} /> {isSel ? "Close" : "Edit"}
+                              </button>
+                              <button
+                                onClick={() => handleHodArDelete(r.semester_id, r.course_id, `${r.course_title} (${r.class_name})`)}
+                                disabled={isDel}
+                                className="flex items-center gap-1 rounded-md bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-400"
+                              >
+                                <Trash2 size={12} /> {isDel ? "Deleting…" : "Delete"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── Inline Roster Editor ─────────────────────────────────── */}
+          {hodArSelected && (
+            <div className="overflow-hidden card-3d">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-indigo-50/60 px-4 py-3 dark:border-slate-800 dark:bg-indigo-900/20">
+                <div>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">{hodArSelected.course_title}</p>
+                  <p className="text-xs text-slate-500">{hodArSelected.class_name} ({hodArSelected.session}) · Sem {hodArSelected.semester_number} {hodArSelected.term_type}</p>
+                </div>
+                <button
+                  onClick={handleHodArSave}
+                  disabled={hodArSaving || hodArRosterLoading}
+                  className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {hodArSaving ? <ButtonLoader /> : <Save size={14} />} Save
+                </button>
+              </div>
+              {hodArRosterLoading ? (
+                <div className="p-6"><DataFetchLoader /></div>
+              ) : hodArRoster.length === 0 ? (
+                <p className="p-4 text-sm text-slate-400">No students found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                      <tr>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">#</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Student</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700 text-center">Mid</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700 text-center">Sessional</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700 text-center">Final</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700 text-center">Practical</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700 text-center">Total</th>
+                        <th className="border border-slate-200 px-3 py-2 dark:border-slate-700 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hodArRoster.map((row, i) => {
+                        const eff = row.mid_absent ? (row.re_mid_absent || row.re_mid === null ? 0 : row.re_mid) : row.mid;
+                        const total = eff + row.sessional + row.final + row.practical;
+                        return (
+                          <tr key={row.student_id} className="border-b border-slate-100 dark:border-slate-800">
+                            <td className="border border-slate-200 px-3 py-1.5 text-slate-400 dark:border-slate-700">{i + 1}</td>
+                            <td className="border border-slate-200 px-3 py-1.5 dark:border-slate-700">
+                              <div className="font-medium text-slate-800 dark:text-slate-100">{row.name}</div>
+                              <div className="text-xs text-slate-400">{row.roll_no ?? "—"}</div>
+                            </td>
+                            <td className="border border-slate-200 px-1 py-1 dark:border-slate-700">
+                              <input
+                                type="number" min={0} step="0.01"
+                                value={row.mid_absent ? (row.re_mid ?? "") : row.mid}
+                                disabled={row.mid_absent && row.re_mid_absent}
+                                onChange={(e) => updateHodArCell(row.student_id, row.mid_absent ? "re_mid" : "mid", parseFloat(e.target.value) || 0)}
+                                className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-center text-xs dark:border-slate-700 dark:bg-slate-900 disabled:opacity-40"
+                              />
+                              {row.mid_absent && <div className="text-center text-[10px] text-red-500">Re-Mid</div>}
+                            </td>
+                            <td className="border border-slate-200 px-1 py-1 dark:border-slate-700">
+                              <input type="number" min={0} step="0.01" value={row.sessional}
+                                onChange={(e) => updateHodArCell(row.student_id, "sessional", parseFloat(e.target.value) || 0)}
+                                className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-center text-xs dark:border-slate-700 dark:bg-slate-900" />
+                            </td>
+                            <td className="border border-slate-200 px-1 py-1 dark:border-slate-700">
+                              <input type="number" min={0} step="0.01" value={row.final}
+                                onChange={(e) => updateHodArCell(row.student_id, "final", parseFloat(e.target.value) || 0)}
+                                className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-center text-xs dark:border-slate-700 dark:bg-slate-900" />
+                            </td>
+                            <td className="border border-slate-200 px-1 py-1 dark:border-slate-700">
+                              <input type="number" min={0} step="0.01" value={row.practical}
+                                onChange={(e) => updateHodArCell(row.student_id, "practical", parseFloat(e.target.value) || 0)}
+                                className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-center text-xs dark:border-slate-700 dark:bg-slate-900" />
+                            </td>
+                            <td className="border border-slate-200 px-3 py-1.5 text-center font-semibold dark:border-slate-700">{total.toFixed(2)}</td>
+                            <td className="border border-slate-200 px-1 py-1 dark:border-slate-700">
+                              <select value={row.status}
+                                onChange={(e) => updateHodArCell(row.student_id, "status", e.target.value as HodArRosterRow["status"])}
+                                className="w-20 rounded border border-slate-300 bg-white px-1 py-1 text-xs dark:border-slate-700 dark:bg-slate-900">
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                                <option value="freezed">Freeze</option>
+                                <option value="drop">Drop</option>
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

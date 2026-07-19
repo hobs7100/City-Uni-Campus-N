@@ -169,5 +169,17 @@ export async function POST(request: NextRequest) {
     client.release();
   }
 
+  // Mark submission as submitted in result_submissions
+  await pool.query(
+    `insert into result_submissions (semester_id, course_id, teacher_id, status, submitted_at)
+     values ($1, $2, $3, 'submitted', now())
+     on conflict (semester_id, course_id) do update
+       set teacher_id   = excluded.teacher_id,
+           status       = 'submitted',
+           submitted_at = now(),
+           updated_at   = now()`,
+    [d.semester_id, d.course_id, session!.userId]
+  ).catch((err) => console.error("result_submissions upsert error:", err));
+
   return NextResponse.json({ success: true });
 }
