@@ -119,7 +119,7 @@ const statusBadgeClass: Record<string, string> = {
   drop: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
 };
 
-type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet";
+type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet" | "remid-datesheet";
 
 export default function ResultsManager() {
   const [tab, setTab] = useState<Tab>("failed");
@@ -532,6 +532,7 @@ export default function ResultsManager() {
             ["dropped", "Dropped Students"],
             ["search", "Search Result"],
             ["datesheet", "Mid Exam Date Sheet"],
+            ["remid-datesheet", "Re-Mid Exam Date Sheet"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button

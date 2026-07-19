@@ -15,6 +15,7 @@ import {
   GraduationCap,
   Save,
   School,
+  RefreshCcw,
   ShieldCheck,
   User,
   X,
@@ -89,6 +90,7 @@ const TABS = [
   { id: "overview",       label: "Overview",       icon: ClipboardList },
   { id: "results",        label: "Results",         icon: GraduationCap },
   { id: "datesheet",      label: "Mid Exam Date Sheet", icon: FileText },
+  { id: "remid-datesheet", label: "Re-Mid Date Sheet",     icon: RefreshCcw },
   { id: "attendance",     label: "Attendance",      icon: Activity },
   { id: "notifications",  label: "Notifications",   icon: Bell },
   { id: "profile",        label: "Profile",         icon: User },
@@ -128,6 +130,8 @@ export default function StudentDashboardManager() {
   /* mid exam date sheet */
   const [dsRows, setDsRows] = useState<StudentDsRow[]>([]);
   const [dsLoading, setDsLoading] = useState(false);
+  const [rdRows, setRdRows] = useState<StudentRdRow[]>([]);
+  const [rdLoading, setRdLoading] = useState(false);
 
   /* notifications */
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -188,7 +192,18 @@ export default function StudentDashboardManager() {
     }
   }, [attFrom, attTo]);
 
-  const loadDatesheet = useCallback(async () => {
+  const loadRdDatesheet = useCallback(async () => {
+    setRdLoading(true);
+    try {
+      const res = await fetch("/api/student/re-mid-exam-datesheet");
+      const data = await res.json();
+      if (res.ok) setRdRows(data.rows ?? []);
+    } finally {
+      setRdLoading(false);
+    }
+    }, []);
+
+    const loadDatesheet = useCallback(async () => {
     setDsLoading(true);
     try {
       const res = await fetch("/api/student/mid-exam-datesheet");
@@ -215,9 +230,10 @@ export default function StudentDashboardManager() {
   useEffect(() => {
     if (tab === "results")       loadResults();
     if (tab === "datesheet")     loadDatesheet();
+    if (tab === "remid-datesheet") loadRdDatesheet();
     if (tab === "attendance")    loadSimpleAtt();
     if (tab === "notifications") loadNotifications();
-  }, [tab, loadResults, loadDatesheet, loadSimpleAtt, loadNotifications]);
+  }, [tab, loadResults, loadDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications]);
 
   /* details modal open */
   async function openDetails(semesterId: string, courseId: string, courseTitle: string, teacherName: string) {
@@ -587,7 +603,60 @@ export default function StudentDashboardManager() {
       )}
 
       {/* ── MID EXAM DATE SHEET ── */}
-      {tab === "datesheet" && (
+      {tab === "remid-datesheet" && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Re-Mid Exam Date Sheet</h2>
+            <button
+              onClick={loadRdDatesheet}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Refresh
+            </button>
+          </div>
+          {rdLoading ? (
+            <DataFetchLoader label="Loading date sheet…" />
+          ) : rdRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">
+              You have no Re-Mid exam scheduled. Either you did not miss the Mid exam, or the date sheet has not been published yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto card-3d shadow-sm">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-amber-50 text-left dark:border-slate-800 dark:bg-amber-500/5">
+                    <th className="px-4 py-2">Course</th>
+                    <th className="px-4 py-2 text-center">Cr. Hrs</th>
+                    <th className="px-4 py-2">Re-Mid Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rdRows.map((r) => (
+                    <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
+                        <div className="text-xs text-slate-400">{r.course_code}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-center">{r.credit_hours}</td>
+                      <td className="px-4 py-2.5">
+                        {r.paper_date ? (
+                          <span className="font-medium text-amber-700 dark:text-amber-400">
+                            {formatDateOnly(r.paper_date)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Not scheduled yet</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+          {tab === "datesheet" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mid Exam Date Sheet</h2>

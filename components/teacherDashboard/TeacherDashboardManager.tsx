@@ -13,6 +13,7 @@ import {
   FileDown,
   FileText,
   GraduationCap,
+  RefreshCcw,
   Save,
   User,
   X,
@@ -193,6 +194,7 @@ const tabs = [
   { id: "results", label: "Upload Result", icon: ClipboardCheck },
   { id: "timetable", label: "Timetable", icon: CalendarClock },
   { id: "datesheet", label: "Mid Exam Date Sheet", icon: FileText },
+  { id: "remid-datesheet", label: "Re-Mid Date Sheet", icon: RefreshCcw },
   { id: "mark", label: "Mark Attendance", icon: CheckCircle2 },
   { id: "students", label: "Student Attendance", icon: GraduationCap },
   { id: "report", label: "My Attendance", icon: FileDown },
@@ -269,8 +271,21 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   // Mid Exam Date Sheet tab state
   const [dsRows, setDsRows] = useState<TeacherDsRow[]>([]);
   const [dsLoading, setDsLoading] = useState(false);
+  const [rdRows, setRdRows] = useState<TeacherRdRow[]>([]);
+  const [rdLoading, setRdLoading] = useState(false);
 
-  const loadDatesheet = useCallback(async () => {
+  const loadRdDatesheet = useCallback(async () => {
+      setRdLoading(true);
+      try {
+        const res = await fetch("/api/teacher/re-mid-exam-datesheet");
+        const data = await res.json();
+        if (res.ok) setRdRows(data.rows ?? []);
+      } finally {
+        setRdLoading(false);
+      }
+    }, []);
+
+    const loadDatesheet = useCallback(async () => {
     setDsLoading(true);
     try {
       const res = await fetch("/api/teacher/mid-exam-datesheet");
@@ -511,6 +526,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "results") loadResRoster();
     if (tab === "timetable") loadTimetables();
     if (tab === "datesheet") loadDatesheet();
+    if (tab === "remid-datesheet") loadRdDatesheet();
     if (tab === "mark") loadRoster();
     if (tab === "students") loadStudentReport();
     if (tab === "report") loadAttendanceReport();
@@ -1231,6 +1247,90 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           )}
         </div>
       )}
+
+
+        {tab === "remid-datesheet" && (
+          <div>
+            <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-white">
+              Re-Mid Exam Date Sheet
+            </h2>
+            {rdLoading ? (
+              <DataFetchLoader />
+            ) : rdRows.length === 0 ? (
+              <div className="card-3d p-8 text-center text-sm text-slate-400">
+                No re-mid exam schedule found. Either no students were absent in the Mid exam, or the date sheet has not been published yet.
+              </div>
+            ) : (
+              (() => {
+                const groups = Array.from(
+                  rdRows.reduce((map, r) => {
+                    const key = r.semester_id;
+                    if (!map.has(key)) {
+                      map.set(key, {
+                        label: `${r.class_name} (${r.session}) — Semester ${r.semester_number} ${r.term_type}`,
+                        rows: [] as TeacherRdRow[],
+                      });
+                    }
+                    map.get(key)!.rows.push(r);
+                    return map;
+                  }, new Map<string, { label: string; rows: TeacherRdRow[] }>()),
+                );
+                return (
+                  <div className="space-y-6">
+                    {groups.map(([semId, group]) => (
+                      <div key={semId}>
+                        <p className="mb-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                          {group.label}
+                        </p>
+                        <div className="overflow-x-auto card-3d shadow-sm">
+                          <table className="w-full border-collapse text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-200 bg-amber-50 text-left dark:border-slate-800 dark:bg-amber-500/5">
+                                <th className="px-3 py-2">Course</th>
+                                <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                                <th className="px-3 py-2 text-center">Absent Students</th>
+                                <th className="px-3 py-2">Re-Mid Date</th>
+                                <th className="px-3 py-2">Bundle Received</th>
+                                <th className="px-3 py-2">Return Date</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.rows.map((r) => (
+                                <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                                  <td className="px-3 py-2">
+                                    <div className="font-medium">{r.course_title}</div>
+                                    <div className="text-xs text-slate-400">{r.course_code}</div>
+                                  </td>
+                                  <td className="px-3 py-2 text-center">{r.credit_hours}</td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                                      {r.absent_count}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {r.paper_date ? (
+                                      <span className="font-medium text-amber-700 dark:text-amber-400">{formatDateOnly(r.paper_date)}</span>
+                                    ) : <span className="text-slate-400">—</span>}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {r.return_date ? formatDateOnly(r.return_date) : <span className="text-slate-400">—</span>}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        )}
 
       {tab === "datesheet" && (
         <div>

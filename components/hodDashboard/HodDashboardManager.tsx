@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award, Bell, BookOpen, Building2, CalendarCheck, ClipboardCheck,
-  FileDown, GraduationCap, LayoutDashboard, School, Search,
+  FileDown, FileText, GraduationCap, LayoutDashboard, RefreshCcw, School, Search,
   UsersRound, TrendingUp, User, UserCog, UserMinus,
 } from "lucide-react";
 import {
@@ -62,7 +62,24 @@ interface ShortRow {
 }
 
 interface ClassOption { id: string; class_name: string; session: string }
-interface SemOption   { id: string; semester_number: number; term_type: string }
+    interface SemOption   { id: string; semester_number: number; term_type: string }
+
+    interface HodRdRow {
+    course_id: string;
+    course_code: string;
+    course_title: string;
+    credit_hours: string;
+    class_name: string;
+    sess: string;
+    semester_id: string;
+    semester_number: number;
+    term_type: string;
+    teacher_name: string;
+    absent_count: number;
+    paper_date: string | null;
+    bundle_received_date: string | null;
+    return_date: string | null;
+    }
 
 const tabs = [
   { id: "overview",       label: "Dashboard",          icon: LayoutDashboard },
@@ -72,6 +89,7 @@ const tabs = [
   { id: "attendance",     label: "Student Attendance",  icon: ClipboardCheck },
   { id: "short",          label: "Short Attendance",    icon: UserMinus },
   { id: "results",        label: "Exam & Results",      icon: Award },
+  { id: "remid-datesheet", label: "Re-Mid Date Sheet",    icon: RefreshCcw },
   { id: "notifications",  label: "Notifications",       icon: Bell },
   { id: "profile",        label: "Profile",             icon: UserCog },
 ] as const;
@@ -124,7 +142,21 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   const [notifications, setNotifications]   = useState<{ id: string; title: string; message: string; is_read: boolean; created_at: string }[]>([]);
   const [notifLoading,  setNotifLoading]    = useState(false);
 
-  const loadNotifications = useCallback(async () => {
+  const [rdRows, setRdRows] = useState<HodRdRow[]>([]);
+  const [rdLoading, setRdLoading] = useState(false);
+
+    const loadRdDatesheet = useCallback(async () => {
+    setRdLoading(true);
+    try {
+      const res = await fetch("/api/hod/re-mid-exam-datesheet");
+      const data = await res.json();
+      if (res.ok) setRdRows(data.rows ?? []);
+    } finally {
+      setRdLoading(false);
+    }
+    }, []);
+
+    const loadNotifications = useCallback(async () => {
     setNotifLoading(true);
     try {
       const res  = await fetch("/api/hod/notifications");
@@ -234,7 +266,8 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   useEffect(() => {
     if (tab === "short")         loadShortAttendance();
     if (tab === "notifications") loadNotifications();
-  }, [tab, loadShortAttendance, loadNotifications]);
+    if (tab === "remid-datesheet") loadRdDatesheet();
+  }, [tab, loadShortAttendance, loadNotifications, loadRdDatesheet]);
 
   const hodUnread = notifications.filter((n) => !n.is_read).length;
 
@@ -975,7 +1008,98 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
       )}
 
       {/* ══════════════════════ PROFILE TAB ══════════════════════════════ */}
-      {tab === "profile" && (
+
+      {tab === "remid-datesheet" && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Re-Mid Exam Date Sheet</h2>
+            <button
+              onClick={loadRdDatesheet}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Refresh
+            </button>
+          </div>
+          {rdLoading ? (
+            <DataFetchLoader />
+          ) : rdRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">
+              No re-mid exam schedule found. Either no students were absent in the Mid exam for your department, or the date sheet has not been published yet.
+            </div>
+          ) : (
+            (() => {
+              const groups = Array.from(
+                rdRows.reduce((map, r) => {
+                  const key = r.semester_id;
+                  if (!map.has(key)) {
+                    map.set(key, {
+                      label: `${r.class_name} (${r.sess}) — Semester ${r.semester_number} ${r.term_type}`,
+                      rows: [] as HodRdRow[],
+                    });
+                  }
+                  map.get(key)!.rows.push(r);
+                  return map;
+                }, new Map<string, { label: string; rows: HodRdRow[] }>()),
+              );
+              return (
+                <div className="space-y-6">
+                  {groups.map(([semId, group]) => (
+                    <div key={semId}>
+                      <p className="mb-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                        {group.label}
+                      </p>
+                      <div className="overflow-x-auto card-3d shadow-sm">
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-amber-50 text-left dark:border-slate-800 dark:bg-amber-500/5">
+                              <th className="px-3 py-2">Course</th>
+                              <th className="px-3 py-2">Teacher</th>
+                              <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                              <th className="px-3 py-2 text-center">Absent</th>
+                              <th className="px-3 py-2">Re-Mid Date</th>
+                              <th className="px-3 py-2">Bundle Received</th>
+                              <th className="px-3 py-2">Return Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.rows.map((r) => (
+                              <tr key={r.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                                <td className="px-3 py-2">
+                                  <div className="font-medium">{r.course_title}</div>
+                                  <div className="text-xs text-slate-400">{r.course_code}</div>
+                                </td>
+                                <td className="px-3 py-2 text-sm text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
+                                <td className="px-3 py-2 text-center">{r.credit_hours}</td>
+                                <td className="px-3 py-2 text-center">
+                                  <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                                    {r.absent_count}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2">
+                                  {r.paper_date ? (
+                                    <span className="font-medium text-amber-700 dark:text-amber-400">{formatDateOnly(r.paper_date)}</span>
+                                  ) : <span className="text-slate-400">—</span>}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {r.return_date ? formatDateOnly(r.return_date) : <span className="text-slate-400">—</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      )}
+          {tab === "profile" && (
         <div className="max-w-lg">
           <ProfilePasswordForm />
         </div>
