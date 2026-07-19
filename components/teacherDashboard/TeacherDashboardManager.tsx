@@ -15,12 +15,15 @@ import {
   GraduationCap,
   RefreshCcw,
   Save,
+  Search,
   User,
   X,
 } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 import RichTextViewer from "@/components/ui/RichTextViewer";
+import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import type { SingleValue } from "react-select";
 
 interface CourseRow {
   allocation_id: string;
@@ -200,8 +203,37 @@ interface TeacherRdRow {
   return_date: string | null;
 }
 
+// ── Search-Student tab interfaces ─────────────────────────────────────────
+interface TsStudentOption {
+  id: string; name: string; roll_no: string | null; class_name: string; session: string;
+}
+interface TsCourseAtt {
+  course_title: string; teacher_name: string;
+  presents: number; absents: number; leaves: number; percentage: number | null;
+}
+interface TsSemAtt {
+  semester_id: string; semester_number: number; term_type: string; sem_status: string;
+  courses: TsCourseAtt[];
+  overall: { presents: number; absents: number; leaves: number; percentage: number | null };
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function tsPctBadge(pct: number | null) {
+  if (pct === null) return <span className="text-xs text-slate-400">—</span>;
+  const cls =
+    pct >= 75
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+      : pct >= 50
+      ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+      : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300";
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
+      {pct}%
+    </span>
+  );
 }
 
 const tabs = [
@@ -213,6 +245,7 @@ const tabs = [
   { id: "remid-datesheet", label: "Re-Mid Date Sheet", icon: RefreshCcw },
   { id: "mark", label: "Mark Attendance", icon: CheckCircle2 },
   { id: "students", label: "Student Attendance", icon: GraduationCap },
+  { id: "search-student", label: "Search Student", icon: Search },
   { id: "report", label: "My Attendance", icon: FileDown },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "profile", label: "Profile", icon: User },
@@ -249,6 +282,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [studentReportRows, setStudentReportRows] = useState<StudentAttendanceRow[]>([]);
   const [studentReportLoading, setStudentReportLoading] = useState(false);
   const [studentReportCourse, setStudentReportCourse] = useState<{ course_title: string; is_combined: boolean } | null>(null);
+
+  // ── Search Student tab ────────────────────────────────────────────────────
+  const [tsAllStudents, setTsAllStudents]       = useState<TsStudentOption[]>([]);
+  const [tsStudentsLoaded, setTsStudentsLoaded] = useState(false);
+  const [tsStudentId, setTsStudentId]           = useState("");
+  const [tsStudentInfo, setTsStudentInfo]       = useState<TsStudentOption | null>(null);
+  const [tsAttSemesters, setTsAttSemesters]     = useState<TsSemAtt[]>([]);
+  const [tsAttLoading, setTsAttLoading]         = useState(false);
 
   const [reportRows, setReportRows] = useState<AttendanceReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
@@ -323,6 +364,31 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       }
     } finally {
       setCoursesLoading(false);
+    }
+  }, []);
+
+  // ── Search-Student callbacks ───────────────────────────────────────────────
+  const loadTsStudents = useCallback(async () => {
+    if (tsStudentsLoaded) return;
+    try {
+      const res  = await fetch("/api/teacher/search-student");
+      const data = await res.json();
+      if (res.ok) {
+        setTsAllStudents(data.students ?? []);
+        setTsStudentsLoaded(true);
+      }
+    } catch { /* silent */ }
+  }, [tsStudentsLoaded]);
+
+  const loadTsAttendance = useCallback(async (sid: string) => {
+    if (!sid) { setTsAttSemesters([]); return; }
+    setTsAttLoading(true);
+    try {
+      const res  = await fetch(`/api/teacher/search-student?student_id=${sid}`);
+      const data = await res.json();
+      if (res.ok) setTsAttSemesters(data.semesters ?? []);
+    } finally {
+      setTsAttLoading(false);
     }
   }, []);
 
@@ -538,6 +604,24 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     loadCourses();
   }, [loadCourses]);
 
+  // search-student: student options memo + handler
+  const tsStudentOptions = useMemo(
+    () =>
+      tsAllStudents.map((s) => ({
+        value: s.id,
+        label: `${s.name}${s.roll_no ? ` (${s.roll_no})` : ""} — ${s.class_name} ${s.session}`,
+      })),
+    [tsAllStudents]
+  );
+
+  function handleTsStudentChange(opt: SingleValue<SelectOption>) {
+    const val = opt?.value ?? "";
+    setTsStudentId(val);
+    setTsStudentInfo(tsAllStudents.find((s) => s.id === val) ?? null);
+    setTsAttSemesters([]);
+    if (val) loadTsAttendance(val);
+  }
+
   useEffect(() => {
     if (tab === "results") loadResRoster();
     if (tab === "timetable") loadTimetables();
@@ -545,10 +629,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "remid-datesheet") loadRdDatesheet();
     if (tab === "mark") loadRoster();
     if (tab === "students") loadStudentReport();
+    if (tab === "search-student") loadTsStudents();
     if (tab === "report") loadAttendanceReport();
     if (tab === "notifications") loadNotifications();
     if (tab === "profile") loadProfile();
-  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadAttendanceReport, loadNotifications, loadProfile]);
+  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile]);
 
   useEffect(() => {
     if (selectedTimetableId) loadTimetableDetail(selectedTimetableId);
@@ -1713,6 +1798,111 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ══════════════════════ SEARCH STUDENT TAB ═══════════════════════ */}
+      {tab === "search-student" && (
+        <div className="space-y-4">
+          {/* search card */}
+          <div className="card-3d p-4">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <Search size={12} className="mr-1 inline" /> Search Student
+            </label>
+            <SearchableSelect
+              options={tsStudentOptions}
+              value={tsStudentOptions.find((o) => o.value === tsStudentId) ?? null}
+              onChange={(opt) => handleTsStudentChange(opt as SingleValue<SelectOption>)}
+              placeholder="Select student by name, roll no, class or session…"
+            />
+            {tsStudentInfo && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                {tsStudentInfo.class_name} &middot; {tsStudentInfo.session}
+                {tsStudentInfo.roll_no ? ` · Roll: ${tsStudentInfo.roll_no}` : ""}
+              </p>
+            )}
+          </div>
+
+          {!tsStudentId ? (
+            <div className="card-3d flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <Search size={40} className="text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-400">Select a student above to view their active semester attendance.</p>
+            </div>
+          ) : tsAttLoading ? (
+            <DataFetchLoader />
+          ) : tsAttSemesters.length === 0 ? (
+            <div className="card-3d py-16 text-center text-sm text-slate-400">
+              No active semester found for this student.
+            </div>
+          ) : (
+            tsAttSemesters.map((sem) => {
+              const ov = sem.overall;
+              const ovTotal = ov.presents + ov.absents;
+              const ovPct = ovTotal > 0 ? Math.round((ov.presents / ovTotal) * 100) : null;
+              return (
+                <div key={sem.semester_id} className="overflow-hidden card-3d">
+                  {/* semester header */}
+                  <div className="border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-3 dark:border-slate-800 dark:from-indigo-900/20 dark:to-blue-900/20">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        Semester {sem.semester_number}
+                        {sem.term_type ? ` — ${sem.term_type}` : ""}
+                        <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                          active
+                        </span>
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px] border-collapse text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                        <tr>
+                          <th className="px-4 py-2">Course</th>
+                          <th className="px-4 py-2">Teacher</th>
+                          <th className="px-4 py-2 text-center">Present</th>
+                          <th className="px-4 py-2 text-center">Absent</th>
+                          <th className="px-4 py-2 text-center">Leave</th>
+                          <th className="px-4 py-2 text-center">%</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {sem.courses.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-4 text-center text-xs text-slate-400">
+                              No course-wise attendance marked yet for this semester.
+                            </td>
+                          </tr>
+                        ) : (
+                          sem.courses.map((c, ci) => (
+                            <tr key={ci} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                              <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{c.course_title}</td>
+                              <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{c.teacher_name}</td>
+                              <td className="px-4 py-2.5 text-center font-semibold text-emerald-600">{c.presents}</td>
+                              <td className="px-4 py-2.5 text-center font-semibold text-red-500">{c.absents}</td>
+                              <td className="px-4 py-2.5 text-center font-semibold text-amber-500">{c.leaves}</td>
+                              <td className="px-4 py-2.5 text-center">{tsPctBadge(c.percentage)}</td>
+                            </tr>
+                          ))
+                        )}
+
+                        {/* overall row */}
+                        <tr className="bg-indigo-50/60 dark:bg-indigo-900/20">
+                          <td colSpan={2} className="px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                            Overall Attendance (Admin / Coordinator)
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-bold text-emerald-600">{ov.presents}</td>
+                          <td className="px-4 py-2.5 text-center font-bold text-red-500">{ov.absents}</td>
+                          <td className="px-4 py-2.5 text-center font-bold text-amber-500">{ov.leaves}</td>
+                          <td className="px-4 py-2.5 text-center">{tsPctBadge(ovPct)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
