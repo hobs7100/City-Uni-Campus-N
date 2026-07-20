@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Activity,
@@ -15,6 +15,7 @@ import {
   FileDown,
   FileText,
   GraduationCap,
+  PenLine,
   Printer,
   Save,
   School,
@@ -24,6 +25,17 @@ import {
   User,
   X,
 } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
 import { formatDateOnly } from "@/lib/format";
 import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 import RichTextViewer from "@/components/ui/RichTextViewer";
@@ -34,8 +46,23 @@ interface Profile {
   cnic: string | null; contact: string | null; address: string | null;
   email: string | null; profile_image_url: string | null;
   status: string; session: string; department_name: string; class_name: string;
-  class_id: string;
+  class_id: string; class_type: string;
   scheme_of_studies_url: string | null;
+}
+
+interface DitMockResult {
+  id: string;
+  test_series_id: string;
+  test_series_name: string;
+  total_marks: number;
+  passing_marks: number;
+  test_date: string;
+  obtained_marks: number;
+  remarks: string | null;
+  course_title: string;
+  course_code: string;
+  semester_number: number;
+  term_type: string;
 }
 
 interface ResultCourse {
@@ -110,14 +137,15 @@ const statusCls: Record<string, string> = {
 
 /* ─── tabs ────────────────────────────────────────────────── */
 const TABS = [
-  { id: "overview",       label: "Overview",            icon: ClipboardList },
-  { id: "results",        label: "Results",             icon: GraduationCap },
-  { id: "datesheet",      label: "Mid Exam Date Sheet", icon: FileText },
-  { id: "remid-datesheet", label: "Re-Mid Date Sheet",  icon: RefreshCcw },
-  { id: "rollno-slip",    label: "Roll No. Slip",       icon: Ticket },
-  { id: "attendance",     label: "Attendance",          icon: Activity },
-  { id: "notifications",  label: "Notifications",       icon: Bell },
-  { id: "profile",        label: "Profile",             icon: User },
+  { id: "overview",           label: "Overview",            icon: ClipboardList },
+  { id: "results",            label: "Results",             icon: GraduationCap },
+  { id: "mock-exam-results",  label: "Mock Exam Results",   icon: PenLine },
+  { id: "datesheet",          label: "Mid Exam Date Sheet", icon: FileText },
+  { id: "remid-datesheet",    label: "Re-Mid Date Sheet",   icon: RefreshCcw },
+  { id: "rollno-slip",        label: "Roll No. Slip",       icon: Ticket },
+  { id: "attendance",         label: "Attendance",          icon: Activity },
+  { id: "notifications",      label: "Notifications",       icon: Bell },
+  { id: "profile",            label: "Profile",             icon: User },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -171,6 +199,21 @@ export default function StudentDashboardManager() {
   const [slipLoading, setSlipLoading] = useState(false);
   const [slipBlock, setSlipBlock] = useState<{ title: string; message: string } | null>(null);
 
+  /* attendance chart (overview) */
+  const [attChartPoints, setAttChartPoints] = useState<{ date: string; label: string; cumulative_pct: number }[]>([]);
+  const [attChartSem, setAttChartSem] = useState<{ number: number; term_type: string } | null>(null);
+  const [attChartLoading, setAttChartLoading] = useState(false);
+
+  /* DIT overview chart + mock exam tab */
+  const [ditOverviewResults, setDitOverviewResults] = useState<DitMockResult[]>([]);
+  const [ditOverviewLoading, setDitOverviewLoading] = useState(false);
+  const [ditTabResults, setDitTabResults] = useState<DitMockResult[]>([]);
+  const [ditTabSeriesList, setDitTabSeriesList] = useState<{ id: string; name: string }[]>([]);
+  const [ditTabLoading, setDitTabLoading] = useState(false);
+  const [ditTabSeriesFilter, setDitTabSeriesFilter] = useState("");
+  const [ditTabFromFilter, setDitTabFromFilter] = useState("");
+  const [ditTabToFilter, setDitTabToFilter] = useState("");
+
   /* ── loaders ── */
   const loadProfile = useCallback(async () => {
     const res = await fetch("/api/student/profile");
@@ -204,6 +247,49 @@ export default function StudentDashboardManager() {
       if (res.ok) setResults(data.semesters ?? []);
     } finally {
       setResultsLoading(false);
+    }
+  }, []);
+
+  const loadAttChart = useCallback(async () => {
+    setAttChartLoading(true);
+    try {
+      const res = await fetch("/api/student/attendance-chart");
+      const data = await res.json();
+      if (res.ok) {
+        setAttChartPoints(data.points ?? []);
+        setAttChartSem(data.semester ?? null);
+      }
+    } finally {
+      setAttChartLoading(false);
+    }
+  }, []);
+
+  const loadDitOverview = useCallback(async () => {
+    setDitOverviewLoading(true);
+    try {
+      const res = await fetch("/api/student/dit/results");
+      const data = await res.json();
+      if (res.ok) setDitOverviewResults(data.results ?? []);
+    } finally {
+      setDitOverviewLoading(false);
+    }
+  }, []);
+
+  const loadDitTab = useCallback(async (seriesId = "", from = "", to = "") => {
+    setDitTabLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (seriesId) params.set("test_series_id", seriesId);
+      if (from)     params.set("from_date", from);
+      if (to)       params.set("to_date", to);
+      const res  = await fetch(`/api/student/dit/results?${params}`);
+      const data = await res.json();
+      if (res.ok) {
+        setDitTabResults(data.results ?? []);
+        setDitTabSeriesList(data.series_list ?? []);
+      }
+    } finally {
+      setDitTabLoading(false);
     }
   }, []);
 
@@ -254,15 +340,21 @@ export default function StudentDashboardManager() {
     }
   }, []);
 
-  useEffect(() => { loadProfile(); loadCourseAtt(); }, [loadProfile, loadCourseAtt]);
+  useEffect(() => { loadProfile(); loadCourseAtt(); loadAttChart(); }, [loadProfile, loadCourseAtt, loadAttChart]);
+
+  // Load DIT data once profile is known and student is in DIT class
+  useEffect(() => {
+    if (profile?.class_type === "DIT") loadDitOverview();
+  }, [profile, loadDitOverview]);
 
   useEffect(() => {
-    if (tab === "results")       loadResults();
-    if (tab === "datesheet")     loadDatesheet();
-    if (tab === "remid-datesheet") loadRdDatesheet();
-    if (tab === "attendance")    loadSimpleAtt();
-    if (tab === "notifications") loadNotifications();
-  }, [tab, loadResults, loadDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications]);
+    if (tab === "results")            loadResults();
+    if (tab === "datesheet")          loadDatesheet();
+    if (tab === "remid-datesheet")    loadRdDatesheet();
+    if (tab === "attendance")         loadSimpleAtt();
+    if (tab === "notifications")      loadNotifications();
+    if (tab === "mock-exam-results")  loadDitTab();
+  }, [tab, loadResults, loadDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications, loadDitTab]);
 
   /* details modal open */
   async function openDetails(semesterId: string, courseId: string, courseTitle: string, teacherName: string) {
@@ -515,6 +607,66 @@ export default function StudentDashboardManager() {
 
   const unread = notifications.filter((n) => !n.is_read).length;
 
+  // DIT overview chart: pivot results into { date, label, [seriesName]: pct }[]
+  const ditChartData = useMemo(() => {
+    if (!ditOverviewResults.length) return { points: [], seriesNames: [] };
+    const dateMap = new Map<string, Record<string, number | null>>();
+    const seriesSet = new Set<string>();
+    for (const r of ditOverviewResults) {
+      seriesSet.add(r.test_series_name);
+      if (!dateMap.has(r.test_date)) dateMap.set(r.test_date, {});
+      const entry = dateMap.get(r.test_date)!;
+      const pct = Math.round((r.obtained_marks / r.total_marks) * 100);
+      // average if same series appears multiple times on same date (multi-course)
+      if (entry[r.test_series_name] !== undefined) {
+        entry[r.test_series_name] = Math.round(
+          ((entry[r.test_series_name] as number) + pct) / 2
+        );
+      } else {
+        entry[r.test_series_name] = pct;
+      }
+    }
+    const seriesNames = Array.from(seriesSet);
+    const points = Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, vals]) => {
+        const d = new Date(date + "T00:00:00");
+        const label = d.toLocaleDateString("en-PK", { month: "short", day: "numeric" });
+        return { date, label, ...vals };
+      });
+    return { points, seriesNames };
+  }, [ditOverviewResults]);
+
+  // Colour palette for DIT series lines
+  const SERIES_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#0ea5e9"];
+
+  // Grade helper (reused from admin page logic)
+  function ditGrade(obtained: number, total: number, passing: number): string {
+    if (obtained < passing) return "F";
+    const pct = (obtained / total) * 100;
+    if (pct >= 90) return "A+";
+    if (pct >= 80) return "A";
+    if (pct >= 70) return "B";
+    if (pct >= 60) return "C";
+    return "D";
+  }
+  function ditGradeCls(grade: string): string {
+    const map: Record<string, string> = {
+      "A+": "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+      "A":  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+      "B":  "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+      "C":  "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+      "D":  "bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400",
+      "F":  "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+    };
+    return map[grade] ?? "";
+  }
+
+  // Visible tabs: hide Mock Exam Results for non-DIT students
+  const visibleTabs = TABS.filter(
+    (t) => t.id !== "mock-exam-results" || profile?.class_type === "DIT"
+  );
+
   function toggleSem(id: string) {
     setExpandedSems((prev) => {
       const next = new Set(prev);
@@ -536,7 +688,7 @@ export default function StudentDashboardManager() {
 
       {/* tab navigation */}
       <div className="mb-6 flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/50">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -609,6 +761,118 @@ export default function StudentDashboardManager() {
                   </div>
                 );
               })()}
+            </div>
+          )}
+
+          {/* ── Attendance Line Chart ── */}
+          <div className="card-3d p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-800 dark:text-white">
+                  Attendance Trend
+                  {attChartSem && (
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      — Semester {attChartSem.number} · {attChartSem.term_type}
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-400">Cumulative attendance % over time</p>
+              </div>
+            </div>
+            {attChartLoading ? (
+              <div className="flex h-48 items-center justify-center text-sm text-slate-400">Loading chart…</div>
+            ) : attChartPoints.length === 0 ? (
+              <div className="flex h-48 items-center justify-center text-sm text-slate-400">
+                No attendance data for the active semester yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={attChartPoints} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    interval="preserveStartEnd"
+                    tickLine={false}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `${v}%`}
+                    width={38}
+                  />
+                  <Tooltip
+                    formatter={(v: unknown) => `${v}%`}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                  />
+                  <ReferenceLine y={75} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "75%", position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }} />
+                  <Line
+                    type="monotone"
+                    dataKey="cumulative_pct"
+                    name="Attendance %"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* ── DIT Mock Exam Results Line Chart (DIT students only) ── */}
+          {profile?.class_type === "DIT" && (
+            <div className="card-3d p-4">
+              <div className="mb-3">
+                <h2 className="text-base font-semibold text-slate-800 dark:text-white">Mock Exam Performance</h2>
+                <p className="text-xs text-slate-400">Score % per test series over time</p>
+              </div>
+              {ditOverviewLoading ? (
+                <div className="flex h-48 items-center justify-center text-sm text-slate-400">Loading chart…</div>
+              ) : ditChartData.points.length === 0 ? (
+                <div className="flex h-48 items-center justify-center text-sm text-slate-400">
+                  No mock exam results recorded yet.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={ditChartData.points} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      interval="preserveStartEnd"
+                      tickLine={false}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `${v}%`}
+                      width={38}
+                    />
+                    <Tooltip
+                      formatter={(v: unknown) => `${v}%`}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {ditChartData.seriesNames.map((name, idx) => (
+                      <Line
+                        key={name}
+                        type="monotone"
+                        dataKey={name}
+                        stroke={SERIES_COLORS[idx % SERIES_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                        connectNulls={false}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           )}
 
@@ -810,6 +1074,132 @@ export default function StudentDashboardManager() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── MOCK EXAM RESULTS (DIT only) ── */}
+      {tab === "mock-exam-results" && (
+        <div className="space-y-5">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mock Exam Results</h2>
+
+          {/* Filters */}
+          <div className="card-3d flex flex-wrap items-end gap-4 p-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Test Series</label>
+              <select
+                value={ditTabSeriesFilter}
+                onChange={(e) => setDitTabSeriesFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="">All Series</option>
+                {ditTabSeriesList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">From Date</label>
+              <input
+                type="date"
+                value={ditTabFromFilter}
+                onChange={(e) => setDitTabFromFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">To Date</label>
+              <input
+                type="date"
+                value={ditTabToFilter}
+                onChange={(e) => setDitTabToFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <button
+              onClick={() => loadDitTab(ditTabSeriesFilter, ditTabFromFilter, ditTabToFilter)}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              Apply Filters
+            </button>
+            {(ditTabSeriesFilter || ditTabFromFilter || ditTabToFilter) && (
+              <button
+                onClick={() => {
+                  setDitTabSeriesFilter("");
+                  setDitTabFromFilter("");
+                  setDitTabToFilter("");
+                  loadDitTab();
+                }}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Results table */}
+          {ditTabLoading ? (
+            <DataFetchLoader label="Loading results…" />
+          ) : ditTabResults.length === 0 ? (
+            <div className="card-3d p-10 text-center text-sm text-slate-400">
+              No mock exam results found. Results are submitted by your teacher.
+            </div>
+          ) : (
+            <div className="card-3d overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/40 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Test Series</th>
+                      <th className="px-4 py-3">Course</th>
+                      <th className="px-4 py-3">Semester</th>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3 text-center">Obtained / Total</th>
+                      <th className="px-4 py-3 text-center">Percentage</th>
+                      <th className="px-4 py-3 text-center">Grade</th>
+                      <th className="px-4 py-3">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {ditTabResults.map((r) => {
+                      const grade = ditGrade(r.obtained_marks, r.total_marks, r.passing_marks);
+                      const pct   = Math.round((r.obtained_marks / r.total_marks) * 100);
+                      return (
+                        <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{r.test_series_name}</td>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</p>
+                            <p className="text-xs text-slate-400">{r.course_code}</p>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            Sem {r.semester_number} · {r.term_type}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {new Date(r.test_date + "T00:00:00").toLocaleDateString("en-PK", {
+                              day: "2-digit", month: "short", year: "numeric",
+                            })}
+                          </td>
+                          <td className="px-4 py-3 text-center font-semibold text-slate-800 dark:text-white">
+                            {r.obtained_marks} / {r.total_marks}
+                          </td>
+                          <td className="px-4 py-3 text-center font-semibold text-slate-700 dark:text-slate-200">
+                            {pct}%
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${ditGradeCls(grade)}`}>
+                              {grade}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                            {r.remarks ?? "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

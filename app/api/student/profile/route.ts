@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest) {
     `select st.id, st.name, st.father_name, st.cnic, st.contact, st.address, st.email,
             st.profile_image_url, st.status, st.status_change_date, st.status_change_semester,
             st.session, d.name as department_name, cl.class_name, cl.id as class_id,
-            cl.scheme_of_studies_url
+            cl.scheme_of_studies_url, cl.type as class_type
      from students st
      join departments d on d.id = st.department_id
      join classes cl on cl.id = st.class_id
