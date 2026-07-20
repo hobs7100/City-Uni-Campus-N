@@ -16,7 +16,17 @@ export async function GET(request: NextRequest) {
   if (teacherId) { conditions.push(`te.id = $${i++}`); values.push(teacherId); }
 
   const rows = await query(
-    `select al.id as allocation_id, al.allocation_type, al.rate,
+    `with chain_info as (
+       select id,
+              row_number() over (partition by transfer_group_id order by lecture_seq_offset, id) as transfer_part,
+              count(*)     over (partition by transfer_group_id)                                 as transfer_total_parts
+       from allocations
+       where transfer_group_id is not null
+     )
+     select al.id as allocation_id, al.allocation_type, al.rate,
+            al.transfer_group_id,
+            coalesce(ci.transfer_part, 1)::int        as transfer_part,
+            coalesce(ci.transfer_total_parts, 1)::int as transfer_total_parts,
             c.id as course_id, c.code as course_code, c.title as course_title,
             te.id as teacher_id, te.name as teacher_name,
             te.department_id,
@@ -28,10 +38,13 @@ export async function GET(request: NextRequest) {
      join allocation_semesters als on als.allocation_id = al.id
      join semesters s on s.id = als.semester_id and s.status = 'closed'
      join classes cl on cl.id = s.class_id
+     left join chain_info ci on ci.id = al.id
      where ${conditions.join(" and ")}
-     group by al.id, al.allocation_type, al.rate, c.id, c.code, c.title, te.id, te.name, te.department_id
+     group by al.id, al.allocation_type, al.rate, al.transfer_group_id,
+              ci.transfer_part, ci.transfer_total_parts,
+              c.id, c.code, c.title, te.id, te.name, te.department_id
      having coalesce((select sum(ar.lecture_count) from attendance_records ar where ar.allocation_id = al.id and ar.bill_item_id is null), 0) > 0
-     order by te.name, c.code`,
+     order by te.name, c.code, ci.transfer_part`,
     values
   );
 

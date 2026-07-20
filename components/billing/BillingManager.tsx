@@ -87,6 +87,9 @@ interface VisitingPreviewItem {
   classes: string[];
   total_lectures: string;
   amount: number;
+  transfer_group_id: string | null;
+  transfer_part: number;
+  transfer_total_parts: number;
 }
 
 interface PermanentPreviewItem {
@@ -98,10 +101,30 @@ interface PermanentPreviewItem {
   course_title: string;
   classes: string[];
   total_lectures: string;
+  transfer_group_id: string | null;
+  transfer_part: number;
+  transfer_total_parts: number;
 }
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function TransferChainBadge({
+  transfer_group_id,
+  transfer_part,
+  transfer_total_parts,
+}: {
+  transfer_group_id: string | null;
+  transfer_part: number;
+  transfer_total_parts: number;
+}) {
+  if (!transfer_group_id || transfer_total_parts < 2) return null;
+  return (
+    <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+      Part {transfer_part} of {transfer_total_parts}
+    </span>
+  );
 }
 
 interface AttendanceAppendixItem {
@@ -1019,6 +1042,11 @@ export default function BillingManager() {
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-800 dark:text-slate-100">
                           {it.course_code}
+                          <TransferChainBadge
+                            transfer_group_id={it.transfer_group_id}
+                            transfer_part={it.transfer_part}
+                            transfer_total_parts={it.transfer_total_parts}
+                          />
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {it.course_title}
@@ -1140,6 +1168,11 @@ export default function BillingManager() {
                         <td className="px-4 py-3">
                           <div className="font-medium text-slate-800 dark:text-slate-100">
                             {it.course_code}
+                            <TransferChainBadge
+                              transfer_group_id={it.transfer_group_id}
+                              transfer_part={it.transfer_part}
+                              transfer_total_parts={it.transfer_total_parts}
+                            />
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">
                             {it.course_title}
