@@ -120,13 +120,9 @@ export default function DitMockPage() {
   }, []);
 
   const loadDitStudents = useCallback(async () => {
-    const res  = await fetch("/api/admin/students");
+    const res  = await fetch("/api/admin/students?class_type=DIT");
     const data = await res.json();
-    if (res.ok) {
-      // We need DIT students only — join class type is handled server-side via class_id.
-      // For the search we use all students and filter by DIT sessions after loading semesters.
-      setDitStudents(data.students ?? []);
-    }
+    if (res.ok) setDitStudents(data.students ?? []);
   }, []);
 
   const loadDitSemesters = useCallback(async () => {

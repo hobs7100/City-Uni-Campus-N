@@ -27,14 +27,16 @@ export async function GET(request: NextRequest) {
 
   const departmentId = request.nextUrl.searchParams.get("department_id");
   const classId = request.nextUrl.searchParams.get("class_id");
+  const classType = request.nextUrl.searchParams.get("class_type");
   const status = request.nextUrl.searchParams.get("status");
 
   const conditions: string[] = ["s.deleted_at is null"];
   const values: unknown[] = [];
   let i = 1;
-  if (departmentId) { conditions.push(`s.department_id = $${i++}`); values.push(departmentId); }
-  if (classId)      { conditions.push(`s.class_id = $${i++}`);       values.push(classId); }
-  if (status)       { conditions.push(`s.status = $${i++}`);          values.push(status); }
+  if (departmentId) { conditions.push(`s.department_id = ${i++}`); values.push(departmentId); }
+  if (classId)      { conditions.push(`s.class_id = ${i++}`);       values.push(classId); }
+  if (classType)    { conditions.push(`c.type = ${i++}`);            values.push(classType); }
+  if (status)       { conditions.push(`s.status = ${i++}`);          values.push(status); }
 
   const students = await query(
     `select s.id, s.name, s.father_name, s.cnic, s.contact, s.address, s.email,
