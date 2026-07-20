@@ -21,6 +21,7 @@ import {
   UserCog,
   Bell,
   FileSearch,
+  PenLine,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem, NavIconName } from "@/lib/nav";
@@ -45,6 +46,7 @@ const iconMap: Record<NavIconName, LucideIcon> = {
   UserCog,
   Bell,
   FileSearch,
+  PenLine,
 };
 
 export default function Sidebar({

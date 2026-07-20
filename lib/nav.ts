@@ -18,7 +18,8 @@ export type NavIconName =
   | "Award"
   | "UserCog"
   | "Bell"
-  | "FileSearch";
+  | "FileSearch"
+  | "PenLine";
 
 export interface NavItem {
   label: string;
@@ -47,6 +48,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     },
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
     { label: "Exams & Results", href: "/dashboard/admin/results", icon: "Award" },
+    { label: "DIT Mock Exam", href: "/dashboard/admin/dit-mock", icon: "PenLine" },
     { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
   ],

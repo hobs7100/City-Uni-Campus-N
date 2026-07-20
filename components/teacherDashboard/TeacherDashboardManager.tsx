@@ -13,6 +13,7 @@ import {
   FileDown,
   FileText,
   GraduationCap,
+  PenLine,
   RefreshCcw,
   Save,
   Search,
@@ -255,6 +256,7 @@ const tabs = [
   { id: "students", label: "Student Attendance", icon: GraduationCap },
   { id: "search-student", label: "Search Student", icon: Search },
   { id: "report", label: "My Attendance", icon: FileDown },
+  { id: "dit-results", label: "DIT Results", icon: PenLine },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "profile", label: "Profile", icon: User },
 ] as const;
@@ -340,6 +342,41 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [rdRows, setRdRows] = useState<TeacherRdRow[]>([]);
   const [rdLoading, setRdLoading] = useState(false);
 
+  // ── DIT Results tab state ──────────────────────────────────────────────────
+  interface DitCourseRow {
+    allocation_id: string;
+    course_id: string;
+    course_code: string;
+    course_title: string;
+    semester_id: string;
+    semester_number: number;
+    term_type: string;
+    class_id: string;
+    class_name: string;
+    session: string;
+  }
+  interface DitSeriesOption { id: string; name: string; total_marks: number; passing_marks: number; }
+  interface DitStudentRow {
+    student_id: string;
+    name: string;
+    roll_no: string | null;
+    obtained_marks: number | null;
+    remarks: string | null;
+    result_id: string | null;
+  }
+  const [ditCourses, setDitCourses]         = useState<DitCourseRow[]>([]);
+  const [ditCoursesLoaded, setDitCoursesLoaded] = useState(false);
+  const [ditSeriesList, setDitSeriesList]   = useState<DitSeriesOption[]>([]);
+  // selectors
+  const [ditAllocId, setDitAllocId]         = useState("");
+  const [ditSemId, setDitSemId]             = useState("");
+  const [ditSeriesId, setDitSeriesId]       = useState("");
+  const [ditTestDate, setDitTestDate]       = useState("");
+  // student table
+  const [ditStudents, setDitStudents]       = useState<DitStudentRow[]>([]);
+  const [ditStudentsLoading, setDitStudentsLoading] = useState(false);
+  const [ditSaving, setDitSaving]           = useState(false);
+
   const loadRdDatesheet = useCallback(async () => {
       setRdLoading(true);
       try {
@@ -361,6 +398,80 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       setDsLoading(false);
     }
   }, []);
+
+  const loadDitCourses = useCallback(async () => {
+    const [cRes, sRes] = await Promise.all([
+      fetch("/api/teacher/dit/courses"),
+      fetch("/api/admin/dit/test-series"),
+    ]);
+    const cData = await cRes.json();
+    const sData = await sRes.json();
+    if (cRes.ok) setDitCourses(cData.courses ?? []);
+    if (sRes.ok) setDitSeriesList(sData.series ?? []);
+    setDitCoursesLoaded(true);
+  }, []);
+
+  const loadDitStudents = useCallback(async () => {
+    if (!ditAllocId || !ditSemId) return;
+    setDitStudentsLoading(true);
+    try {
+      const params = new URLSearchParams({ allocation_id: ditAllocId, semester_id: ditSemId });
+      if (ditSeriesId) params.set("test_series_id", ditSeriesId);
+      if (ditTestDate) params.set("test_date", ditTestDate);
+      const res  = await fetch(`/api/teacher/dit/results?${params}`);
+      const data = await res.json();
+      if (res.ok) {
+        setDitStudents(
+          (data.students ?? []).map((s: DitStudentRow) => ({
+            ...s,
+            obtained_marks: s.obtained_marks ?? null,
+            remarks:        s.remarks ?? "",
+          }))
+        );
+      } else {
+        toast.error(data.error || "Could not load students.");
+      }
+    } finally {
+      setDitStudentsLoading(false);
+    }
+  }, [ditAllocId, ditSemId, ditSeriesId, ditTestDate]);
+
+  function updateDitRow(studentId: string, patch: Partial<DitStudentRow>) {
+    setDitStudents((prev) => prev.map((r) => (r.student_id === studentId ? { ...r, ...patch } : r)));
+  }
+
+  async function handleSaveDitResults() {
+    if (!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate) {
+      toast.error("Select class, test series, course and test date first."); return;
+    }
+    const incomplete = ditStudents.find((s) => s.obtained_marks === null);
+    if (incomplete) { toast.error("Enter marks for all students before saving."); return; }
+
+    setDitSaving(true);
+    try {
+      const res = await fetch("/api/teacher/dit/results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          allocation_id:  ditAllocId,
+          semester_id:    ditSemId,
+          test_series_id: ditSeriesId,
+          test_date:      ditTestDate,
+          rows: ditStudents.map((s) => ({
+            student_id:     s.student_id,
+            obtained_marks: s.obtained_marks ?? 0,
+            remarks:        s.remarks || null,
+            roll_no:        s.roll_no || null,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Save failed."); return; }
+      toast.success("Results saved successfully.");
+    } finally {
+      setDitSaving(false);
+    }
+  }
 
   const loadCourses = useCallback(async () => {
     setCoursesLoading(true);
@@ -645,7 +756,13 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "report") loadAttendanceReport();
     if (tab === "notifications") loadNotifications();
     if (tab === "profile") loadProfile();
-  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile]);
+    if (tab === "dit-results" && !ditCoursesLoaded) loadDitCourses();
+  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses]);
+
+  // Reload DIT students whenever the key selectors change
+  useEffect(() => {
+    if (tab === "dit-results" && ditAllocId && ditSemId) loadDitStudents();
+  }, [tab, ditAllocId, ditSemId, ditSeriesId, ditTestDate, loadDitStudents]);
 
   useEffect(() => {
     if (selectedTimetableId) loadTimetableDetail(selectedTimetableId);
@@ -834,7 +951,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           </p>
         </div>
         <div className="flex flex-wrap gap-2 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
-          {tabs.map((t) => (
+          {tabs
+            .filter((t) => t.id !== "dit-results" || (ditCoursesLoaded && ditCourses.length > 0))
+            .map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -2300,6 +2419,182 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ══════════════════ DIT RESULTS TAB ════════════════════════════════ */}
+      {tab === "dit-results" && (
+        <div className="space-y-4">
+          {/* Selectors */}
+          <div className="card-3d p-4 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Select Class &amp; Test</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Class + Semester selector */}
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Class / Semester</label>
+                <select
+                  value={ditAllocId ? `${ditAllocId}|${ditSemId}` : ""}
+                  onChange={(e) => {
+                    const [aId, sId] = e.target.value.split("|");
+                    setDitAllocId(aId ?? "");
+                    setDitSemId(sId ?? "");
+                    setDitStudents([]);
+                  }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">— Select class —</option>
+                  {ditCourses.map((c) => (
+                    <option key={`${c.allocation_id}|${c.semester_id}`} value={`${c.allocation_id}|${c.semester_id}`}>
+                      {c.class_name} ({c.session}) · Sem {c.semester_number} · {c.course_code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Test series */}
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Test Series</label>
+                <select
+                  value={ditSeriesId}
+                  onChange={(e) => { setDitSeriesId(e.target.value); setDitStudents([]); }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">— Select series —</option>
+                  {ditSeriesList.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.total_marks} marks)</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Test date */}
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Test Date</label>
+                <input
+                  type="date"
+                  value={ditTestDate}
+                  onChange={(e) => { setDitTestDate(e.target.value); setDitStudents([]); }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              {/* Load button */}
+              <div className="flex items-end">
+                <button
+                  onClick={loadDitStudents}
+                  disabled={!ditAllocId || !ditSemId || ditStudentsLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {ditStudentsLoading ? <ButtonLoader /> : <Search size={15} />}
+                  {ditStudentsLoading ? "Loading…" : "Load Students"}
+                </button>
+              </div>
+            </div>
+
+            {/* Selected series info */}
+            {ditSeriesId && (() => {
+              const s = ditSeriesList.find((x) => x.id === ditSeriesId);
+              if (!s) return null;
+              return (
+                <div className="flex gap-4 rounded-lg bg-indigo-50 px-4 py-2 text-xs font-medium dark:bg-indigo-500/10">
+                  <span className="text-slate-600 dark:text-slate-300">Total marks: <span className="font-bold text-indigo-700 dark:text-indigo-300">{s.total_marks}</span></span>
+                  <span className="text-slate-600 dark:text-slate-300">Passing marks: <span className="font-bold text-emerald-600 dark:text-emerald-400">{s.passing_marks}</span></span>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Student marks table */}
+          {ditStudents.length > 0 && (
+            <>
+              <div className="overflow-hidden card-3d card-hover">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">#</th>
+                      <th className="px-4 py-3">Student Name</th>
+                      <th className="px-4 py-3">Roll No</th>
+                      <th className="px-4 py-3 text-center w-32">Obtained Marks</th>
+                      <th className="px-4 py-3 text-center w-20">Grade</th>
+                      <th className="px-4 py-3">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {ditStudents.map((s, idx) => {
+                      const series = ditSeriesList.find((x) => x.id === ditSeriesId);
+                      const total   = series?.total_marks ?? 0;
+                      const passing = series?.passing_marks ?? 0;
+                      const pct  = total > 0 && s.obtained_marks !== null ? (s.obtained_marks / total) * 100 : null;
+                      const grade = s.obtained_marks === null ? "—"
+                        : s.obtained_marks < passing ? "F"
+                        : pct! >= 90 ? "A+" : pct! >= 80 ? "A" : pct! >= 70 ? "B" : pct! >= 60 ? "C" : "D";
+                      return (
+                        <tr key={s.student_id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${s.result_id ? "" : ""}`}>
+                          <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                          <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{s.name}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              value={s.roll_no ?? ""}
+                              onChange={(e) => updateDitRow(s.student_id, { roll_no: e.target.value })}
+                              placeholder="Roll No."
+                              className="w-28 rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <input
+                              type="number"
+                              min={0}
+                              max={total || undefined}
+                              value={s.obtained_marks ?? ""}
+                              onChange={(e) => updateDitRow(s.student_id, { obtained_marks: e.target.value === "" ? null : Number(e.target.value) })}
+                              placeholder={`/ ${total}`}
+                              className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${
+                              grade === "F" ? "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                              : grade === "—" ? "bg-slate-100 text-slate-400"
+                              : grade.startsWith("A") ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                              : "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400"
+                            }`}>{grade}</span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              value={s.remarks ?? ""}
+                              onChange={(e) => updateDitRow(s.student_id, { remarks: e.target.value })}
+                              placeholder="Optional remarks"
+                              className="w-full rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Save */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-400">
+                  {ditStudents.filter((s) => s.result_id).length} of {ditStudents.length} already submitted · filling marks saves/updates
+                </p>
+                <button
+                  onClick={handleSaveDitResults}
+                  disabled={ditSaving || !ditSeriesId || !ditTestDate}
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {ditSaving ? <ButtonLoader /> : <Save size={15} />}
+                  {ditSaving ? "Saving…" : "Save Results"}
+                </button>
+              </div>
+            </>
+          )}
+
+          {ditAllocId && ditSemId && !ditStudentsLoading && ditStudents.length === 0 && (
+            <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-400 dark:border-slate-700">
+              No active students found for this class/semester.
+            </div>
+          )}
         </div>
       )}
     </div>
