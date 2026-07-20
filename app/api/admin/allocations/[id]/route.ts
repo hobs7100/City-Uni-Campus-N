@@ -48,8 +48,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   );
   if (!teacher) return NextResponse.json({ error: "Teacher not found." }, { status: 404 });
 
+  // Only block if an ACTIVE allocation already exists (transferred ones are allowed to coexist)
   const duplicate = await queryOne(
-    `select 1 from allocation_semesters where semester_id = any($1::uuid[]) and course_id = $2 and allocation_id != $3`,
+    `select 1
+     from allocation_semesters als
+     join allocations a on a.id = als.allocation_id
+     where als.semester_id = any($1::uuid[])
+       and als.course_id   = $2
+       and a.status        = 'active'
+       and a.id           != $3`,
     [semesterIds, allocation.course_id, id]
   );
   if (duplicate) {

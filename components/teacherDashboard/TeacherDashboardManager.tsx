@@ -35,6 +35,10 @@ interface CourseRow {
   allocation_type: string;
   rate: string;
   is_combined: boolean;
+  allocation_status: string;       // "active" | "transferred"
+  lecture_seq_offset: number;      // cumulative lectures before this allocation
+  started_at: string | null;
+  end_date: string | null;
   semester_id: string;
   semester_number: number;
   term_type: string;
@@ -55,6 +59,10 @@ interface GroupedCourseRow {
   allocation_type: string;
   rate: string;
   is_combined: boolean;
+  allocation_status: string;
+  lecture_seq_offset: number;
+  started_at: string | null;
+  end_date: string | null;
   semester_number: number;
   term_type: string;
   classes: { class_id: string; class_name: string; session: string; semester_id: string }[];
@@ -261,9 +269,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   );
 
   const [active, setActive] = useState<CourseRow[]>([]);
+  const [transferred, setTransferred] = useState<CourseRow[]>([]);
   const [inactive, setInactive] = useState<CourseRow[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
-  const [coursesSubTab, setCoursesSubTab] = useState<"active" | "inactive">("active");
+  const [coursesSubTab, setCoursesSubTab] = useState<"active" | "transferred" | "inactive">("active");
 
   const [timetables, setTimetables] = useState<TimetableSummary[]>([]);
   const [selectedTimetableId, setSelectedTimetableId] = useState("");
@@ -359,8 +368,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const res = await fetch("/api/teacher/courses");
       const data = await res.json();
       if (res.ok) {
-        setActive(data.active);
-        setInactive(data.inactive);
+        setActive(data.active ?? []);
+        setTransferred(data.transferred ?? []);
+        setInactive(data.inactive ?? []);
       }
     } finally {
       setCoursesLoading(false);
@@ -744,21 +754,21 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
   const reportCourseOptions = useMemo(() => {
     const seen = new Set<string>();
-    return [...active, ...inactive].filter((c) => {
+    return [...active, ...transferred, ...inactive].filter((c) => {
       if (seen.has(c.course_id)) return false;
       seen.add(c.course_id);
       return true;
     });
-  }, [active, inactive]);
+  }, [active, transferred, inactive]);
 
   const reportClassOptions = useMemo(() => {
     const seen = new Set<string>();
-    return [...active, ...inactive].filter((c) => {
+    return [...active, ...transferred, ...inactive].filter((c) => {
       if (seen.has(c.class_id)) return false;
       seen.add(c.class_id);
       return true;
     });
-  }, [active, inactive]);
+  }, [active, transferred, inactive]);
 
   function groupCourseRows(rows: CourseRow[]): GroupedCourseRow[] {
     const map = new Map<string, GroupedCourseRow>();
@@ -773,6 +783,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           allocation_type: c.allocation_type,
           rate: c.rate,
           is_combined: c.is_combined,
+          allocation_status: c.allocation_status ?? "active",
+          lecture_seq_offset: c.lecture_seq_offset ?? 0,
+          started_at: c.started_at ?? null,
+          end_date: c.end_date ?? null,
           semester_number: c.semester_number,
           term_type: c.term_type,
           outline_url: c.outline_url,
@@ -792,8 +806,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     return Array.from(map.values());
   }
 
-  const groupedActive = useMemo(() => groupCourseRows(active), [active]);
-  const groupedInactive = useMemo(() => groupCourseRows(inactive), [inactive]);
+  const groupedActive     = useMemo(() => groupCourseRows(active),      [active]);
+  const groupedTransferred = useMemo(() => groupCourseRows(transferred), [transferred]);
+  const groupedInactive   = useMemo(() => groupCourseRows(inactive),    [inactive]);
 
   /** Non-lab courses only — for the Upload Result tab. */
   const resGroupedActive = useMemo(
@@ -870,7 +885,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         <div className="space-y-4">
           {/* Sub-tab switcher */}
           <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
-            {(["active", "inactive"] as const).map((st) => (
+            {(["active", "transferred", "inactive"] as const).map((st) => (
               <button
                 key={st}
                 onClick={() => setCoursesSubTab(st)}
@@ -880,16 +895,25 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                {st === "active" ? `Active (${groupedActive.length})` : `Inactive (${groupedInactive.length})`}
+                {st === "active"
+                  ? `Active (${groupedActive.length})`
+                  : st === "transferred"
+                  ? `Transferred (${groupedTransferred.length})`
+                  : `Inactive (${groupedInactive.length})`}
               </button>
             ))}
           </div>
 
           {/* Shared columns renderer */}
           {(() => {
-            const rows = coursesSubTab === "active" ? groupedActive : groupedInactive;
+            const rows = coursesSubTab === "active"
+              ? groupedActive
+              : coursesSubTab === "transferred"
+              ? groupedTransferred
+              : groupedInactive;
             const isInactive = coursesSubTab === "inactive";
-            const colSpan = isInactive ? 9 : 8;
+            const isTransferred = coursesSubTab === "transferred";
+            const colSpan = (isInactive || isTransferred) ? 9 : 8;
             return (
               <div className="overflow-hidden card-3d card-hover">
                 <table className="w-full border-collapse text-left text-sm">
@@ -903,6 +927,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                       <th className="px-4 py-3">Outline</th>
                       <th className="px-4 py-3">Result</th>
                       {isInactive && <th className="px-4 py-3">Payment</th>}
+                      {isTransferred && <th className="px-4 py-3">Transferred</th>}
                       <th className="px-4 py-3">Actions</th>
                     </tr>
                   </thead>
@@ -925,6 +950,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                               {c.course_code}{c.is_combined && " · Combined"}
                             </div>
+                            {c.lecture_seq_offset > 0 && (
+                              <div className="text-[10px] text-indigo-500">
+                                starts at lecture #{c.lecture_seq_offset + 1}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-sm">
                             {c.classes.map((cl) => (
@@ -979,6 +1009,13 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                               >
                                 {c.payment_status === "paid" ? "Paid" : c.payment_status === "pending" ? "Pending" : "N/A"}
                               </span>
+                            </td>
+                          )}
+                          {isTransferred && (
+                            <td className="px-4 py-3 text-xs text-slate-500">
+                              {c.end_date
+                                ? <><span>Handed off on</span><br /><span className="font-medium text-slate-700 dark:text-slate-300">{c.end_date}</span></>
+                                : <span>—</span>}
                             </td>
                           )}
                           <td className="px-4 py-3">

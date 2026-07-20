@@ -15,6 +15,10 @@ export async function GET(_request: NextRequest) {
     allocation_type: string;
     rate: string;
     is_combined: boolean;
+    allocation_status: string;
+    lecture_seq_offset: number;
+    started_at: string | null;
+    end_date: string | null;
     semester_id: string;
     semester_number: number;
     term_type: string;
@@ -27,6 +31,9 @@ export async function GET(_request: NextRequest) {
   }>(
     `select a.id as allocation_id, c.id as course_id, c.code as course_code, c.title as course_title,
             c.credit_hours, a.allocation_type, a.rate, a.is_combined,
+            a.status as allocation_status, a.lecture_seq_offset,
+            to_char(a.started_at, 'YYYY-MM-DD') as started_at,
+            to_char(a.end_date,   'YYYY-MM-DD') as end_date,
             s.id as semester_id, s.semester_number, s.term_type, s.status as semester_status,
             cl.id as class_id, cl.class_name, cl.session,
             sc.course_outline_url as outline_url,
@@ -41,7 +48,7 @@ export async function GET(_request: NextRequest) {
      join classes cl on cl.id = s.class_id
      left join semester_courses sc on sc.semester_id = als.semester_id and sc.course_id = a.course_id
      where a.teacher_id = $1
-     order by cl.class_name, s.semester_number`,
+     order by a.status, cl.class_name, s.semester_number`,
     [session!.userId]
   );
 
@@ -83,18 +90,32 @@ export async function GET(_request: NextRequest) {
   }
 
   const active = rows
-    .filter((r) => r.semester_status === "active")
+    .filter((r) => r.semester_status === "active" && r.allocation_status === "active")
     .map((r) => ({
       ...r,
       delivered_lectures: paymentByAllocation.get(r.allocation_id)?.delivered ?? 0,
+      // cumulative lecture number where this teacher's sequence starts
+      lecture_seq_offset: r.lecture_seq_offset ?? 0,
     }));
+
+  // Transferred (handed-off mid-semester) — teacher can view history but not mark
+  const transferred = rows
+    .filter((r) => r.semester_status === "active" && r.allocation_status === "transferred")
+    .map((r) => ({
+      ...r,
+      payment_status: paymentByAllocation.get(r.allocation_id)?.status ?? "n/a",
+      delivered_lectures: paymentByAllocation.get(r.allocation_id)?.delivered ?? 0,
+      lecture_seq_offset: r.lecture_seq_offset ?? 0,
+    }));
+
   const inactive = rows
     .filter((r) => r.semester_status === "closed")
     .map((r) => ({
       ...r,
       payment_status: paymentByAllocation.get(r.allocation_id)?.status ?? "n/a",
       delivered_lectures: paymentByAllocation.get(r.allocation_id)?.delivered ?? 0,
+      lecture_seq_offset: r.lecture_seq_offset ?? 0,
     }));
 
-  return NextResponse.json({ active, inactive });
+  return NextResponse.json({ active, transferred, inactive });
 }

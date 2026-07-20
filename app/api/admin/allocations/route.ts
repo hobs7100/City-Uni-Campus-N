@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
   const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
 
   const allocations = await query(
-    `select a.*, c.code as course_code, c.title as course_title, c.credit_hours,
+    `select a.*,
+            to_char(a.started_at, 'YYYY-MM-DD') as started_at,
+            to_char(a.end_date,   'YYYY-MM-DD') as end_date,
+            c.code as course_code, c.title as course_title, c.credit_hours,
             t.name as teacher_name, t.type as teacher_type,
             coalesce(
               (select json_agg(json_build_object(
@@ -65,7 +68,7 @@ export async function GET(request: NextRequest) {
      join courses c on c.id = a.course_id
      join teachers t on t.id = a.teacher_id
      ${where}
-     order by a.created_at desc`,
+     order by a.status, a.created_at desc`,
     values
   );
   return NextResponse.json({ allocations });
@@ -120,8 +123,14 @@ export async function POST(request: NextRequest) {
   );
   if (!teacher) return NextResponse.json({ error: "Teacher not found." }, { status: 404 });
 
+  // Only block if an ACTIVE allocation already exists (transferred ones are allowed to coexist)
   const duplicate = await queryOne(
-    `select 1 from allocation_semesters where semester_id = any($1::uuid[]) and course_id = $2`,
+    `select 1
+     from allocation_semesters als
+     join allocations a on a.id = als.allocation_id
+     where als.semester_id = any($1::uuid[])
+       and als.course_id   = $2
+       and a.status        = 'active'`,
     [allSemesterIds, d.course_id]
   );
   if (duplicate) {

@@ -110,12 +110,18 @@ export async function POST(request: NextRequest) {
   }
   const d = parsed.data;
 
-  const allocation = await queryOne<{ id: string }>(
-    `select a.id from allocations a where a.id = $1 and a.teacher_id = $2`,
+  const allocation = await queryOne<{ id: string; status: string }>(
+    `select a.id, a.status from allocations a where a.id = $1 and a.teacher_id = $2`,
     [d.allocation_id, session!.userId]
   );
   if (!allocation) {
     return NextResponse.json({ error: "Allocation not found or not yours." }, { status: 403 });
+  }
+  if (allocation.status !== "active") {
+    return NextResponse.json(
+      { error: "This course has been transferred to another teacher. You can no longer mark attendance for it." },
+      { status: 403 }
+    );
   }
 
   const activeSem = await queryOne<{ id: string }>(

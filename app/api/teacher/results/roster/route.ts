@@ -119,8 +119,8 @@ export async function POST(request: NextRequest) {
   }
   const d = parsed.data;
 
-  const owned = await queryOne(
-    `select a.id from allocations a
+  const owned = await queryOne<{ id: string; status: string }>(
+    `select a.id, a.status from allocations a
      join allocation_semesters als on als.allocation_id = a.id
      join courses co on co.id = a.course_id
      where a.teacher_id = $1 and a.course_id = $2 and als.semester_id = $3
@@ -130,6 +130,12 @@ export async function POST(request: NextRequest) {
   );
   if (!owned) {
     return NextResponse.json({ error: "You are not assigned to this course/semester, or the course is a lab course." }, { status: 403 });
+  }
+  if (owned.status !== "active") {
+    return NextResponse.json(
+      { error: "This course has been transferred to another teacher. You can no longer submit results for it." },
+      { status: 403 }
+    );
   }
 
   const client = await pool.connect();
