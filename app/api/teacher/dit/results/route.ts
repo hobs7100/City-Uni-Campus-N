@@ -43,13 +43,24 @@ export async function GET(request: NextRequest) {
     obtained_marks: number | null;
     remarks: string | null;
     result_id: string | null;
+    attendance_pct: number | null;
   }>(
     `select s.id       as student_id,
             s.name,
             s.roll_no,
             dmr.obtained_marks,
             dmr.remarks,
-            dmr.id     as result_id
+            dmr.id     as result_id,
+            (
+              select round(
+                count(case when sca.status = 'present' then 1 end) * 100.0 /
+                nullif(count(case when sca.status in ('present', 'absent') then 1 end), 0)
+              , 1)
+              from student_course_attendance sca
+              where sca.student_id    = s.id
+                and sca.allocation_id = $1
+                and sca.marked_by     = $5
+            ) as attendance_pct
      from students s
      join semesters sem on sem.class_id = s.class_id
      left join dit_mock_results dmr
@@ -62,7 +73,7 @@ export async function GET(request: NextRequest) {
        and s.status      = 'active'
        and s.deleted_at  is null
      order by s.name asc`,
-    [allocationId, semesterId, testSeriesId ?? null, testDate ?? null]
+    [allocationId, semesterId, testSeriesId ?? null, testDate ?? null, session!.userId]
   );
 
   return NextResponse.json({ students });

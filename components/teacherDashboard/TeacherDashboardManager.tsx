@@ -363,6 +363,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     obtained_marks: number | null;
     remarks: string | null;
     result_id: string | null;
+    attendance_pct: number | null;
   }
   const [ditCourses, setDitCourses]         = useState<DitCourseRow[]>([]);
   const [ditCoursesLoaded, setDitCoursesLoaded] = useState(false);
@@ -2516,12 +2517,13 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             <>
               <div className="overflow-hidden card-3d card-hover">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[660px] border-collapse text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                     <tr>
                       <th className="px-4 py-3">#</th>
                       <th className="px-4 py-3">Student Name</th>
                       <th className="px-4 py-3">Roll No</th>
+                      <th className="px-4 py-3 text-center">Attendance</th>
                       <th className="px-4 py-3 text-center w-32">Obtained Marks</th>
                       <th className="px-4 py-3 text-center w-20">Grade</th>
                       <th className="px-4 py-3">Remarks</th>
@@ -2547,6 +2549,21 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                               placeholder="Roll No."
                               className="w-28 rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                             />
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {s.attendance_pct === null ? (
+                              <span className="text-xs text-slate-400">—</span>
+                            ) : (
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                s.attendance_pct >= 75
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                  : s.attendance_pct >= 60
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                              }`}>
+                                {s.attendance_pct}%
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-center">
                             <input
