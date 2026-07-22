@@ -20,6 +20,7 @@ import ProfilePasswordForm from "@/components/ProfilePasswordForm";
 import Logo from "@/components/Logo";
 import StudentManagementPage from "@/components/students/StudentManagementPage";
 import TeacherWorkloadTabs from "@/components/teachers/TeacherWorkloadTabs";
+import DeptAttendanceManager from "@/components/deptAttendance/DeptAttendanceManager";
 import type { SingleValue } from "react-select";
 
 interface Department  { id: string; name: string }
@@ -118,8 +119,9 @@ const tabs = [
   { id: "students",       label: "Students",            icon: GraduationCap },
   { id: "classes",        label: "All Classes",         icon: School },
   { id: "teachers",       label: "Teachers",            icon: UsersRound },
-  { id: "attendance",     label: "Student Attendance",  icon: ClipboardCheck },
-  { id: "short",          label: "Short Attendance",    icon: UserMinus },
+  { id: "attendance",      label: "Student Attendance",  icon: ClipboardCheck },
+  { id: "dept-attendance", label: "Dept. Attendance",    icon: TrendingUp },
+  { id: "short",           label: "Short Attendance",    icon: UserMinus },
   { id: "results",        label: "Exam & Results",      icon: Award },
   { id: "all-results",    label: "All Results",          icon: ClipboardList },
   { id: "remid-datesheet", label: "Re-Mid Date Sheet",   icon: RefreshCcw },
@@ -1376,7 +1378,11 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
           )}
         </div>
       )}
-          {tab === "profile" && (
+          {tab === "dept-attendance" && (
+        <DeptAttendanceManager role="hod" />
+      )}
+
+      {tab === "profile" && (
         <div className="max-w-lg">
           <ProfilePasswordForm />
         </div>
