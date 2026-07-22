@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "semester_id and course_id are required." }, { status: 400 });
   }
 
-  const owned = await queryOne(
+  const owned = await queryOne<{ id: string }>(
     `select a.id from allocations a
      join allocation_semesters als on als.allocation_id = a.id
      join courses co on co.id = a.course_id
@@ -52,12 +52,22 @@ export async function GET(request: NextRequest) {
   const students = await query<Record<string, unknown>>(
     `select s.id as student_id, s.name, s.roll_no, s.status,
             r.mid, r.mid_absent, r.re_mid, r.re_mid_absent,
-            r.sessional, r.final, r.practical, r.total, r.status as result_status
+            r.sessional, r.final, r.practical, r.total, r.status as result_status,
+            (
+              select round(
+                count(case when sca.status = 'present' then 1 end) * 100.0 /
+                nullif(count(case when sca.status in ('present', 'absent') then 1 end), 0)
+              , 1)
+              from student_course_attendance sca
+              where sca.student_id    = s.id
+                and sca.allocation_id = $4
+                and sca.marked_by     = $5
+            ) as attendance_pct
      from students s
      left join results r on r.student_id = s.id and r.semester_id = $1 and r.course_id = $2
      where s.class_id = $3 and s.deleted_at is null
      order by (s.roll_no is null), s.roll_no, s.name`,
-    [semesterId, courseId, semester.class_id]
+    [semesterId, courseId, semester.class_id, owned.id, session!.userId]
   );
 
   const rows = students.map((st: Record<string, unknown>) => {
@@ -74,6 +84,7 @@ export async function GET(request: NextRequest) {
       name: st.name,
       roll_no: st.roll_no,
       student_status: st.status,
+      attendance_pct: st.attendance_pct !== null && st.attendance_pct !== undefined ? Number(st.attendance_pct) : null,
       mid,
       mid_absent: midAbsent,
       re_mid: reMid,

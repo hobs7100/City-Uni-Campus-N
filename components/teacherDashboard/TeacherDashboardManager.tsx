@@ -78,6 +78,7 @@ interface ResRosterRow {
   name: string;
   roll_no: string | null;
   student_status: string;
+  attendance_pct: number | null;
   mid: number;
   mid_absent: boolean;
   re_mid: number | null;
@@ -1293,6 +1294,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">#</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Roll No</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Student Name</th>
+                        <th className="border border-slate-200 px-3 py-2 text-center dark:border-slate-700">Attendance</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Mid / Re-Mid</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Sessional</th>
                         <th className="border border-slate-200 px-3 py-2 dark:border-slate-700">Final</th>
@@ -1318,6 +1320,23 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             )}
                           </td>
                           <td className="border border-slate-100 px-3 py-2 font-medium dark:border-slate-800">{r.name}</td>
+
+                          {/* ── Attendance % cell ── */}
+                          <td className="border border-slate-100 px-3 py-2 text-center dark:border-slate-800">
+                            {r.attendance_pct === null ? (
+                              <span className="text-xs text-slate-400">—</span>
+                            ) : (
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                r.attendance_pct >= 75
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                  : r.attendance_pct >= 60
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                              }`}>
+                                {r.attendance_pct}%
+                              </span>
+                            )}
+                          </td>
 
                           {/* ── Mid / Re-Mid cell ── */}
                           <td className="border border-slate-100 px-3 py-2 dark:border-slate-800">
