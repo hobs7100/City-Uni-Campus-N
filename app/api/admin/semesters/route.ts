@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
   const conditions: string[] = [];
   const values: unknown[] = [];
   let i = 1;
-  if (classId)      { conditions.push(`s.class_id = ${i++}`);    values.push(classId); }
-  if (departmentId) { conditions.push(`s.department_id = ${i++}`); values.push(departmentId); }
-  if (status)       { conditions.push(`s.status = ${i++}`);       values.push(status); }
-  if (classType)    { conditions.push(`c.type = ${i++}`);         values.push(classType); }
+  if (classId)      { conditions.push(`s.class_id = $${i++}`);    values.push(classId); }
+  if (departmentId) { conditions.push(`s.department_id = $${i++}`); values.push(departmentId); }
+  if (status)       { conditions.push(`s.status = $${i++}`);       values.push(status); }
+  if (classType)    { conditions.push(`c.type = $${i++}`);         values.push(classType); }
   const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
 
   const semesters = await query(
