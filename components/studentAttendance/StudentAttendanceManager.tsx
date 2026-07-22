@@ -403,7 +403,8 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
           )}
 
           <div className="overflow-hidden card-3d card-hover">
-            <table className="w-full border-collapse text-left text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Student</th>
@@ -509,6 +510,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           {rows.length > 0 && (
@@ -584,7 +586,8 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
           </div>
 
           <div className="overflow-hidden card-3d">
-            <table className="w-full border-collapse text-left text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[580px] border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Student</th>
@@ -646,6 +649,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -728,7 +732,8 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
           </div>
 
           <div className="overflow-hidden card-3d print:hidden">
-            <table className="w-full border-collapse text-left text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[580px] border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Student</th>
@@ -792,6 +797,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="hidden print:block">

@@ -1636,7 +1636,8 @@ export default function StudentDashboardManager() {
                   <span className="text-xs">Records appear only on days this course is scheduled in the timetable.</span>
                 </p>
               ) : (
-                <table className="w-full border-collapse text-left text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[380px] border-collapse text-left text-sm">
                   <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                     <tr>
                       <th className="px-4 py-3">Date</th>
@@ -1656,6 +1657,7 @@ export default function StudentDashboardManager() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>

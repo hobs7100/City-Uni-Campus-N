@@ -1035,7 +1035,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             const colSpan = (isInactive || isTransferred) ? 9 : 8;
             return (
               <div className="overflow-hidden card-3d card-hover">
-                <table className="w-full border-collapse text-left text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] border-collapse text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                     <tr>
                       <th className="px-4 py-3">Course</th>
@@ -1159,6 +1160,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             );
           })()}
@@ -1745,7 +1747,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           )}
 
           <div className="overflow-hidden card-3d card-hover">
-            <table className="w-full border-collapse text-left text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[400px] border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Student</th>
@@ -1835,6 +1838,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           {rosterRows.length > 0 && (
@@ -1881,7 +1885,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           </div>
 
           <div className="overflow-hidden card-3d">
-            <table className="w-full border-collapse text-left text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Student</th>
@@ -1955,6 +1960,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -2154,7 +2160,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           </div>
 
           <div className="overflow-hidden card-3d print:hidden">
-            <table className="w-full border-collapse text-left text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[540px] border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Date</th>
@@ -2192,6 +2199,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="hidden print:block">
@@ -2507,7 +2515,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           {ditStudents.length > 0 && (
             <>
               <div className="overflow-hidden card-3d card-hover">
-                <table className="w-full border-collapse text-left text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] border-collapse text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                     <tr>
                       <th className="px-4 py-3">#</th>
@@ -2571,6 +2580,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     })}
                   </tbody>
                 </table>
+              </div>
               </div>
 
               {/* Save */}
