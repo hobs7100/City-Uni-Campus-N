@@ -126,6 +126,8 @@ interface RosterRow {
   session: string;
   student_status: string;
   locked: boolean;
+  coord_locked: boolean;          // coordinator already marked absent/leave for this date
+  coord_status: "absent" | "leave" | null;
   status: "present" | "absent" | "leave";
   reason: string;
   call_remarks: string;
@@ -834,7 +836,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         body: JSON.stringify({
           allocation_id: markAllocationId,
           attendance_date: markDate,
-          rows: rosterRows.map((r) => ({
+          // exclude coord_locked rows — teacher cannot mark those
+          rows: rosterRows.filter((r) => !r.coord_locked && !r.locked).map((r) => ({
             student_id: r.student_id,
             status: r.status,
             reason: r.status === "present" ? null : r.reason || null,
@@ -1842,16 +1845,28 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     </td>
                   </tr>
                 ) : (
-                  rosterRows.map((r) => (
-                    <tr key={r.student_id} className={r.locked ? (r.student_status === "permanent_leave" ? "bg-amber-50/40 dark:bg-amber-900/10" : "bg-red-50/40 dark:bg-red-900/10") : ""}>
+                  rosterRows.map((r) => {
+                    const rowBg = r.student_status === "permanent_leave"
+                      ? "bg-amber-50/40 dark:bg-amber-900/10"
+                      : r.coord_locked
+                      ? "bg-sky-50/60 dark:bg-sky-900/10"
+                      : r.locked
+                      ? "bg-red-50/40 dark:bg-red-900/10"
+                      : "";
+                    return (
+                    <tr key={r.student_id} className={rowBg}>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <div className="font-medium text-slate-800 dark:text-slate-100">
                             {r.name}
                           </div>
                           {r.student_status === "permanent_leave" ? (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
                               Permanent Leave
+                            </span>
+                          ) : r.coord_locked ? (
+                            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-500/10 dark:text-sky-400">
+                              Coordinator
                             </span>
                           ) : r.locked ? (
                             <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
@@ -1865,8 +1880,20 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                       </td>
                       <td className="px-4 py-3">
                         {r.locked ? (
-                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${r.student_status === "permanent_leave" ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" : "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"}`}>
-                            {r.student_status === "permanent_leave" ? "Leave" : "Absent"}
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            r.student_status === "permanent_leave"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                              : r.coord_locked
+                              ? (r.coord_status === "leave"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400")
+                              : "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                          }`}>
+                            {r.student_status === "permanent_leave"
+                              ? "Leave"
+                              : r.coord_locked
+                              ? (r.coord_status === "leave" ? "Leave" : "Absent")
+                              : "Absent"}
                           </span>
                         ) : (
                           <div className="flex items-center gap-3">
@@ -1908,7 +1935,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         />
                       </td>
                     </tr>
-                  ))
+                    );
+                   })
                 )}
               </tbody>
             </table>

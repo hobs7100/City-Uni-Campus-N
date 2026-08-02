@@ -27,9 +27,9 @@ export default function DashboardShell({
           onClick={() => setOpen(false)}
         />
       )}
-      <div className="flex min-h-screen flex-1 flex-col lg:pl-0">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-0">
         <Topbar name={name} roleLabel={roleLabel} onMenuClick={() => setOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-x-hidden p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

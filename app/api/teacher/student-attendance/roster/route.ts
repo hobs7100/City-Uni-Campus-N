@@ -49,16 +49,22 @@ export async function GET(request: NextRequest) {
     att_status: string | null;
     reason: string | null;
     call_remarks: string | null;
+    coord_status: string | null;  // coordinator-marked status for this date (absent/leave only)
   }>(
     `select st.id as student_id, st.name, st.roll_no, st.contact,
             cl.class_name, cl.session, st.status as student_status,
-            sca.status as att_status, sca.reason, sca.call_remarks
+            sca.status as att_status, sca.reason, sca.call_remarks,
+            sar.status  as coord_status
      from students st
      join classes cl on cl.id = st.class_id
      left join student_course_attendance sca
        on sca.student_id = st.id
       and sca.allocation_id = $1
       and sca.attendance_date = $2
+     left join student_attendance_records sar
+       on sar.student_id = st.id
+      and sar.attendance_date = $2
+      and sar.status in ('absent', 'leave')
      where st.class_id = any($3::uuid[])
        and st.deleted_at is null
        and st.status in ('active', 'struck_off', 'permanent_leave')
@@ -67,8 +73,9 @@ export async function GET(request: NextRequest) {
   );
 
   const rows = students.map((st) => {
-    const isStruckOff = st.student_status === "struck_off";
-    const isOnLeave = st.student_status === "permanent_leave";
+    const isStruckOff  = st.student_status === "struck_off";
+    const isOnLeave    = st.student_status === "permanent_leave";
+    const coordLocked  = st.coord_status !== null;   // coordinator marked absent or leave
     return {
       student_id: st.student_id,
       name: st.name,
@@ -77,8 +84,15 @@ export async function GET(request: NextRequest) {
       class_name: st.class_name,
       session: st.session,
       student_status: st.student_status,
-      locked: isStruckOff || isOnLeave,
-      status: (isOnLeave ? "leave" : isStruckOff ? "absent" : (st.att_status ?? "present")) as "present" | "absent" | "leave",
+      locked: isStruckOff || isOnLeave || coordLocked,
+      coord_locked: coordLocked,
+      coord_status: (st.coord_status ?? null) as "absent" | "leave" | null,
+      status: (
+        isOnLeave   ? "leave"  :
+        isStruckOff ? "absent" :
+        coordLocked ? st.coord_status :
+        (st.att_status ?? "present")
+      ) as "present" | "absent" | "leave",
       reason: st.reason ?? "",
       call_remarks: st.call_remarks ?? "",
     };
