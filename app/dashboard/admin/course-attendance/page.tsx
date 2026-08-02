@@ -102,7 +102,7 @@ export default function CourseAttendancePage() {
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Course Attendance</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Compare teacher-marked lecture slots vs coordinator-marked teacher attendance for the same course
+              Compare admin-recorded lecture slots vs coordinator-verified teacher attendance for each course allocation
             </p>
           </div>
         </div>
@@ -292,14 +292,14 @@ export default function CourseAttendancePage() {
 
                   {/* Attendance counts */}
                   <div className="grid grid-cols-2 gap-3">
-                    {/* Teacher */}
+                    {/* Teacher/Admin-recorded */}
                     <div className="flex flex-col items-center gap-1 rounded-xl border border-slate-100 bg-white py-3 dark:border-slate-700 dark:bg-slate-800/40">
                       <GraduationCap size={18} className="text-indigo-400" />
                       <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                         {tCount}
                       </span>
                       <span className="text-center text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                        Teacher
+                        Teacher/Admin
                       </span>
                     </div>
                     {/* Coordinator */}

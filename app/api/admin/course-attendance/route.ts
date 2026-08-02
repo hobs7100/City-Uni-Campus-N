@@ -28,12 +28,22 @@ export async function GET(request: NextRequest) {
     params.push(dateTo);
   }
 
-  // For each allocation of the given course (one per class-group):
-  //   teacher_count  = lecture slots whose last marker was a teacher
-  //   coord_count    = lecture slots whose last marker was a coordinator or admin
+  // teacher_count  = lecture slots recorded by admin / HoD (proxy for teacher-reported)
+  //                  OR where marked_by IS NULL (legacy / unknown marker)
+  //                  These represent what the teacher claims to have taught.
   //
-  // Both sides write to the same attendance_records table; marked_by identifies
-  // who last touched each (allocation, date, start_time, end_time) slot.
+  // coord_count    = lecture slots recorded specifically by a coordinator
+  //                  These represent what the coordinator independently verified.
+  //
+  // Both come from the same attendance_records table.  Because the unique
+  // constraint is (allocation_id, date, start_time, end_time), each slot has
+  // exactly ONE record; the last writer's role determines which bucket it lands
+  // in.  A mismatch means one side has verified fewer/more slots than the other.
+  //
+  // The user_role enum in the DB is ('admin', 'hod', 'coordinator',
+  // 'finance_manager').  Teachers are stored in the separate `teachers` table
+  // and cannot directly write to attendance_records, so admin acts as proxy.
+
   const rows = await query(
     `SELECT
        c.title          AS course_title,
@@ -49,9 +59,9 @@ export async function GET(request: NextRequest) {
        COALESCE((
          SELECT COUNT(*)
          FROM   attendance_records ar
-         JOIN   users u ON u.id = ar.marked_by
+         LEFT JOIN users u ON u.id = ar.marked_by
          WHERE  ar.allocation_id = al.id
-         AND    u.role = 'teacher'
+         AND    (ar.marked_by IS NULL OR u.role != 'coordinator')
          ${dateFilter}
        ), 0) AS teacher_count,
        COALESCE((
@@ -59,7 +69,7 @@ export async function GET(request: NextRequest) {
          FROM   attendance_records ar
          JOIN   users u ON u.id = ar.marked_by
          WHERE  ar.allocation_id = al.id
-         AND    u.role IN ('coordinator', 'admin')
+         AND    u.role = 'coordinator'
          ${dateFilter}
        ), 0) AS coord_count
      FROM   allocations al
