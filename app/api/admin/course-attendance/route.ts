@@ -16,56 +16,62 @@ export async function GET(request: NextRequest) {
 
   const params: unknown[] = [courseId];
   let pIdx = 2;
-  let teacherDateFilter = "";
-  let coordDateFilter   = "";
+  let dateFilter = "";
 
   if (dateFrom) {
-    teacherDateFilter += ` AND ar.attendance_date >= $${pIdx}`;
-    coordDateFilter   += ` AND sar.attendance_date >= $${pIdx}`;
+    dateFilter += ` AND ar.attendance_date >= $${pIdx}`;
     params.push(dateFrom);
     pIdx++;
   }
   if (dateTo) {
-    teacherDateFilter += ` AND ar.attendance_date <= $${pIdx}`;
-    coordDateFilter   += ` AND sar.attendance_date <= $${pIdx}`;
+    dateFilter += ` AND ar.attendance_date <= $${pIdx}`;
     params.push(dateTo);
   }
 
+  // For each allocation of the given course (one per class-group):
+  //   teacher_count  = lecture slots whose last marker was a teacher
+  //   coord_count    = lecture slots whose last marker was a coordinator or admin
+  //
+  // Both sides write to the same attendance_records table; marked_by identifies
+  // who last touched each (allocation, date, start_time, end_time) slot.
   const rows = await query(
     `SELECT
-       c.title        AS course_title,
-       c.code         AS course_code,
+       c.title          AS course_title,
+       c.code           AS course_code,
        c.credit_hours,
-       cl.id          AS class_id,
+       cl.id            AS class_id,
        cl.class_name,
        cl.session,
        s.semester_number,
+       te.id            AS teacher_id,
+       te.name          AS teacher_name,
+       te.type          AS teacher_type,
        COALESCE((
-         SELECT COUNT(DISTINCT ar.attendance_date)
-         FROM   allocations al2
-         JOIN   attendance_records ar ON ar.allocation_id = al2.id
-         WHERE  al2.course_id = $1
-         AND    EXISTS (
-           SELECT 1 FROM allocation_semesters als2
-           WHERE  als2.allocation_id = al2.id AND als2.semester_id = s.id
-         )
-         ${teacherDateFilter}
+         SELECT COUNT(*)
+         FROM   attendance_records ar
+         JOIN   users u ON u.id = ar.marked_by
+         WHERE  ar.allocation_id = al.id
+         AND    u.role = 'teacher'
+         ${dateFilter}
        ), 0) AS teacher_count,
        COALESCE((
-         SELECT COUNT(DISTINCT sar.attendance_date)
-         FROM   student_attendance_records sar
-         JOIN   students st ON st.id = sar.student_id
-         WHERE  st.class_id = cl.id
-         ${coordDateFilter}
+         SELECT COUNT(*)
+         FROM   attendance_records ar
+         JOIN   users u ON u.id = ar.marked_by
+         WHERE  ar.allocation_id = al.id
+         AND    u.role IN ('coordinator', 'admin')
+         ${dateFilter}
        ), 0) AS coord_count
      FROM   allocations al
      JOIN   courses c                ON c.id  = al.course_id
+     JOIN   teachers te              ON te.id = al.teacher_id
      JOIN   allocation_semesters als ON als.allocation_id = al.id
      JOIN   semesters s              ON s.id  = als.semester_id
      JOIN   classes cl               ON cl.id = s.class_id
      WHERE  al.course_id = $1
      GROUP  BY c.title, c.code, c.credit_hours,
-               cl.id, cl.class_name, cl.session, s.semester_number
+               cl.id, cl.class_name, cl.session, s.semester_number,
+               te.id, te.name, te.type, al.id
      ORDER  BY cl.class_name, cl.session, s.semester_number`,
     params
   );

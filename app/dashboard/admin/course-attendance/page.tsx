@@ -12,6 +12,9 @@ interface CourseGroup {
   class_name: string;
   session: string;
   semester_number: number;
+  teacher_id: string;
+  teacher_name: string;
+  teacher_type: string;
   teacher_count: number;
   coord_count: number;
 }
@@ -99,7 +102,7 @@ export default function CourseAttendancePage() {
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Course Attendance</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Compare teacher-marked lecture attendance vs coordinator-marked student attendance
+              Compare teacher-marked lecture slots vs coordinator-marked teacher attendance for the same course
             </p>
           </div>
         </div>
@@ -241,7 +244,7 @@ export default function CourseAttendancePage() {
             const isMatch = tCount === cCount;
             return (
               <div
-                key={`${g.class_id}-${g.semester_number}`}
+                key={`${g.class_id}-${g.semester_number}-${g.teacher_id}`}
                 className="card-3d card-hover group relative flex flex-col overflow-hidden rounded-2xl p-0 transition-all duration-300"
               >
                 {/* Coloured top accent */}
@@ -271,13 +274,19 @@ export default function CourseAttendancePage() {
                     </div>
                   </div>
 
-                  {/* Class / session / semester */}
+                  {/* Class / session / semester / teacher */}
                   <div className="rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/60">
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                       {g.class_name}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {g.session} &middot; Semester {g.semester_number}
+                    </p>
+                    <p className="mt-1 truncate text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                      {g.teacher_name}
+                      <span className="ml-1 font-normal text-slate-400">
+                        ({g.teacher_type === "permanent" ? "Permanent" : "Visiting"})
+                      </span>
                     </p>
                   </div>
 
@@ -315,7 +324,9 @@ export default function CourseAttendancePage() {
                     ) : (
                       <div className="flex items-center justify-center gap-2 rounded-xl bg-red-50 py-2.5 text-sm font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
                         <XCircle size={16} />
-                        Count Mismatch ({tCount > cCount ? `+${tCount - cCount} teacher` : `+${cCount - tCount} coord`})
+                        {tCount > cCount
+                          ? `Mismatch — Teacher +${tCount - cCount} more`
+                          : `Mismatch — Coordinator +${cCount - tCount} more`}
                       </div>
                     )}
                   </div>
