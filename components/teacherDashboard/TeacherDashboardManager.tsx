@@ -18,6 +18,7 @@ import {
   Save,
   Search,
   User,
+  Wallet,
   X,
 } from "lucide-react";
 import { formatDateOnly } from "@/lib/format";
@@ -213,6 +214,36 @@ interface TeacherRdRow {
   return_date: string | null;
 }
 
+// ── Bills tab interfaces ───────────────────────────────────────────────────
+interface BillItem {
+  id: string;
+  course_code: string;
+  course_title: string;
+  class_name: string;
+  session: string;
+  semester_number: number;
+  allocation_type: string;
+  total_lectures: number;
+  rate: number;
+  amount: number;
+}
+interface TeacherBill {
+  id: string;
+  bill_number: string;
+  bill_type: "visiting" | "permanent";
+  billing_month: string;
+  period_from: string;
+  period_to: string;
+  total_amount: number;
+  status: "unpaid" | "paid";
+  payment_mode: string | null;
+  cheque_number: string | null;
+  paid_at: string | null;
+  department_name: string;
+  created_at: string;
+  items: BillItem[];
+}
+
 // ── Search-Student tab interfaces ─────────────────────────────────────────
 interface TsStudentOption {
   id: string; name: string; roll_no: string | null; class_name: string; session: string;
@@ -258,6 +289,7 @@ const tabs = [
   { id: "search-student", label: "Search Student", icon: Search },
   { id: "report", label: "My Attendance", icon: FileDown },
   { id: "dit-results", label: "DIT Results", icon: PenLine },
+  { id: "bills", label: "Bills", icon: Wallet },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "profile", label: "Profile", icon: User },
 ] as const;
@@ -342,6 +374,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [dsLoading, setDsLoading] = useState(false);
   const [rdRows, setRdRows] = useState<TeacherRdRow[]>([]);
   const [rdLoading, setRdLoading] = useState(false);
+
+  // ── Bills tab state ────────────────────────────────────────────────────────
+  const [bills, setBills]               = useState<TeacherBill[]>([]);
+  const [billsLoading, setBillsLoading] = useState(false);
+  const [billsFetched, setBillsFetched] = useState(false);
 
   // ── DIT Results tab state ──────────────────────────────────────────────────
   interface DitCourseRow {
@@ -725,6 +762,18 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     }
   }, []);
 
+  const loadBills = useCallback(async () => {
+    if (billsFetched) return;
+    setBillsLoading(true);
+    try {
+      const res = await fetch("/api/teacher/bills");
+      const data = await res.json();
+      if (res.ok) { setBills(data.bills ?? []); setBillsFetched(true); }
+    } finally {
+      setBillsLoading(false);
+    }
+  }, [billsFetched]);
+
   useEffect(() => {
     loadCourses();
   }, [loadCourses]);
@@ -759,7 +808,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "notifications") loadNotifications();
     if (tab === "profile") loadProfile();
     if (tab === "dit-results" && !ditCoursesLoaded) loadDitCourses();
-  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses]);
+    if (tab === "bills") loadBills();
+  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses, loadBills]);
 
   // Reload DIT students whenever the key selectors change
   useEffect(() => {
@@ -2645,6 +2695,290 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               No active students found for this class/semester.
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Bills Tab ──────────────────────────────────────────────────────── */}
+      {tab === "bills" && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">My Bills</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Track all your generated bills and payment status</p>
+            </div>
+            <div className="flex gap-2">
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                {bills.filter((b) => b.status === "unpaid").length} Pending
+              </span>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+                {bills.filter((b) => b.status === "paid").length} Paid
+              </span>
+            </div>
+          </div>
+
+          {/* Loading */}
+          {billsLoading && (
+            <div className="flex justify-center py-16">
+              <DataFetchLoader />
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!billsLoading && bills.length === 0 && (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 py-16 dark:border-slate-700">
+              <div className="rounded-full bg-slate-100 p-4 dark:bg-slate-800">
+                <Wallet size={28} className="text-slate-400" />
+              </div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No bills have been generated yet</p>
+            </div>
+          )}
+
+          {/* Bill cards */}
+          {!billsLoading && bills.map((bill) => {
+            const isPaid = bill.status === "paid";
+            // currentStep: 0=NoBill(always past), 1=Generated(always past), 2=HeadOffice(active if unpaid), 3=Payment(done if paid)
+            const currentStep = isPaid ? 4 : 2;
+
+            const steps = [
+              {
+                index: 0,
+                label: "No Bill Generated",
+                sub: "Initial state",
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                    <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ),
+              },
+              {
+                index: 1,
+                label: "Bill Generated",
+                sub: formatDateOnly(bill.created_at),
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                    <polyline points="14 2 14 8 20 8" strokeLinecap="round" strokeLinejoin="round"/>
+                    <line x1="16" y1="13" x2="8" y2="13" strokeLinecap="round"/><line x1="16" y1="17" x2="8" y2="17" strokeLinecap="round"/>
+                    <polyline points="10 9 9 9 8 9" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ),
+              },
+              {
+                index: 2,
+                label: "Head Office Verification",
+                sub: isPaid ? "Verified" : "In review…",
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeLinecap="round" strokeLinejoin="round"/>
+                    <polyline points="9 22 9 12 15 12 15 22" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ),
+              },
+              {
+                index: 3,
+                label: "Cheque / Payment Processed",
+                sub: isPaid
+                  ? `${bill.payment_mode === "cheque" ? `Cheque #${bill.cheque_number} · ` : ""}${formatDateOnly(bill.paid_at!)}`
+                  : "Awaiting payment",
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                    <rect x="2" y="5" width="20" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 10h20" strokeLinecap="round"/>
+                  </svg>
+                ),
+              },
+            ];
+
+            return (
+              <div key={bill.id} className="card-3d overflow-hidden">
+                {/* Bill header */}
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-5 dark:border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-lg"
+                      style={{
+                        background: bill.bill_type === "visiting"
+                          ? "linear-gradient(135deg,#6366f1,#8b5cf6)"
+                          : "linear-gradient(135deg,#0ea5e9,#2563eb)",
+                        boxShadow: bill.bill_type === "visiting"
+                          ? "0 4px 14px rgba(99,102,241,0.45)"
+                          : "0 4px 14px rgba(37,99,235,0.4)",
+                      }}
+                    >
+                      <Wallet size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 dark:text-white">{bill.bill_number}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          bill.bill_type === "visiting"
+                            ? "bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400"
+                            : "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400"
+                        }`}>
+                          {bill.bill_type}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                          isPaid
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                        }`}>
+                          {isPaid ? "Paid" : "Pending"}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {bill.department_name} · {bill.billing_month} · {formatDateOnly(bill.period_from)} – {formatDateOnly(bill.period_to)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-slate-900 dark:text-white">
+                      Rs. {Number(bill.total_amount).toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-xs text-slate-400">{bill.items.length} course{bill.items.length !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+
+                {/* 3D Stepper */}
+                <div className="px-5 pt-6 pb-4">
+                  <div className="relative flex items-start justify-between">
+                    {/* Progress track */}
+                    <div className="absolute left-0 right-0 top-[22px] mx-[22px] h-1 rounded-full bg-slate-200 dark:bg-slate-700" />
+                    {/* Filled portion */}
+                    <div
+                      className="absolute left-0 top-[22px] mx-[22px] h-1 rounded-full transition-all duration-700"
+                      style={{
+                        width: `calc(${((Math.min(currentStep, 3)) / 3) * 100}% - ${currentStep >= 3 ? "0px" : "8px"})`,
+                        background: isPaid
+                          ? "linear-gradient(90deg,#10b981,#059669)"
+                          : "linear-gradient(90deg,#6366f1,#a78bfa)",
+                      }}
+                    />
+
+                    {steps.map((step) => {
+                      const done    = step.index < currentStep;
+                      const active  = step.index === currentStep && !isPaid;
+                      const pending = step.index > currentStep;
+
+                      return (
+                        <div key={step.index} className="relative z-10 flex flex-1 flex-col items-center gap-2">
+                          {/* Node */}
+                          <div
+                            className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-300 ${
+                              done
+                                ? "border-transparent text-white"
+                                : active
+                                ? "border-transparent text-white"
+                                : "border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500"
+                            }`}
+                            style={
+                              done
+                                ? {
+                                    background: "linear-gradient(135deg,#10b981,#059669)",
+                                    boxShadow: "0 4px 12px rgba(16,185,129,0.45), 0 1px 3px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.25)",
+                                    transform: "translateY(-1px)",
+                                  }
+                                : active
+                                ? {
+                                    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                                    boxShadow: "0 4px 16px rgba(99,102,241,0.5), 0 1px 3px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.25)",
+                                    transform: "translateY(-2px) scale(1.08)",
+                                  }
+                                : {
+                                    boxShadow: "0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)",
+                                  }
+                            }
+                          >
+                            {done ? (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-5 w-5">
+                                <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            ) : (
+                              step.icon
+                            )}
+                            {/* Pulse ring for active step */}
+                            {active && (
+                              <span
+                                className="absolute inset-0 rounded-full animate-ping opacity-30"
+                                style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}
+                              />
+                            )}
+                          </div>
+
+                          {/* Label */}
+                          <div className="text-center px-1">
+                            <p className={`text-[11px] font-semibold leading-tight ${
+                              done
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : active
+                                ? "text-indigo-600 dark:text-indigo-400"
+                                : pending
+                                ? "text-slate-400 dark:text-slate-500"
+                                : "text-slate-600 dark:text-slate-400"
+                            }`}>
+                              {step.label}
+                            </p>
+                            <p className={`mt-0.5 text-[10px] leading-tight ${
+                              done || active ? "text-slate-500 dark:text-slate-400" : "text-slate-300 dark:text-slate-600"
+                            }`}>
+                              {step.sub}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Course items */}
+                {bill.items.length > 0 && (
+                  <div className="mx-5 mb-5 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+                    <table className="w-full min-w-[560px] text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+                          <th className="px-4 py-2.5 text-left font-semibold">Course</th>
+                          <th className="px-4 py-2.5 text-left font-semibold">Class / Sem</th>
+                          <th className="px-4 py-2.5 text-center font-semibold">Lectures</th>
+                          <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                        {bill.items.map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                            <td className="px-4 py-2.5">
+                              <p className="font-medium text-slate-800 dark:text-slate-100">{item.course_title}</p>
+                              <p className="text-xs text-slate-400">{item.course_code} · {item.allocation_type.replace(/_/g, " ")}</p>
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
+                              <p>{item.class_name} <span className="text-slate-400">({item.session})</span></p>
+                              <p className="text-xs text-slate-400">Semester {item.semester_number}</p>
+                            </td>
+                            <td className="px-4 py-2.5 text-center text-slate-600 dark:text-slate-300">
+                              {item.total_lectures}
+                              <span className="ml-1 text-xs text-slate-400">@ Rs.{Number(item.rate).toLocaleString()}</span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-100">
+                              Rs. {Number(item.amount).toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-200 dark:border-slate-700">
+                          <td colSpan={3} className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Total
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-bold text-slate-900 dark:text-white">
+                            Rs. {Number(bill.total_amount).toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
