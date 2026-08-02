@@ -68,7 +68,13 @@ export async function POST(request: NextRequest) {
         throw new Error("No unbilled attendance found for one of the selected allocations in this period.");
       }
 
-      const amount = it.allocation_type === "workload" ? it.rate * totalLectures : it.rate;
+      // workload = 0 (institution cost, not billed)
+      // extra    = lectures × rate  (per credit hour)
+      // fixed    = flat rate  (no multiplier)
+      const amount =
+        it.allocation_type === "workload"   ? 0 :
+        it.allocation_type === "extra"      ? it.rate * totalLectures :
+        /* fixed */                           it.rate;
       totalAmount += amount;
 
       createdItems.push({

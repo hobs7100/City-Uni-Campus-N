@@ -519,7 +519,7 @@ export default function BillingManager() {
         const overrides: Record<string, { allocation_type: string; rate: string }> = {};
         for (const it of data.items as PermanentPreviewItem[]) {
           overrides[it.allocation_id] = {
-            allocation_type: it.underlying_type === "fixed" ? "fixed" : "workload",
+            allocation_type: it.underlying_type, // preserve actual type: workload | extra | fixed
             rate: it.underlying_rate,
           };
         }
@@ -538,8 +538,9 @@ export default function BillingManager() {
     const ov = permOverrides[item.allocation_id];
     if (!ov) return 0;
     const rate = Number(ov.rate);
-    if (ov.allocation_type === "workload") return rate * Number(item.total_lectures);
-    return rate;
+    if (ov.allocation_type === "workload") return 0;
+    if (ov.allocation_type === "extra")    return rate * Number(item.total_lectures);
+    return rate; // fixed
   }
 
   const permTotal = useMemo(() => {
@@ -547,7 +548,10 @@ export default function BillingManager() {
       const ov = permOverrides[it.allocation_id];
       if (!ov) return sum;
       const rate = Number(ov.rate);
-      const amount = ov.allocation_type === "workload" ? rate * Number(it.total_lectures) : rate;
+      const amount =
+        ov.allocation_type === "workload" ? 0 :
+        ov.allocation_type === "extra"    ? rate * Number(it.total_lectures) :
+        /* fixed */                         rate;
       return sum + amount;
     }, 0);
   }, [permItems, permOverrides]);
