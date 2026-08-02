@@ -97,11 +97,19 @@ export async function GET() {
   const overallPct = p + a > 0 ? (p / (p + a)) * 100 : 0;
 
   if (overallPct < 75) {
-    return NextResponse.json({
-      allowed: false,
-      reason: "low_attendance",
-      message: `Your overall attendance is ${overallPct.toFixed(1)}%, which is below the required 75 %. You are not eligible to sit the Mid Term Examination.`,
-    });
+    // Check if admin has granted an override for this student
+    const override = await queryOne<{ id: string }>(
+      `SELECT id FROM rollno_slip_overrides WHERE student_id = $1`,
+      [studentId]
+    );
+    if (!override) {
+      return NextResponse.json({
+        allowed: false,
+        reason: "low_attendance",
+        message: `Your overall attendance is ${overallPct.toFixed(1)}%, which is below the required 75 %. You are not eligible to sit the Mid Term Examination.`,
+      });
+    }
+    // Admin override granted — fall through and generate the slip
   }
 
   // ── Per-course attendance — teacher-marked (student_course_attendance) ──────
