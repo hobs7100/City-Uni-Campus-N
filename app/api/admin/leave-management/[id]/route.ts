@@ -40,7 +40,7 @@ export async function GET(
        cl.class_name,
        cl.session,
        d.name            as department_name,
-       sl.issue_date,
+       to_char(sl.issue_date, 'YYYY-MM-DD') as issue_date,
        sl.reason,
        sl.notes,
        sl.proof_urls,
@@ -62,7 +62,7 @@ export async function GET(
 
 // ── PUT /api/admin/leave-management/[id] ─────────────────────────────────────
 const putSchema = z.object({
-  issue_date:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  issue_date:  z.string().optional(), // accept ISO or YYYY-MM-DD; normalized to YYYY-MM-DD below
   reason:      z.string().optional().nullable(),
   notes:       z.string().optional().nullable(),
   proof_urls:  z.array(z.string().url()).max(3).optional(),
@@ -116,7 +116,7 @@ export async function PUT(
       const sets: string[] = ["updated_at = now()"];
       const vals: unknown[] = [];
       let i = 1;
-      if (d.issue_date !== undefined) { sets.unshift(`issue_date = $${i++}`);  vals.push(d.issue_date); }
+      if (d.issue_date !== undefined) { sets.unshift(`issue_date = $${i++}`);  vals.push(d.issue_date.slice(0, 10)); }
       if (d.reason     !== undefined) { sets.unshift(`reason = $${i++}`);      vals.push(d.reason); }
       if (d.notes      !== undefined) { sets.unshift(`notes = $${i++}`);       vals.push(d.notes); }
       if (d.proof_urls !== undefined) { sets.unshift(`proof_urls = $${i++}`);  vals.push(d.proof_urls); }

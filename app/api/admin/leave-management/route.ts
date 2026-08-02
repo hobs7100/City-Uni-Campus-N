@@ -35,7 +35,7 @@ export async function GET() {
        cl.class_name,
        cl.session,
        d.name            as department_name,
-       sl.issue_date,
+       to_char(sl.issue_date, 'YYYY-MM-DD') as issue_date,
        sl.reason,
        sl.notes,
        sl.proof_urls,
