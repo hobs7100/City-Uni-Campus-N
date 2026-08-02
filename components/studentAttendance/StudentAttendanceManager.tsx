@@ -25,6 +25,7 @@ interface SemesterOption {
 interface RosterRow {
   student_id: string;
   name: string;
+  father_name: string | null;
   roll_no: string | null;
   contact: string | null;
   student_status: string;
@@ -452,6 +453,9 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                               </span>
                             ) : null}
                           </div>
+                          {r.father_name && (
+                            <div className="text-xs text-slate-400 dark:text-slate-500">S/O {r.father_name}</div>
+                          )}
                           <div className="text-xs text-slate-500 dark:text-slate-400">{r.roll_no || "—"}</div>
                         </td>
                         <td className="px-4 py-3">

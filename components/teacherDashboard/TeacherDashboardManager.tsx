@@ -120,6 +120,7 @@ interface TimetableDetail {
 interface RosterRow {
   student_id: string;
   name: string;
+  father_name: string | null;
   roll_no: string | null;
   contact: string | null;
   class_name: string;
@@ -1874,6 +1875,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             </span>
                           ) : null}
                         </div>
+                        {r.father_name && (
+                          <div className="text-xs text-slate-400 dark:text-slate-500">S/O {r.father_name}</div>
+                        )}
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {r.roll_no || "—"}
                         </div>

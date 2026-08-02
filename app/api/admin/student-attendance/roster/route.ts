@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   }
 
   const students = await query<Record<string, unknown>>(
-    `select st.id as student_id, st.name, st.roll_no, st.contact,
+    `select st.id as student_id, st.name, st.father_name, st.roll_no, st.contact,
             st.status as student_status,
             r.status as att_status, r.reason, r.call_remarks,
             (r.status is not null) as already_marked
@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     return {
       student_id: st.student_id,
       name: st.name,
+      father_name: (st.father_name as string) ?? null,
       roll_no: st.roll_no,
       contact: st.contact,
       student_status: st.student_status,

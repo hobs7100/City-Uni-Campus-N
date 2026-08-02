@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
   const students = await query<{
     student_id: string;
     name: string;
+    father_name: string | null;
     roll_no: string | null;
     contact: string | null;
     class_name: string;
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
     call_remarks: string | null;
     coord_status: string | null;  // coordinator-marked status for this date (absent/leave only)
   }>(
-    `select st.id as student_id, st.name, st.roll_no, st.contact,
+    `select st.id as student_id, st.name, st.father_name, st.roll_no, st.contact,
             cl.class_name, cl.session, st.status as student_status,
             sca.status as att_status, sca.reason, sca.call_remarks,
             sar.status  as coord_status
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest) {
     return {
       student_id: st.student_id,
       name: st.name,
+      father_name: st.father_name ?? null,
       roll_no: st.roll_no,
       contact: st.contact,
       class_name: st.class_name,
