@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -43,6 +43,18 @@ export default function CoursesPage() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (c) =>
+        c.code.toLowerCase().includes(q) ||
+        c.title.toLowerCase().includes(q) ||
+        c.department_name.toLowerCase().includes(q),
+    );
+  }, [items, search]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,6 +160,17 @@ export default function CoursesPage() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="mb-4 relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by code, title or department…"
+          className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+        />
+      </div>
+
       <div className="overflow-hidden card-3d card-hover">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
@@ -163,14 +186,14 @@ export default function CoursesPage() {
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
               <TableLoader colSpan={6} />
-            ) : items.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                  No courses found.
+                  {search ? `No courses match "${search}".` : "No courses found."}
                 </td>
               </tr>
             ) : (
-              items.map((c) => (
+              filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                   <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
                     {c.code}

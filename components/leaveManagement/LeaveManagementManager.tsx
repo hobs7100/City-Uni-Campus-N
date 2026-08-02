@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, UserX, ClipboardList, Upload, X, Image as ImageIcon,
   Calendar, FileText, Eye, Pencil, RotateCcw, CheckCircle2, AlertTriangle,
@@ -147,11 +147,24 @@ export default function LeaveManagementManager() {
   const searchRef    = useRef<HTMLDivElement>(null);
 
   /* ── all-leaves tab state ── */
-  const [leaves,         setLeaves]         = useState<LeaveRecord[]>([]);
-  const [leavesLoading,  setLeavesLoading]  = useState(false);
-  const [leavesFetched,  setLeavesFetched]  = useState(false);
-  const [selected2,      setSelected2]      = useState<LeaveRecord | null>(null);   // detail modal
-  const [editMode,       setEditMode]       = useState(false);
+  const [leaves,            setLeaves]            = useState<LeaveRecord[]>([]);
+  const [leavesLoading,     setLeavesLoading]     = useState(false);
+  const [leavesFetched,     setLeavesFetched]     = useState(false);
+  const [selected2,         setSelected2]         = useState<LeaveRecord | null>(null);
+  const [editMode,          setEditMode]          = useState(false);
+  const [allLeavesSearch,   setAllLeavesSearch]   = useState("");
+
+  const filteredLeaves = useMemo(() => {
+    const q = allLeavesSearch.trim().toLowerCase();
+    if (!q) return leaves;
+    return leaves.filter(
+      (l) =>
+        l.student_name.toLowerCase().includes(q) ||
+        (l.father_name ?? "").toLowerCase().includes(q) ||
+        l.class_name.toLowerCase().includes(q) ||
+        l.session.toLowerCase().includes(q),
+    );
+  }, [leaves, allLeavesSearch]);
 
   // edit form state (populated when editMode=true)
   const [editDate,       setEditDate]       = useState("");
@@ -603,9 +616,11 @@ export default function LeaveManagementManager() {
       {/* ═══════════════════════ TAB 2: ALL LEAVES ═══════════════════════ */}
       {tab === "all" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {leaves.length} leave record{leaves.length !== 1 ? "s" : ""} total
+              {filteredLeaves.length !== leaves.length
+                ? `${filteredLeaves.length} of ${leaves.length} leave records`
+                : `${leaves.length} leave record${leaves.length !== 1 ? "s" : ""} total`}
             </p>
             <button
               onClick={() => { setLeavesFetched(false); loadLeaves(); }}
@@ -617,6 +632,17 @@ export default function LeaveManagementManager() {
             </button>
           </div>
 
+          {/* Student name search */}
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              value={allLeavesSearch}
+              onChange={(e) => setAllLeavesSearch(e.target.value)}
+              placeholder="Search by student name, class or session…"
+              className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+
           {leavesLoading && <DataFetchLoader />}
 
           {!leavesLoading && leavesFetched && leaves.length === 0 && (
@@ -626,7 +652,14 @@ export default function LeaveManagementManager() {
             </div>
           )}
 
-          {!leavesLoading && leaves.length > 0 && (
+          {!leavesLoading && filteredLeaves.length === 0 && leavesFetched && leaves.length > 0 && (
+            <div className="card-3d flex flex-col items-center gap-3 rounded-2xl py-12 text-center">
+              <Search size={36} className="text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-500">No leave records match &ldquo;{allLeavesSearch}&rdquo;.</p>
+            </div>
+          )}
+
+          {!leavesLoading && filteredLeaves.length > 0 && (
             <div className="card-3d overflow-hidden rounded-2xl">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] border-collapse text-sm">
@@ -642,7 +675,7 @@ export default function LeaveManagementManager() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {leaves.map((l, idx) => (
+                    {filteredLeaves.map((l, idx) => (
                       <tr
                         key={l.id}
                         className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${
