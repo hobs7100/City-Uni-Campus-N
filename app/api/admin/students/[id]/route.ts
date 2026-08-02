@@ -16,7 +16,7 @@ const schema = z.object({
   session: z.string().min(1).optional(),
   class_id: z.string().uuid().optional(),
   profile_image_url: z.string().optional().nullable(),
-  status: z.enum(["active", "struck_off", "left", "dropped", "freezed"]).optional(),
+  status: z.enum(["active", "struck_off", "left", "dropped", "freezed", "permanent_leave"]).optional(),
   status_change_date: z.string().optional().nullable(),
   status_change_semester: z.coerce.number().optional().nullable(),
 });

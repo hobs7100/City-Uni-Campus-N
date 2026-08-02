@@ -1793,17 +1793,21 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   </tr>
                 ) : (
                   rosterRows.map((r) => (
-                    <tr key={r.student_id} className={r.locked ? "bg-red-50/40 dark:bg-red-900/10" : ""}>
+                    <tr key={r.student_id} className={r.locked ? (r.student_status === "permanent_leave" ? "bg-amber-50/40 dark:bg-amber-900/10" : "bg-red-50/40 dark:bg-red-900/10") : ""}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="font-medium text-slate-800 dark:text-slate-100">
                             {r.name}
                           </div>
-                          {r.locked && (
+                          {r.student_status === "permanent_leave" ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                              Permanent Leave
+                            </span>
+                          ) : r.locked ? (
                             <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
                               Struck Off
                             </span>
-                          )}
+                          ) : null}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {r.roll_no || "—"}
@@ -1811,8 +1815,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                       </td>
                       <td className="px-4 py-3">
                         {r.locked ? (
-                          <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
-                            Absent
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${r.student_status === "permanent_leave" ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" : "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"}`}>
+                            {r.student_status === "permanent_leave" ? "Leave" : "Absent"}
                           </span>
                         ) : (
                           <div className="flex items-center gap-3">

@@ -23,6 +23,7 @@ import {
   FileSearch,
   PenLine,
   BarChart2,
+  UserX,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem, NavIconName } from "@/lib/nav";
@@ -49,6 +50,7 @@ const iconMap: Record<NavIconName, LucideIcon> = {
   FileSearch,
   PenLine,
   BarChart2,
+  UserX,
 };
 
 export default function Sidebar({

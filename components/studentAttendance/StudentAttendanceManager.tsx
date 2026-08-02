@@ -438,22 +438,26 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                       leave: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
                     };
                     return (
-                      <tr key={r.student_id} className={`${r.locked ? "bg-red-50/40 dark:bg-red-900/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"}`}>
+                      <tr key={r.student_id} className={`${r.locked ? (r.student_status === "permanent_leave" ? "bg-amber-50/40 dark:bg-amber-900/10" : "bg-red-50/40 dark:bg-red-900/10") : "hover:bg-slate-50 dark:hover:bg-slate-800/40"}`}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
-                            {r.locked && (
+                            {r.student_status === "permanent_leave" ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                                Permanent Leave
+                              </span>
+                            ) : r.locked ? (
                               <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
                                 Struck Off
                               </span>
-                            )}
+                            ) : null}
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">{r.roll_no || "—"}</div>
                         </td>
                         <td className="px-4 py-3">
                           {statusReadOnly ? (
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusColors[r.status] ?? ""}`}>
-                              {r.status}
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${r.student_status === "permanent_leave" ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" : (statusColors[r.status] ?? "")}`}>
+                              {r.student_status === "permanent_leave" ? "Leave" : r.status}
                             </span>
                           ) : (
                             <div className="flex items-center gap-3">

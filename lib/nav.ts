@@ -20,7 +20,8 @@ export type NavIconName =
   | "Bell"
   | "FileSearch"
   | "PenLine"
-  | "BarChart2";
+  | "BarChart2"
+  | "UserX";
 
 export interface NavItem {
   label: string;
@@ -50,6 +51,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
     { label: "Exams & Results", href: "/dashboard/admin/results", icon: "Award" },
     { label: "Dept. Attendance", href: "/dashboard/admin/dept-attendance", icon: "BarChart2" },
+    { label: "Leave Management", href: "/dashboard/admin/leave-management", icon: "UserX" },
     { label: "DIT Mock Exam", href: "/dashboard/admin/dit-mock", icon: "PenLine" },
     { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },

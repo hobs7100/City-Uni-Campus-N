@@ -61,13 +61,14 @@ export async function GET(request: NextRequest) {
       and sca.attendance_date = $2
      where st.class_id = any($3::uuid[])
        and st.deleted_at is null
-       and st.status in ('active', 'struck_off')
+       and st.status in ('active', 'struck_off', 'permanent_leave')
      order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
     [allocationId, date, classIds]
   );
 
   const rows = students.map((st) => {
     const isStruckOff = st.student_status === "struck_off";
+    const isOnLeave = st.student_status === "permanent_leave";
     return {
       student_id: st.student_id,
       name: st.name,
@@ -76,8 +77,8 @@ export async function GET(request: NextRequest) {
       class_name: st.class_name,
       session: st.session,
       student_status: st.student_status,
-      locked: isStruckOff,
-      status: (isStruckOff ? "absent" : (st.att_status ?? "present")) as "present" | "absent" | "leave",
+      locked: isStruckOff || isOnLeave,
+      status: (isOnLeave ? "leave" : isStruckOff ? "absent" : (st.att_status ?? "present")) as "present" | "absent" | "leave",
       reason: st.reason ?? "",
       call_remarks: st.call_remarks ?? "",
     };

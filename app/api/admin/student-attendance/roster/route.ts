@@ -35,21 +35,22 @@ export async function GET(request: NextRequest) {
      left join student_attendance_records r
        on r.student_id = st.id and r.attendance_date = $1
      where st.class_id = $2 and st.deleted_at is null
-       and st.status in ('active', 'struck_off')
+       and st.status in ('active', 'struck_off', 'permanent_leave')
      order by (st.roll_no is null), st.roll_no, st.name`,
     [date, classId]
   );
 
   const rows = students.map((st) => {
     const isStruckOff = st.student_status === "struck_off";
+    const isOnLeave = st.student_status === "permanent_leave";
     return {
       student_id: st.student_id,
       name: st.name,
       roll_no: st.roll_no,
       contact: st.contact,
       student_status: st.student_status,
-      locked: isStruckOff,
-      status: isStruckOff ? "absent" : ((st.att_status ?? "present") as string),
+      locked: isStruckOff || isOnLeave,
+      status: isOnLeave ? "leave" : isStruckOff ? "absent" : ((st.att_status ?? "present") as string),
       reason: (st.reason as string) ?? "",
       call_remarks: (st.call_remarks as string) ?? "",
       already_marked: (st.already_marked as boolean) ?? false,
