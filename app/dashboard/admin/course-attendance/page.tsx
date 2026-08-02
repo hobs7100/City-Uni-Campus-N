@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BookCheck, CheckCircle2, XCircle, GraduationCap, ClipboardList, Search } from "lucide-react";
+import { BookCheck, CheckCircle2, XCircle, GraduationCap, ClipboardList, Search, AlertTriangle } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 
 interface CourseGroup {
@@ -67,14 +67,20 @@ export default function CourseAttendancePage() {
     label: `${c.code} — ${c.title}`,
   }));
 
+  // When a specific course is selected → show all (matched + mismatched) for that course.
+  // When no course → show only mismatched across all (optionally filtered by dept).
   const load = useCallback(async () => {
-    if (!courseId) return;
     setLoading(true);
     setFetched(false);
     try {
-      const params = new URLSearchParams({ course_id: courseId });
-      if (dateFrom) params.set("date_from", dateFrom);
-      if (dateTo)   params.set("date_to",   dateTo);
+      const params = new URLSearchParams();
+      if (courseId)  params.set("course_id",     courseId);
+      if (deptId)    params.set("department_id", deptId);
+      if (dateFrom)  params.set("date_from",      dateFrom);
+      if (dateTo)    params.set("date_to",        dateTo);
+      // When no specific course selected show mismatched only
+      if (!courseId) params.set("mismatch_only", "true");
+
       const res  = await fetch(`/api/admin/course-attendance?${params}`);
       const data = await res.json();
       if (res.ok) {
@@ -84,11 +90,12 @@ export default function CourseAttendancePage() {
     } finally {
       setLoading(false);
     }
-  }, [courseId, dateFrom, dateTo]);
+  }, [courseId, deptId, dateFrom, dateTo]);
 
+  /* auto-load on mount and whenever filters change */
   useEffect(() => { load(); }, [load]);
 
-  const matched   = groups.filter((g) => Number(g.teacher_count) === Number(g.coord_count));
+  const matched    = groups.filter((g) => Number(g.teacher_count) === Number(g.coord_count));
   const mismatched = groups.filter((g) => Number(g.teacher_count) !== Number(g.coord_count));
 
   return (
@@ -102,7 +109,9 @@ export default function CourseAttendancePage() {
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Course Attendance</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Compare teacher-reported lecture slots vs coordinator/admin-verified teacher attendance for each course allocation
+              {courseId
+                ? "Showing all records for the selected course — matched and mismatched"
+                : "Showing all mismatched records across all courses — select a course to see full details"}
             </p>
           </div>
         </div>
@@ -122,8 +131,6 @@ export default function CourseAttendancePage() {
               onChange={(opt) => {
                 setDeptId(opt ? (opt as SelectOption).value : "");
                 setCourseId("");
-                setGroups([]);
-                setFetched(false);
               }}
               placeholder="All departments…"
             />
@@ -132,17 +139,15 @@ export default function CourseAttendancePage() {
           {/* Course */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Course <span className="text-red-400">*</span>
+              Course
             </label>
             <SearchableSelect
               options={courseOptions}
               value={courseOptions.find((c) => c.value === courseId) || null}
               onChange={(opt) => {
                 setCourseId(opt ? (opt as SelectOption).value : "");
-                setGroups([]);
-                setFetched(false);
               }}
-              placeholder="Select a course…"
+              placeholder="All courses…"
             />
           </div>
 
@@ -173,30 +178,15 @@ export default function CourseAttendancePage() {
           </div>
         </div>
 
-        {courseId && (
-          <button
-            onClick={load}
-            disabled={loading}
-            className="mt-4 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-          >
-            <Search size={14} />
-            {loading ? "Loading…" : "Apply Filters"}
-          </button>
-        )}
+        <button
+          onClick={load}
+          disabled={loading}
+          className="mt-4 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+        >
+          <Search size={14} />
+          {loading ? "Loading…" : "Apply Filters"}
+        </button>
       </div>
-
-      {/* Empty state — no course selected */}
-      {!courseId && (
-        <div className="card-3d flex flex-col items-center gap-4 rounded-2xl py-20 text-center">
-          <BookCheck size={48} className="text-slate-300 dark:text-slate-600" />
-          <div>
-            <p className="font-semibold text-slate-600 dark:text-slate-300">Select a course to view attendance</p>
-            <p className="mt-1 text-sm text-slate-400">
-              Choose a department and course from the filters above
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Loading */}
       {loading && (
@@ -208,30 +198,32 @@ export default function CourseAttendancePage() {
       {/* No results */}
       {!loading && fetched && groups.length === 0 && (
         <div className="card-3d flex flex-col items-center gap-3 rounded-2xl py-16 text-center">
-          <ClipboardList size={40} className="text-slate-300 dark:text-slate-600" />
-          <p className="text-sm text-slate-500">No attendance records found for this course.</p>
+          <CheckCircle2 size={40} className="text-emerald-400" />
+          <p className="font-semibold text-slate-600 dark:text-slate-300">All attendance counts match</p>
+          <p className="text-sm text-slate-400">No mismatches found for the current filters.</p>
         </div>
       )}
 
       {/* Summary bar */}
       {!loading && groups.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-3">
-          <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-            <GraduationCap size={15} className="text-indigo-500" />
-            {groups.length} class group{groups.length !== 1 ? "s" : ""}
-          </div>
-          {matched.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          {/* Mismatch alert pill — always visible when mismatches exist */}
+          {mismatched.length > 0 && (
+            <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
+              <AlertTriangle size={15} />
+              {mismatched.length} mismatch{mismatched.length !== 1 ? "es" : ""}
+            </div>
+          )}
+          {courseId && matched.length > 0 && (
             <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
               <CheckCircle2 size={15} />
               {matched.length} matched
             </div>
           )}
-          {mismatched.length > 0 && (
-            <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-sm font-medium text-red-600 dark:bg-red-500/10 dark:text-red-400">
-              <XCircle size={15} />
-              {mismatched.length} mismatched
-            </div>
-          )}
+          <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <GraduationCap size={15} className="text-indigo-500" />
+            {groups.length} group{groups.length !== 1 ? "s" : ""}
+          </div>
         </div>
       )}
 
@@ -239,8 +231,8 @@ export default function CourseAttendancePage() {
       {!loading && groups.length > 0 && (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {groups.map((g) => {
-            const tCount = Number(g.teacher_count);
-            const cCount = Number(g.coord_count);
+            const tCount  = Number(g.teacher_count);
+            const cCount  = Number(g.coord_count);
             const isMatch = tCount === cCount;
             return (
               <div
@@ -292,7 +284,7 @@ export default function CourseAttendancePage() {
 
                   {/* Attendance counts */}
                   <div className="grid grid-cols-2 gap-3">
-                    {/* Teacher/Admin-recorded */}
+                    {/* Teacher */}
                     <div className="flex flex-col items-center gap-1 rounded-xl border border-slate-100 bg-white py-3 dark:border-slate-700 dark:bg-slate-800/40">
                       <GraduationCap size={18} className="text-indigo-400" />
                       <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">
@@ -302,7 +294,7 @@ export default function CourseAttendancePage() {
                         Teacher
                       </span>
                     </div>
-                    {/* Coordinator */}
+                    {/* Coordinator/Admin */}
                     <div className="flex flex-col items-center gap-1 rounded-xl border border-slate-100 bg-white py-3 dark:border-slate-700 dark:bg-slate-800/40">
                       <ClipboardList size={18} className="text-violet-400" />
                       <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">
