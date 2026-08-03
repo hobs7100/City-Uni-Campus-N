@@ -1140,94 +1140,172 @@ export default function SemestersPage() {
                   <Plus size={15} /> {addingCourse ? "Adding..." : "Add"}
                 </button>
               </div>
-              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                    <tr>
-                      <th className="px-3 py-2">Code</th>
-                      <th className="px-3 py-2">Title</th>
-                      <th className="px-3 py-2">Credit Hours</th>
-                      <th className="px-3 py-2">Outline</th>
-                      <th className="px-3 py-2 text-right">Remove</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {editSemester.courses.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-4 text-center text-slate-400">
-                          No courses in this semester yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      editSemester.courses.map((c) => (
-                        <tr key={c.id}>
-                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
-                            {c.code}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
-                            {c.title}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
-                            {c.credit_hours}
-                          </td>
-                          <td className="px-3 py-2">
-                            {c.outline_url ? (
-                              <div className="flex items-center gap-1">
-                                <a
-                                  href={c.outline_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
-                                >
-                                  <FileDown size={12} /> View
-                                </a>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOutlineDelete(c.id)}
-                                  className="ml-1 text-red-400 hover:text-red-600"
-                                  title="Remove outline"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            ) : (
-                              <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
-                                {outlineUploading[c.id] ? (
-                                  "Uploading…"
-                                ) : (
-                                  <>
-                                    <Upload size={12} /> Upload
-                                    <input
-                                      type="file"
-                                      accept=".pdf,.doc,.docx,.ppt,.pptx"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        const f = e.target.files?.[0];
-                                        if (f) handleOutlineUpload(c.id, f);
-                                        e.target.value = "";
-                                      }}
-                                    />
-                                  </>
-                                )}
-                              </label>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              disabled={removingCourseId === c.id}
-                              onClick={() => handleRemoveCourseFromSemester(c.id)}
-                              className="text-red-500 hover:text-red-600 disabled:opacity-50"
-                            >
-                              <X size={16} />
-                            </button>
-                          </td>
+              {editSemester.courses.length === 0 ? (
+                <p className="mt-3 rounded-lg border border-slate-200 px-3 py-4 text-center text-sm text-slate-400 dark:border-slate-700">
+                  No courses in this semester yet.
+                </p>
+              ) : (
+                <>
+                  {/* ── Desktop table (sm+) ──────────────────────────────── */}
+                  <div className="mt-3 hidden overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 sm:block">
+                    <table className="w-full min-w-[480px] text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                        <tr>
+                          <th className="px-3 py-2">Code</th>
+                          <th className="px-3 py-2">Title</th>
+                          <th className="px-3 py-2">Cr.</th>
+                          <th className="px-3 py-2">Outline</th>
+                          <th className="px-3 py-2 text-right">Remove</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {editSemester.courses.map((c) => (
+                          <tr key={c.id}>
+                            <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                              {c.code}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                              {c.title}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                              {c.credit_hours}
+                            </td>
+                            <td className="px-3 py-2">
+                              {c.outline_url ? (
+                                <div className="flex items-center gap-1">
+                                  <a
+                                    href={c.outline_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                                  >
+                                    <FileDown size={12} /> View
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOutlineDelete(c.id)}
+                                    className="ml-1 text-red-400 hover:text-red-600"
+                                    title="Remove outline"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
+                                  {outlineUploading[c.id] ? (
+                                    "Uploading…"
+                                  ) : (
+                                    <>
+                                      <Upload size={12} /> Upload
+                                      <input
+                                        type="file"
+                                        accept=".pdf,.doc,.docx,.ppt,.pptx"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const f = e.target.files?.[0];
+                                          if (f) handleOutlineUpload(c.id, f);
+                                          e.target.value = "";
+                                        }}
+                                      />
+                                    </>
+                                  )}
+                                </label>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <button
+                                type="button"
+                                disabled={removingCourseId === c.id}
+                                onClick={() => handleRemoveCourseFromSemester(c.id)}
+                                className="text-red-500 hover:text-red-600 disabled:opacity-50"
+                              >
+                                <X size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* ── Mobile cards (< sm) ───────────────────────────────── */}
+                  <div className="mt-3 space-y-2 sm:hidden">
+                    {editSemester.courses.map((c) => (
+                      <div
+                        key={c.id}
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                              <span className="mr-1.5 text-indigo-600 dark:text-indigo-400">
+                                {c.code}
+                              </span>
+                              <span className="font-normal text-slate-600 dark:text-slate-300">
+                                {c.title}
+                              </span>
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              Credit Hours: {c.credit_hours}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={removingCourseId === c.id}
+                            onClick={() => handleRemoveCourseFromSemester(c.id)}
+                            className="shrink-0 text-red-500 hover:text-red-600 disabled:opacity-50"
+                            title="Remove course"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                        <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">
+                          {c.outline_url ? (
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={c.outline_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                              >
+                                <FileDown size={12} /> View Outline
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleOutlineDelete(c.id)}
+                                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600"
+                                title="Remove outline"
+                              >
+                                <X size={12} /> Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
+                              {outlineUploading[c.id] ? (
+                                "Uploading…"
+                              ) : (
+                                <>
+                                  <Upload size={12} /> Upload Outline
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.ppt,.pptx"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleOutlineUpload(c.id, f);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                </>
+                              )}
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
               <p className="mt-2 text-xs text-slate-400">
                 A course already allocated to a teacher in this semester cannot be removed.
               </p>
