@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, Upload, X } from "lucide-react";
+import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, X } from "lucide-react";
+import OutlineUploadButton from "@/components/ui/OutlineUploadButton";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -520,25 +521,10 @@ export default function SemestersPage() {
                             <FileDown size={12} /> View
                           </a>
                         ) : (
-                          <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
-                            {postStartUploading[c.id] ? (
-                              "Uploading…"
-                            ) : (
-                              <>
-                                <Upload size={12} /> Upload
-                                <input
-                                  type="file"
-                                  accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f) handlePostStartOutlineUpload(c.id, f);
-                                    e.target.value = "";
-                                  }}
-                                />
-                              </>
-                            )}
-                          </label>
+                          <OutlineUploadButton
+                            uploading={postStartUploading[c.id] ?? false}
+                            onFile={(f) => handlePostStartOutlineUpload(c.id, f)}
+                          />
                         )}
                       </td>
                     </tr>
@@ -1191,25 +1177,10 @@ export default function SemestersPage() {
                                   </button>
                                 </div>
                               ) : (
-                                <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
-                                  {outlineUploading[c.id] ? (
-                                    "Uploading…"
-                                  ) : (
-                                    <>
-                                      <Upload size={12} /> Upload
-                                      <input
-                                        type="file"
-                                        accept=".pdf,.doc,.docx,.ppt,.pptx"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                          const f = e.target.files?.[0];
-                                          if (f) handleOutlineUpload(c.id, f);
-                                          e.target.value = "";
-                                        }}
-                                      />
-                                    </>
-                                  )}
-                                </label>
+                                <OutlineUploadButton
+                                  uploading={outlineUploading[c.id] ?? false}
+                                  onFile={(f) => handleOutlineUpload(c.id, f)}
+                                />
                               )}
                             </td>
                             <td className="px-3 py-2 text-right">
@@ -1280,25 +1251,10 @@ export default function SemestersPage() {
                               </button>
                             </div>
                           ) : (
-                            <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 hover:text-indigo-600">
-                              {outlineUploading[c.id] ? (
-                                "Uploading…"
-                              ) : (
-                                <>
-                                  <Upload size={12} /> Upload Outline
-                                  <input
-                                    type="file"
-                                    accept=".pdf,.doc,.docx,.ppt,.pptx"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                      const f = e.target.files?.[0];
-                                      if (f) handleOutlineUpload(c.id, f);
-                                      e.target.value = "";
-                                    }}
-                                  />
-                                </>
-                              )}
-                            </label>
+                            <OutlineUploadButton
+                              uploading={outlineUploading[c.id] ?? false}
+                              onFile={(f) => handleOutlineUpload(c.id, f)}
+                            />
                           )}
                         </div>
                       </div>
