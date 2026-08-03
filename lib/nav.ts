@@ -73,6 +73,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   coordinator: [
     { label: "Overview", href: "/dashboard/coordinator", icon: "LayoutDashboard" },
     { label: "Students", href: "/dashboard/coordinator/students", icon: "GraduationCap" },
+    { label: "Semesters", href: "/dashboard/coordinator/semesters", icon: "CalendarRange" },
     { label: "Teacher Attendance", href: "/dashboard/coordinator/attendance", icon: "UserCheck" },
     {
       label: "Student Attendance",
