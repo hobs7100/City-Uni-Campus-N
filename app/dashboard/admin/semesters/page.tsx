@@ -94,6 +94,12 @@ export default function SemestersPage() {
   >([]);
   const [postStartUploading, setPostStartUploading] = useState<Record<string, boolean>>({});
 
+  // History tab filters
+  const [historyDeptId,   setHistoryDeptId]   = useState("");
+  const [historySession,  setHistorySession]   = useState("");
+  const [historyStatus,   setHistoryStatus]    = useState<"" | "active" | "closed">("");
+  const [historyTermType, setHistoryTermType]  = useState<"" | "Fall" | "Spring">("");
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -169,6 +175,38 @@ export default function SemestersPage() {
       .filter((c) => c.status !== "blocked")
       .map((c) => ({ value: c.id, label: `${c.code} — ${c.title} (${c.credit_hours} Cr)` }));
   }, [courses, editSemester]);
+
+  // History tab — derived filter helpers
+  const historySessionOptions = useMemo(() => {
+    const sessions = new Set(
+      semesters
+        .filter((s) => !historyDeptId || s.department_id === historyDeptId)
+        .map((s) => s.session),
+    );
+    return Array.from(sessions)
+      .sort()
+      .map((s) => ({ value: s, label: s }));
+  }, [semesters, historyDeptId]);
+
+  const filteredHistorySemesters = useMemo(() => {
+    return semesters.filter((s) => {
+      if (historyDeptId   && s.department_id !== historyDeptId)   return false;
+      if (historySession  && s.session       !== historySession)   return false;
+      if (historyStatus   && s.status        !== historyStatus)    return false;
+      if (historyTermType && s.term_type     !== historyTermType)  return false;
+      return true;
+    });
+  }, [semesters, historyDeptId, historySession, historyStatus, historyTermType]);
+
+  const historyActiveFilters =
+    [historyDeptId, historySession, historyStatus, historyTermType].filter(Boolean).length;
+
+  function clearHistoryFilters() {
+    setHistoryDeptId("");
+    setHistorySession("");
+    setHistoryStatus("");
+    setHistoryTermType("");
+  }
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault();
@@ -766,54 +804,204 @@ export default function SemestersPage() {
           )}
         </div>
       ) : (
-        <div className="overflow-hidden card-3d card-hover">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-              <tr>
-                <th className="px-4 py-3">Class</th>
-                <th className="px-4 py-3">Department</th>
-                <th className="px-4 py-3">Semester</th>
-                <th className="px-4 py-3">Term</th>
-                <th className="px-4 py-3">Started</th>
-                <th className="px-4 py-3">Closed</th>
-                <th className="px-4 py-3">Courses</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Edit</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {semesters.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
-                    No semesters found.
-                  </td>
-                </tr>
-              ) : (
-                semesters.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
-                      {s.class_name} ({s.session})
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {s.department_name}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {s.semester_number}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.term_type}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {new Date(s.start_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {s.close_date ? new Date(s.close_date).toLocaleDateString() : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {s.courses.length}
-                    </td>
-                    <td className="px-4 py-3">
+        <div className="space-y-4">
+          {/* ── Filters ────────────────────────────────────────────────── */}
+          <div className="card-3d p-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {/* Department */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Department
+                </label>
+                <select
+                  value={historyDeptId}
+                  onChange={(e) => {
+                    setHistoryDeptId(e.target.value);
+                    setHistorySession("");
+                  }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">All Departments</option>
+                  {departments.map((d) => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Session */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Session
+                </label>
+                <select
+                  value={historySession}
+                  onChange={(e) => setHistorySession(e.target.value)}
+                  disabled={historySessionOptions.length === 0}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">All Sessions</option>
+                  {historySessionOptions.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Term Type */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Term
+                </label>
+                <select
+                  value={historyTermType}
+                  onChange={(e) => setHistoryTermType(e.target.value as "" | "Fall" | "Spring")}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">All Terms</option>
+                  <option value="Fall">Fall</option>
+                  <option value="Spring">Spring</option>
+                </select>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Status
+                </label>
+                <select
+                  value={historyStatus}
+                  onChange={(e) => setHistoryStatus(e.target.value as "" | "active" | "closed")}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="active">Active</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Result count + clear */}
+            {historyActiveFilters > 0 && (
+              <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Showing{" "}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    {filteredHistorySemesters.length}
+                  </span>{" "}
+                  of {semesters.length} semesters
+                </p>
+                <button
+                  type="button"
+                  onClick={clearHistoryFilters}
+                  className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Desktop table (md+) ─────────────────────────────────────── */}
+          <div className="hidden overflow-hidden rounded-xl card-3d card-hover md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">Class</th>
+                    <th className="px-4 py-3">Department</th>
+                    <th className="px-4 py-3">Sem</th>
+                    <th className="px-4 py-3">Term</th>
+                    <th className="px-4 py-3">Started</th>
+                    <th className="px-4 py-3">Closed</th>
+                    <th className="px-4 py-3">Courses</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Edit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredHistorySemesters.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                        {semesters.length === 0
+                          ? "No semesters found."
+                          : "No semesters match the selected filters."}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredHistorySemesters.map((s) => (
+                      <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                          {s.class_name}
+                          <span className="ml-1 text-xs font-normal text-slate-400">
+                            ({s.session})
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {s.department_name}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {s.semester_number}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.term_type}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {new Date(s.start_date).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {s.close_date ? new Date(s.close_date).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {s.courses.length}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={s.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(s)}
+                            disabled={s.status === "closed"}
+                            title={
+                              s.status === "closed"
+                                ? "Closed semesters cannot be edited"
+                                : "Edit semester"
+                            }
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── Mobile cards (< md) ─────────────────────────────────────── */}
+          <div className="space-y-3 md:hidden">
+            {filteredHistorySemesters.length === 0 ? (
+              <div className="card-3d rounded-xl px-4 py-10 text-center text-sm text-slate-400">
+                {semesters.length === 0
+                  ? "No semesters found."
+                  : "No semesters match the selected filters."}
+              </div>
+            ) : (
+              filteredHistorySemesters.map((s) => (
+                <div key={s.id} className="card-3d rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-800 dark:text-slate-100">
+                        {s.class_name}
+                        <span className="ml-1 text-xs font-normal text-slate-400">
+                          ({s.session})
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {s.department_name}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
                       <StatusBadge status={s.status} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
                       <button
                         type="button"
                         onClick={() => openEdit(s)}
@@ -827,12 +1015,42 @@ export default function SemestersPage() {
                       >
                         <Pencil size={15} />
                       </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-y-2 border-t border-slate-100 pt-3 text-xs dark:border-slate-700">
+                    <div>
+                      <p className="text-slate-400">Semester</p>
+                      <p className="font-medium text-slate-700 dark:text-slate-200">
+                        {s.semester_number}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Term</p>
+                      <p className="font-medium text-slate-700 dark:text-slate-200">{s.term_type}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Courses</p>
+                      <p className="font-medium text-slate-700 dark:text-slate-200">
+                        {s.courses.length}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Started</p>
+                      <p className="font-medium text-slate-700 dark:text-slate-200">
+                        {new Date(s.start_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Closed</p>
+                      <p className="font-medium text-slate-700 dark:text-slate-200">
+                        {s.close_date ? new Date(s.close_date).toLocaleDateString() : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 
