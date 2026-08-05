@@ -116,7 +116,7 @@ export async function PATCH(
   // Different days are freely allowed — the combined course may appear on different
   // days in different classes (each is its own session of the shared course).
   if (allocation.is_combined) {
-    // Check 1: same day in another timetable → time must match exactly.
+    // Check 1: same day in another timetable → overlapping (non-consecutive) times are blocked.
     const conflictingPlacement = await queryOne<{
       day_name: string;
       start_time: string;
@@ -134,14 +134,20 @@ export async function PATCH(
          and tc.id != $2
          and tc.timetable_id != $3
          and td.day_name = $4
-         and (tp.start_time != $5 or tp.end_time != $6)
+                   -- Only block when times actually overlap AND don't match exactly.
+          -- Consecutive slots (e.g. 1:00-2:00 then 2:00-3:00) share an endpoint
+          -- but do NOT overlap (strict inequality), so they are freely allowed.
+          -- Two slots overlap iff: slot.start < current.end AND slot.end > current.start
+          and (tp.start_time != $5 or tp.end_time != $6)
+          and tp.start_time < $6
+          and tp.end_time   > $5
        limit 1`,
       [allocation_id, cellId, id, day.day_name, period.start_time, period.end_time]
     );
     if (conflictingPlacement) {
       return NextResponse.json(
         {
-          error: `Combined lecture already placed in ${conflictingPlacement.class_name} (${conflictingPlacement.session}) on ${conflictingPlacement.day_name} at ${conflictingPlacement.start_time}–${conflictingPlacement.end_time}. All combined classes must share the exact same time slot on the same day.`,
+          error: `Combined lecture already placed in ${conflictingPlacement.class_name} (${conflictingPlacement.session}) on ${conflictingPlacement.day_name} at ${conflictingPlacement.start_time}–${conflictingPlacement.end_time}. Overlapping (non-consecutive) time slots are not allowed across combined classes.`,
         },
         { status: 409 }
       );
