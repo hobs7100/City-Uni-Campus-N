@@ -76,7 +76,10 @@ export async function GET(request: NextRequest) {
   const rows = students.map((st) => {
     const isStruckOff  = st.student_status === "struck_off";
     const isOnLeave    = st.student_status === "permanent_leave";
-    const coordLocked  = st.coord_status !== null;   // coordinator marked absent or leave
+    // Only "leave" set by coordinator locks the teacher's subject attendance.
+    // "absent" set by coordinator is informational only — teacher can still
+    // mark their own course attendance independently for that student.
+    const coordLocked  = st.coord_status === 'leave';
     return {
       student_id: st.student_id,
       name: st.name,
@@ -92,7 +95,7 @@ export async function GET(request: NextRequest) {
       status: (
         isOnLeave   ? "leave"  :
         isStruckOff ? "absent" :
-        coordLocked ? st.coord_status :
+        coordLocked ? "leave"  :
         (st.att_status ?? "present")
       ) as "present" | "absent" | "leave",
       reason: st.reason ?? "",
