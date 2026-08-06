@@ -1866,14 +1866,30 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             </div>
           </div>
 
-          {/* ── Slot picker ── shown only when 2+ timetable slots exist for this day ── */}
+          {/* ── Slot indicator / picker ───────────────────────────────────────────
+               • 0 slots  (no timetable entry for this day) → nothing shown
+               • 1 slot   (auto-selected)  → informational badge only, no picker
+               • 2+ slots (same allocation has multiple periods) → slot picker buttons
+          ─────────────────────────────────────────────────────────────────────── */}
           {slotsLoading && markAllocationId && (
             <div className="mb-3 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <DataFetchLoader />
-              <span>Loading time slots…</span>
+              <span>Detecting lecture time…</span>
             </div>
           )}
 
+          {/* Single auto-selected slot → show as informational pill */}
+          {!slotsLoading && markSlots.length === 1 && markSlot && (
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-500/30">
+                <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5c0 .199.079.39.22.53l2.25 2.25a.75.75 0 1 0 1.06-1.06L8.75 7.94V4.75Z"/></svg>
+                {markSlot.start_time.slice(0, 5)} – {markSlot.end_time.slice(0, 5)}
+              </span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">Lecture time detected from timetable</span>
+            </div>
+          )}
+
+          {/* Multiple slots on same allocation → show picker */}
           {!slotsLoading && markSlots.length > 1 && (
             <div className="mb-4 card-3d p-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1913,12 +1929,6 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           {isCombinedRoster && rosterRows.length > 0 && (
             <p className="mb-2 text-xs text-indigo-600 dark:text-indigo-400">
               This is a combined lecture — students from all combined classes are shown together.
-            </p>
-          )}
-
-          {markSlots.length > 1 && markSlot && rosterRows.length > 0 && (
-            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              Marking attendance for slot: <span className="font-semibold text-indigo-600 dark:text-indigo-400">{markSlot.start_time.slice(0, 5)} – {markSlot.end_time.slice(0, 5)}</span>
             </p>
           )}
 
