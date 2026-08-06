@@ -117,6 +117,11 @@ interface TimetableDetail {
   }[];
 }
 
+interface SlotInfo {
+  start_time: string;
+  end_time: string;
+}
+
 interface RosterRow {
   student_id: string;
   name: string;
@@ -127,7 +132,7 @@ interface RosterRow {
   session: string;
   student_status: string;
   locked: boolean;
-  coord_locked: boolean;          // coordinator already marked absent/leave for this date
+  coord_locked: boolean;          // coordinator already marked leave for this date
   coord_status: "absent" | "leave" | null;
   status: "present" | "absent" | "leave";
   reason: string;
@@ -324,6 +329,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterSaving, setRosterSaving] = useState(false);
   const [isCombinedRoster, setIsCombinedRoster] = useState(false);
+  // Slot picker state — one slot per timetable period on the selected day
+  const [markSlots, setMarkSlots]     = useState<SlotInfo[]>([]);
+  const [markSlot, setMarkSlot]       = useState<SlotInfo | null>(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const [studentsAllocId, setStudentsAllocId] = useState("");
   const [studentReportRows, setStudentReportRows] = useState<StudentAttendanceRow[]>([]);
@@ -584,7 +593,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (res.ok) setTimetableDetail(data);
   }, []);
 
-  const loadRoster = useCallback(async () => {
+  const loadRoster = useCallback(async (slotArg?: SlotInfo | null) => {
     if (!markAllocationId || !markDate) {
       setRosterRows([]);
       return;
@@ -592,6 +601,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     setRosterLoading(true);
     try {
       const params = new URLSearchParams({ allocation_id: markAllocationId, date: markDate });
+      if (slotArg) {
+        params.set("start_time", slotArg.start_time);
+        params.set("end_time",   slotArg.end_time);
+      }
       const res = await fetch(`/api/teacher/student-attendance/roster?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) {
@@ -605,6 +618,40 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       setRosterLoading(false);
     }
   }, [markAllocationId, markDate]);
+
+  const loadSlots = useCallback(async () => {
+    if (!markAllocationId || !markDate) {
+      setMarkSlots([]);
+      setMarkSlot(null);
+      setRosterRows([]);
+      return;
+    }
+    setSlotsLoading(true);
+    setRosterRows([]);
+    try {
+      const params = new URLSearchParams({ allocation_id: markAllocationId, date: markDate });
+      const res  = await fetch(`/api/teacher/student-attendance/slots?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok) {
+        const slots: SlotInfo[] = data.slots ?? [];
+        setMarkSlots(slots);
+        if (slots.length <= 1) {
+          // 0 slots (no timetable entry for this day) or exactly 1 slot → auto-proceed
+          const slot = slots[0] ?? null;
+          setMarkSlot(slot);
+          await loadRoster(slot);
+        } else {
+          // 2+ slots → teacher must pick; roster loads on slot selection
+          setMarkSlot(null);
+        }
+      } else {
+        setMarkSlots([]);
+        setMarkSlot(null);
+      }
+    } finally {
+      setSlotsLoading(false);
+    }
+  }, [markAllocationId, markDate, loadRoster]);
 
   const loadStudentReport = useCallback(async () => {
     if (!studentsAllocId) {
@@ -804,7 +851,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "timetable") loadTimetables();
     if (tab === "datesheet") loadDatesheet();
     if (tab === "remid-datesheet") loadRdDatesheet();
-    if (tab === "mark") loadRoster();
+    if (tab === "mark") loadSlots();
     if (tab === "students") loadStudentReport();
     if (tab === "search-student") loadTsStudents();
     if (tab === "report") loadAttendanceReport();
@@ -812,7 +859,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "profile") loadProfile();
     if (tab === "dit-results" && !ditCoursesLoaded) loadDitCourses();
     if (tab === "bills") loadBills();
-  }, [tab, loadResRoster, loadTimetables, loadRoster, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses, loadBills]);
+  }, [tab, loadResRoster, loadTimetables, loadSlots, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses, loadBills]);
 
   // Reload DIT students whenever the key selectors change
   useEffect(() => {
@@ -835,13 +882,16 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          allocation_id: markAllocationId,
+          allocation_id:   markAllocationId,
           attendance_date: markDate,
+          // include slot times so each lecture gets its own attendance record
+          start_time: markSlot?.start_time ?? null,
+          end_time:   markSlot?.end_time   ?? null,
           // exclude coord_locked rows — teacher cannot mark those
           rows: rosterRows.filter((r) => !r.coord_locked && !r.locked).map((r) => ({
-            student_id: r.student_id,
-            status: r.status,
-            reason: r.status === "present" ? null : r.reason || null,
+            student_id:   r.student_id,
+            status:       r.status,
+            reason:       r.status === "present" ? null : r.reason || null,
             call_remarks: r.call_remarks || null,
           })),
         }),
@@ -1789,6 +1839,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   setMarkAllocationId(allocId);
                   const course = active.find((c) => c.allocation_id === allocId);
                   setMarkClassId(course ? course.class_id : "");
+                  setMarkSlots([]);
+                  setMarkSlot(null);
                   setRosterRows([]);
                 }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -1814,9 +1866,59 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             </div>
           </div>
 
+          {/* ── Slot picker ── shown only when 2+ timetable slots exist for this day ── */}
+          {slotsLoading && markAllocationId && (
+            <div className="mb-3 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+              <DataFetchLoader />
+              <span>Loading time slots…</span>
+            </div>
+          )}
+
+          {!slotsLoading && markSlots.length > 1 && (
+            <div className="mb-4 card-3d p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Select Time Slot
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {markSlots.map((s) => {
+                  const isSelected =
+                    markSlot?.start_time === s.start_time &&
+                    markSlot?.end_time   === s.end_time;
+                  return (
+                    <button
+                      key={`${s.start_time}-${s.end_time}`}
+                      onClick={() => {
+                        setMarkSlot(s);
+                        loadRoster(s);
+                      }}
+                      className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                        isSelected
+                          ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                          : "border-slate-300 bg-white text-slate-700 hover:border-indigo-400 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-indigo-500"
+                      }`}
+                    >
+                      {s.start_time.slice(0, 5)} – {s.end_time.slice(0, 5)}
+                    </button>
+                  );
+                })}
+              </div>
+              {!markSlot && (
+                <p className="mt-2.5 text-xs text-amber-600 dark:text-amber-400">
+                  This course has multiple lectures today. Select a time slot above to load its roster.
+                </p>
+              )}
+            </div>
+          )}
+
           {isCombinedRoster && rosterRows.length > 0 && (
             <p className="mb-2 text-xs text-indigo-600 dark:text-indigo-400">
               This is a combined lecture — students from all combined classes are shown together.
+            </p>
+          )}
+
+          {markSlots.length > 1 && markSlot && rosterRows.length > 0 && (
+            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+              Marking attendance for slot: <span className="font-semibold text-indigo-600 dark:text-indigo-400">{markSlot.start_time.slice(0, 5)} – {markSlot.end_time.slice(0, 5)}</span>
             </p>
           )}
 
@@ -1837,6 +1939,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   <tr>
                     <td colSpan={3} className="px-4 py-10 text-center text-slate-400">
                       Select a course above to load students.
+                    </td>
+                  </tr>
+                ) : markSlots.length > 1 && !markSlot ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-10 text-center text-slate-400">
+                      Select a time slot above to view the roster.
                     </td>
                   </tr>
                 ) : rosterRows.length === 0 ? (
