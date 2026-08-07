@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requireActiveStudent } from "@/lib/requireActiveStudent";
 
 // GET /api/student/dit/results
 // Returns this student's DIT mock exam results.
 // Student must belong to a DIT class (enforced server-side).
 // Optional query params: test_series_id, from_date, to_date
 export async function GET(request: NextRequest) {
-  const { session, response } = await requireRole("student");
+  const { session, response } = await requireActiveStudent();
   if (response) return response;
   const studentId = session!.userId;
 

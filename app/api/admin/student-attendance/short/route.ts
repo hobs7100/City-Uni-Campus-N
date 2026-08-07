@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { query } from "@/lib/db";
+import { pool, query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
 export async function GET(request: NextRequest) {
@@ -92,7 +92,7 @@ const strikeSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin", "hod");
+  const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
 
   const body = await request.json().catch(() => null);
@@ -104,16 +104,43 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await query(
-    `update students
-     set status = 'struck_off',
-         status_changed_by_name = 'Short Attendance — Below 50%',
-         updated_at = now()
-     where id = any($1::uuid[])
-       and deleted_at is null
-       and status = 'active'`,
-    [parsed.data.student_ids]
-  );
+  const actorRole = session!.role === "hod" ? "HOD" : "ADMIN";
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+
+    // Strike off and collect which students were actually updated
+    const updated = await client.query<{ id: string }>(
+      `update students
+       set status                 = 'struck_off',
+           status_changed_by_name = 'Short Attendance — Below 50%',
+           reactivated_at         = NULL,
+           updated_at             = now()
+       where id = any($1::uuid[])
+         and deleted_at is null
+         and status = 'active'
+       returning id`,
+      [parsed.data.student_ids]
+    );
+
+    // Audit trail for every student actually changed
+    for (const row of updated.rows) {
+      await client.query(
+        `insert into student_status_history
+           (student_id, previous_status, new_status, reason, triggered_by)
+         values ($1, 'active', 'struck_off', 'Manually struck off — short attendance (below 50%)', $2)`,
+        [row.id, actorRole]
+      );
+    }
+
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
 
   return NextResponse.json({ success: true });
 }

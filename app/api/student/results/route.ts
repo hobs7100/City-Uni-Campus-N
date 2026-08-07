@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requireActiveStudent } from "@/lib/requireActiveStudent";
 
 export async function GET(_request: NextRequest) {
-  const { session, response } = await requireRole("student");
+  const { session, response } = await requireActiveStudent();
   if (response) return response;
 
   // Exclude lab courses (credit_hours = 1 OR code contains 'Lab')

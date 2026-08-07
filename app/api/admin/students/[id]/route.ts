@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { query, queryOne } from "@/lib/db";
+import { pool, query, queryOne } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { requireRole } from "@/lib/requireRole";
 
@@ -44,6 +44,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (existing) return NextResponse.json({ error: "A student with this email already exists." }, { status: 409 });
   }
 
+  // Fetch current status before the update so we can detect reactivation.
+  const current = await queryOne<{ status: string; class_id: string }>(
+    `select status, class_id from students where id = $1 and deleted_at is null`,
+    [id]
+  );
+  if (!current) return NextResponse.json({ error: "Student not found." }, { status: 404 });
+
+  const isReactivation = d.status === "active" && current.status === "struck_off";
+
   const { password, ...rest } = d;
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -63,16 +72,61 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     sets.push(`status_changed_by_name = $${i++}`);
     values.push(session!.name);
   }
+  // On reactivation: reset the protection-window timestamp so the auto struck-off
+  // service waits for 10 new coordinator-marked days before evaluating again.
+  if (isReactivation) {
+    sets.push(`reactivated_at = now()`);
+  } else if (d.status && d.status !== "active") {
+    // Any non-active status clears the reactivation timestamp
+    sets.push(`reactivated_at = NULL`);
+  }
   // Note: status_change_date and status_change_semester come through the loop above
   // already set to null by the frontend for active/struck_off — no duplicate block needed.
   sets.push("updated_at = now()");
   values.push(id);
 
-  const student = await queryOne(
-    `update students set ${sets.join(", ")} where id = $${i} and deleted_at is null returning id, name, email, status`,
-    values
-  );
-  if (!student) return NextResponse.json({ error: "Student not found." }, { status: 404 });
+  const evalClient = await pool.connect();
+  let student: { id: string; name: string; email: string; status: string } | null = null;
+  try {
+    await evalClient.query("begin");
+    const res = await evalClient.query<{ id: string; name: string; email: string; status: string }>(
+      `update students set ${sets.join(", ")} where id = $${i} and deleted_at is null returning id, name, email, status`,
+      values
+    );
+    student = res.rows[0] ?? null;
+    if (!student) {
+      await evalClient.query("rollback");
+      return NextResponse.json({ error: "Student not found." }, { status: 404 });
+    }
+    // Log status changes to the audit history with the real actor role
+    if (d.status !== undefined && d.status !== current.status) {
+      const actorRole =
+        session!.role === "hod"         ? "HOD"
+        : session!.role === "coordinator" ? "COORDINATOR"
+        : "ADMIN";
+      await evalClient.query(
+        `insert into student_status_history
+           (student_id, previous_status, new_status, reason, triggered_by)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          id,
+          current.status,
+          d.status,
+          isReactivation
+            ? "Manually reactivated — new 10-day protection window started"
+            : `Status manually changed to ${d.status}`,
+          actorRole,
+        ]
+      );
+    }
+    await evalClient.query("commit");
+  } catch (err) {
+    await evalClient.query("rollback");
+    throw err;
+  } finally {
+    evalClient.release();
+  }
+
   return NextResponse.json({ student });
 }
 

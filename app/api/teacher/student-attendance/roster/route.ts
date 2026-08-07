@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { runAutoStruckOff } from "@/lib/auto-struck-off";
 
 export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("teacher");
@@ -165,16 +166,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const activeSem = await queryOne<{ id: string }>(
-    `select s.id from semesters s
+  // Fetch all active semesters (and their class_ids) for this allocation.
+  // Combined allocations span multiple classes/semesters.
+  const activeSemsWithClass = await query<{ id: string; class_id: string }>(
+    `select s.id, s.class_id from semesters s
      join allocation_semesters als on als.semester_id = s.id
-     where als.allocation_id = $1 and s.status = 'active'
-     limit 1`,
+     where als.allocation_id = $1 and s.status = 'active'`,
     [d.allocation_id]
   );
-  if (!activeSem) {
+  if (!activeSemsWithClass.length) {
     return NextResponse.json({ error: "No active semester for this allocation." }, { status: 400 });
   }
+  const activeSemId = activeSemsWithClass[0].id;
+  const classIds    = activeSemsWithClass.map((r) => r.class_id);
 
   const hasSlot  = !!(d.start_time && d.end_time);
   const startVal = hasSlot ? d.start_time : null;
@@ -221,6 +225,48 @@ export async function POST(request: NextRequest) {
     throw err;
   } finally {
     client.release();
+  }
+
+  // ── Auto struck-off evaluation (teacher path) ────────────────────────────
+  // Runs in a separate transaction AFTER the attendance is committed so that
+  // a struck-off evaluation failure never causes attendance data to be lost.
+  //
+  // Combined allocations span multiple active semesters (each a different
+  // class).  We must evaluate each semester independently: attendance records
+  // in student_attendance_records are scoped to a specific semester_id, so
+  // passing all classIds under a single semesterId would leave every student
+  // in the non-primary semesters with zero matching records and skip them.
+  try {
+    for (const sem of activeSemsWithClass) {
+      const studentsInSem = await query<{ id: string }>(
+        `select id from students
+         where class_id  = $1
+           and deleted_at is null
+           and status    = 'active'`,
+        [sem.class_id]
+      );
+      if (!studentsInSem.length) continue;
+
+      const evalClient = await pool.connect();
+      try {
+        await evalClient.query("begin");
+        await runAutoStruckOff({
+          studentIds: studentsInSem.map((s) => s.id),
+          semesterId: sem.id,
+          classIds:   [sem.class_id],
+          triggeredBy: "TEACHER",
+          client: evalClient,
+        });
+        await evalClient.query("commit");
+      } catch {
+        await evalClient.query("rollback");
+        // Non-fatal: attendance is already saved
+      } finally {
+        evalClient.release();
+      }
+    }
+  } catch {
+    // Never let evaluation failure surface as an API error
   }
 
   return NextResponse.json({ success: true });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
-import { getSession } from "@/lib/session";
+import { runAutoStruckOff } from "@/lib/auto-struck-off";
 
 export async function GET(request: NextRequest) {
   const { response } = await requireRole("admin", "coordinator");
@@ -95,6 +95,8 @@ export async function POST(request: NextRequest) {
 
   const isCoordinator = session?.role === "coordinator";
 
+  const classId = (semester as { class_id: string }).class_id;
+
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -120,50 +122,25 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+
+    // ── Auto struck-off (coordinator path only, inside transaction) ──────────
+    // Uses the centralized service so coordinator and teacher share identical logic.
+    if (isCoordinator) {
+      await runAutoStruckOff({
+        studentIds: d.rows.map((r) => r.student_id),
+        semesterId: d.semester_id,
+        classIds: [classId],
+        triggeredBy: "COORDINATOR",
+        client,
+      });
+    }
+
     await client.query("commit");
   } catch (err) {
     await client.query("rollback");
     throw err;
   } finally {
     client.release();
-  }
-
-  // ── Auto struck-off (coordinator path only) ──────────────────────────────
-  // After the first 5 coordinator-marked attendance records accumulate for a
-  // student in the active semester, evaluate their attendance percentage.
-  // If presents / (presents + absents) < 50 %, automatically strike them off.
-  // We re-check on every coordinator submission so late-arriving absences are
-  // also caught once the 5-record threshold has been crossed.
-  if (isCoordinator) {
-    const studentIds = d.rows.map((r) => r.student_id);
-
-    await query(
-      `UPDATE students
-       SET    status                  = 'struck_off',
-              status_changed_by_name  = 'Auto Struck Off — Short Attendance',
-              status_change_date      = now()::date,
-              updated_at              = now()
-       WHERE  id = ANY($1::uuid[])
-         AND  deleted_at IS NULL
-         AND  status = 'active'
-         AND  id IN (
-           -- students who have >= 5 coordinator-marked records this semester
-           -- AND whose overall attendance is below 50 %
-           SELECT sar.student_id
-           FROM   student_attendance_records sar
-           JOIN   users u ON u.id = sar.marked_by AND u.role = 'coordinator'
-           WHERE  sar.student_id = ANY($1::uuid[])
-             AND  sar.semester_id = $2
-           GROUP  BY sar.student_id
-           HAVING
-             COUNT(*) >= 5
-             AND COUNT(*) FILTER (WHERE sar.status IN ('present','absent')) > 0
-             AND (COUNT(*) FILTER (WHERE sar.status = 'present'))::float
-                 / NULLIF(COUNT(*) FILTER (WHERE sar.status IN ('present','absent')), 0)
-                 < 0.5
-         )`,
-      [studentIds, d.semester_id]
-    );
   }
 
   return NextResponse.json({ success: true });

@@ -107,9 +107,16 @@ export async function PUT(
       );
       await client.query(
         `update students
-         set status = 'active', status_changed_by_name = $1, updated_at = now()
+         set status = 'active', status_changed_by_name = $1, reactivated_at = now(), updated_at = now()
          where id = $2`,
         [session!.name, existing.student_id]
+      );
+      // Audit trail
+      await client.query(
+        `insert into student_status_history
+           (student_id, previous_status, new_status, reason, triggered_by)
+         values ($1, 'permanent_leave', 'active', 'Permanent leave revoked — student restored to active', 'ADMIN')`,
+        [existing.student_id]
       );
     } else {
       // Regular update of leave fields

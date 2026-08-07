@@ -11,6 +11,7 @@ export async function GET(_request: NextRequest) {
   const student = await queryOne(
     `select st.id, st.name, st.father_name, st.cnic, st.contact, st.address, st.email,
             st.profile_image_url, st.status, st.status_change_date, st.status_change_semester,
+            st.status_changed_by_name, st.roll_no,
             st.session, d.name as department_name, cl.class_name, cl.id as class_id,
             cl.scheme_of_studies_url, cl.type as class_type
      from students st

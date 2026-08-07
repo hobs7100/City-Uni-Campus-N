@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requireActiveStudent } from "@/lib/requireActiveStudent";
 
 // GET /api/student/mid-exam-datesheet
 // Returns limited datesheet rows (course title, credit hours, paper date only)
 // for the student's current active semester.
 export async function GET() {
-  const { session, response } = await requireRole("student");
+  const { session, response } = await requireActiveStudent();
   if (response) return response;
 
   const rows = await query<{

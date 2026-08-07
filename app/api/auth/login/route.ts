@@ -22,12 +22,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
-  if (account.status === "blocked" || account.status === "struck_off") {
+  if (account.status === "blocked") {
     return NextResponse.json(
       { error: "Your account has been blocked. Please contact the administration." },
       { status: 403 }
     );
   }
+  // Struck-off students may log in to view their notice — the dashboard
+  // renders a restricted notice-only view and withholds exam features.
 
   const validPassword = await verifyPassword(password, account.password_hash);
   if (!validPassword) {

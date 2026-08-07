@@ -45,7 +45,10 @@ interface Profile {
   id: string; name: string; father_name: string | null;
   cnic: string | null; contact: string | null; address: string | null;
   email: string | null; profile_image_url: string | null;
-  status: string; session: string; department_name: string; class_name: string;
+  status: string; status_change_date: string | null;
+  status_changed_by_name: string | null;
+  roll_no: string | null;
+  session: string; department_name: string; class_name: string;
   class_id: string; class_type: string;
   scheme_of_studies_url: string | null;
 }
@@ -195,6 +198,15 @@ export default function StudentDashboardManager() {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  /* attendance policy modal (shown once per browser session).
+   * Initialized from sessionStorage in the lazy-initializer (SSR-safe because
+   * client components run their initializer on the client after hydration;
+   * the typeof guard prevents a server-side ReferenceError). */
+  const [showPolicyModal, setShowPolicyModal] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return !sessionStorage.getItem("policyModalShown");
+  });
+
   /* roll no. slip */
   const [slipLoading, setSlipLoading] = useState(false);
   const [slipBlock, setSlipBlock] = useState<{ title: string; message: string } | null>(null);
@@ -341,6 +353,8 @@ export default function StudentDashboardManager() {
   }, []);
 
   useEffect(() => { loadProfile(); loadCourseAtt(); loadAttChart(); }, [loadProfile, loadCourseAtt, loadAttChart]);
+
+  // (policyModal state is initialized from sessionStorage via lazy useState — no effect needed)
 
   // Load DIT data once profile is known and student is in DIT class
   useEffect(() => {
@@ -662,10 +676,15 @@ export default function StudentDashboardManager() {
     return map[grade] ?? "";
   }
 
-  // Visible tabs: hide Mock Exam Results for non-DIT students
-  const visibleTabs = TABS.filter(
-    (t) => t.id !== "mock-exam-results" || profile?.class_type === "DIT"
-  );
+  // Visible tabs:
+  //   - Struck-off students: only Overview (notice) and Profile
+  //   - Others: all tabs except Mock Exam Results for non-DIT students
+  const visibleTabs = TABS.filter((t) => {
+    if (profile?.status === "struck_off") {
+      return t.id === "overview" || t.id === "profile";
+    }
+    return t.id !== "mock-exam-results" || profile?.class_type === "DIT";
+  });
 
   function toggleSem(id: string) {
     setExpandedSems((prev) => {
@@ -713,6 +732,113 @@ export default function StudentDashboardManager() {
       {/* ── OVERVIEW ── */}
       {tab === "overview" && (
         <div className="space-y-6">
+
+          {/* ── Personal attendance notice card ── */}
+          {(() => {
+            if (!profile) return null;
+            const activeSemAtt = semAtts.find((s) => s.semester_status === "active") ?? semAtts[semAtts.length - 1] ?? null;
+            const pct = activeSemAtt?.overall.percentage ?? null;
+            const isStruckOff = profile.status === "struck_off" || (pct !== null && pct < 50 && activeSemAtt?.overall.flag === "struck_off");
+            const isWarning   = !isStruckOff && pct !== null && pct < 75;
+            if (!isStruckOff && !isWarning) return null;
+
+            return (
+              <div className={`relative overflow-hidden rounded-2xl border-2 p-6 shadow-lg ${
+                isStruckOff
+                  ? "border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/5"
+                  : "border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/5"
+              }`}>
+                {/* header */}
+                <div className={`mb-4 flex items-center gap-3 border-b pb-3 ${
+                  isStruckOff ? "border-red-200 dark:border-red-500/20" : "border-amber-200 dark:border-amber-500/20"
+                }`}>
+                  <AlertCircle size={24} className={isStruckOff ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"} />
+                  <div>
+                    <p className={`text-xs font-bold uppercase tracking-widest ${isStruckOff ? "text-red-500" : "text-amber-500"}`}>
+                      City College &mdash; Official Notice
+                    </p>
+                    <p className={`text-lg font-extrabold ${isStruckOff ? "text-red-700 dark:text-red-300" : "text-amber-700 dark:text-amber-300"}`}>
+                      {isStruckOff ? "⚠ STRUCK-OFF NOTICE" : "⚠ ATTENDANCE WARNING"}
+                    </p>
+                  </div>
+                  <span className={`ml-auto rounded-full px-3 py-1 text-xs font-bold uppercase ${
+                    isStruckOff
+                      ? "bg-red-200 text-red-800 dark:bg-red-500/20 dark:text-red-300"
+                      : "bg-amber-200 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300"
+                  }`}>
+                    {isStruckOff ? "Struck Off" : "Warning"}
+                  </span>
+                </div>
+
+                {/* student info grid */}
+                <div className="mb-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-4">
+                  {[
+                    { label: "Student Name", value: profile.name },
+                    { label: "Roll No.", value: profile.roll_no ?? "—" },
+                    { label: "Class", value: profile.class_name },
+                    { label: "Session", value: profile.session },
+                    ...(activeSemAtt ? [
+                      { label: "Semester", value: `Sem ${activeSemAtt.semester_number} (${activeSemAtt.semester_status})` },
+                      { label: "Attendance %", value: `${pct?.toFixed(1)}%` },
+                      { label: "Required %", value: "75%" },
+                      { label: "Struck-Off Threshold", value: "< 50%" },
+                    ] : []),
+                    ...(profile.status_change_date ? [
+                      { label: "Effective Date", value: formatDateOnly(profile.status_change_date) },
+                    ] : []),
+                    ...(profile.status_changed_by_name ? [
+                      { label: "Reason", value: profile.status_changed_by_name },
+                    ] : []),
+                  ].map(({ label, value }) => (
+                    <div key={label} className={label === "Reason" ? "col-span-2 sm:col-span-4" : ""}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                      <p className={`font-semibold ${label === "Attendance %" && isStruckOff ? "text-red-600 dark:text-red-400" : "text-slate-800 dark:text-slate-100"}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* notice body */}
+                <div className={`rounded-xl border p-4 text-sm leading-relaxed ${
+                  isStruckOff
+                    ? "border-red-200 bg-red-100/60 text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                    : "border-amber-200 bg-amber-100/60 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+                }`}>
+                  {isStruckOff ? (
+                    <>
+                      <p className="mb-2 font-semibold">
+                        Your name has been struck off from the class register due to insufficient attendance (below 50%).
+                      </p>
+                      <ul className="list-disc space-y-1 pl-5">
+                        <li>You are <strong>not eligible</strong> to appear in mid/final examinations.</li>
+                        <li>Your Roll Number Slip will <strong>not be issued</strong> until your status is restored.</li>
+                        <li>Contact the coordinator or administration immediately to apply for re-admission.</li>
+                        <li>Attendance must reach 75% minimum after reactivation to regain full eligibility.</li>
+                      </ul>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mb-2 font-semibold">
+                        Your attendance is below the required 75% minimum. You are currently in the warning zone.
+                      </p>
+                      <ul className="list-disc space-y-1 pl-5">
+                        <li>If attendance falls below 50% you will be <strong>automatically struck off</strong>.</li>
+                        <li>Maintain regular attendance to remain eligible for examinations and the Roll Number Slip.</li>
+                        <li>Contact your coordinator if you believe there is an error in your records.</li>
+                      </ul>
+                    </>
+                  )}
+                </div>
+
+                {/* decorative corner stamp */}
+                <div className={`pointer-events-none absolute right-4 top-4 text-[80px] font-black leading-none opacity-5 ${
+                  isStruckOff ? "text-red-600" : "text-amber-500"
+                }`}>
+                  {isStruckOff ? "✕" : "!"}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* stat cards */}
           {profile && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -1659,6 +1785,120 @@ export default function StudentDashboardManager() {
                 </table>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Attendance Policy Modal (once per session) ── */}
+      {showPolicyModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => {
+            setShowPolicyModal(false);
+            sessionStorage.setItem("policyModalShown", "1");
+          }}
+        >
+          <div
+            className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* gradient header */}
+            <div className="relative bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-8 py-7 text-white">
+              <div className="absolute inset-0 opacity-10" style={{backgroundImage:"radial-gradient(circle at 80% 20%, #fff 0%, transparent 60%)"}} />
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-indigo-200">City College — Official</p>
+              <h2 className="text-2xl font-extrabold leading-tight">Attendance Policy</h2>
+              <p className="mt-1 text-sm text-indigo-100">Please read and acknowledge the attendance requirements for this semester.</p>
+              <button
+                onClick={() => {
+                  setShowPolicyModal(false);
+                  sessionStorage.setItem("policyModalShown", "1");
+                }}
+                className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* body */}
+            <div className="max-h-[55vh] overflow-y-auto px-8 py-6">
+              <div className="space-y-5 text-sm">
+
+                {/* minimum requirement */}
+                <div className="flex gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/5">
+                  <div className="mt-0.5 flex-shrink-0">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20">
+                      <span className="text-base">✓</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-emerald-800 dark:text-emerald-300">Minimum Required: 75%</p>
+                    <p className="mt-0.5 text-emerald-700 dark:text-emerald-400">
+                      You must maintain at least <strong>75% attendance</strong> throughout the semester to remain eligible for examinations.
+                    </p>
+                  </div>
+                </div>
+
+                {/* warning zone */}
+                <div className="flex gap-4 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/5">
+                  <div className="mt-0.5 flex-shrink-0">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20">
+                      <span className="text-base">⚠</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-amber-800 dark:text-amber-300">Warning Zone: 50% – 74%</p>
+                    <p className="mt-0.5 text-amber-700 dark:text-amber-400">
+                      Falling below <strong>75%</strong> places you in the warning zone. You will see a warning notice on your dashboard. Improve attendance immediately or contact your coordinator.
+                    </p>
+                  </div>
+                </div>
+
+                {/* struck off */}
+                <div className="flex gap-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/5">
+                  <div className="mt-0.5 flex-shrink-0">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/20">
+                      <span className="text-base">✕</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-red-800 dark:text-red-300">Auto Struck-Off: Below 50%</p>
+                    <p className="mt-0.5 text-red-700 dark:text-red-400">
+                      If your attendance drops below <strong>50%</strong> after at least 10 marked school days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
+                    </p>
+                  </div>
+                </div>
+
+                {/* roll no slip */}
+                <div className="flex gap-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-500/20 dark:bg-indigo-500/5">
+                  <div className="mt-0.5 flex-shrink-0">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-500/20">
+                      <Ticket size={16} className="text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-indigo-800 dark:text-indigo-300">Roll Number Slip Eligibility</p>
+                    <p className="mt-0.5 text-indigo-700 dark:text-indigo-400">
+                      A Roll Number Slip is issued <strong>only to students with 75%+ attendance</strong> who have an active enrollment status. Struck-off students are ineligible until reinstated by the administration.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* footer */}
+            <div className="border-t border-slate-100 px-8 py-4 dark:border-slate-800">
+              <button
+                onClick={() => {
+                  setShowPolicyModal(false);
+                  sessionStorage.setItem("policyModalShown", "1");
+                }}
+                className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-sm font-bold text-white shadow transition hover:from-indigo-700 hover:to-violet-700"
+              >
+                I Understand — Go to Dashboard
+              </button>
             </div>
           </div>
         </div>

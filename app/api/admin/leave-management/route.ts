@@ -105,9 +105,18 @@ export async function POST(request: NextRequest) {
        set status = 'permanent_leave',
            status_change_date = $1,
            status_changed_by_name = $2,
+           reactivated_at = NULL,
            updated_at = now()
        where id = $3`,
       [d.issue_date, session!.name, d.student_id]
+    );
+
+    // 3. Audit trail
+    await client.query(
+      `insert into student_status_history
+         (student_id, previous_status, new_status, reason, triggered_by)
+       values ($1, $2, 'permanent_leave', 'Permanent leave issued', 'ADMIN')`,
+      [d.student_id, student.status]
     );
 
     await client.query("commit");
