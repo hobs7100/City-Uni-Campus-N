@@ -1,0 +1,159 @@
+## Implement Strict Auto Struck-Off + Student Notice System
+
+Implement the following changes **without breaking existing attendance, semester, student, coordinator, or teacher workflows**.
+
+### 1. Auto Struck-Off Logic — Coordinator + Teacher
+
+Apply the **same centralized struck-off logic** to attendance marked by both:
+
+* Coordinator Portal
+* Teacher Portal
+
+#### Strict Rules
+
+1. **Never auto struck-off a student during the first 10 attendance days of the semester.**
+2. The system must count **actual attendance days/lectures recorded for that student's class/semester**, according to the existing attendance system.
+3. Auto struck-off evaluation can start **only after minimum 10 attendance days have been completed**.
+4. After the 10-day threshold, evaluate the student's attendance according to the **existing short-attendance/struck-off criteria**.
+5. If the student's attendance is below the required threshold, automatically set:
+
+   * `status = STRUCK_OFF`
+   * Store the struck-off date
+   * Store the reason
+   * Keep an audit/history record.
+6. **Important reset rule:** If a struck-off student is later made **ACTIVE**, reset their protection period.
+
+   * From the date/time they become ACTIVE, they must get a **new 10-attendance-day protection period**.
+   * During these next 10 attendance days, they **must NOT be auto struck-off again**, even if their attendance is short.
+   * Only after those 10 new attendance days are completed can the struck-off evaluation run again.
+7. This reset must happen every time:
+   `STRUCK_OFF → ACTIVE`
+8. Do not simply use calendar days. Use the system's actual recorded attendance days/attendance activity as the basis for the 10-day protection period.
+9. If the semester currently has fewer than 10 eligible attendance days, **do not strike off anyone**.
+10. The logic must work regardless of whether attendance is entered by a Coordinator or Teacher.
+11. Prevent duplicate/incorrect evaluation when the same attendance is edited or updated.
+12. Do not create separate conflicting implementations for Coordinator and Teacher. Build **one reusable backend service/function** for struck-off eligibility and call it from both portals.
+
+### 2. Student Status & Audit History
+
+Maintain proper student status/history:
+
+* ACTIVE
+* STRUCK_OFF
+
+Store at minimum:
+
+* Student ID
+* Previous Status
+* New Status
+* Date/Time
+* Reason
+* Triggered By (`SYSTEM`, `COORDINATOR`, `ADMIN`, etc.)
+* Semester
+* Relevant attendance information
+
+Never delete previous struck-off records.
+
+### 3. Student Portal — Login Notice Modal
+
+When a student successfully logs into the Student Portal, immediately display a **responsive modal**.
+
+The modal should contain a **colorful, professional poster/image-style notice** explaining important:
+
+* Attendance Rules
+* Attendance requirements
+* Roll No Slip rules
+* Warning/Struck-Off consequences
+* Instructions for maintaining attendance
+
+The poster should be visually attractive and suitable for a college/university portal.
+
+Requirements:
+
+* Responsive on mobile, tablet and desktop
+* Modern colorful design
+* Clear headings and readable typography
+* Scrollable content on small screens
+* Close button
+* Do not block the portal permanently
+* Show immediately after successful login
+* Do not repeatedly show it on every page navigation
+
+### 4. Student-Specific Warning / Struck-Off Notice
+
+Create another responsive modal/notice system for student-specific attendance actions.
+
+When a student has:
+
+* Attendance Warning, or
+* STRUCK_OFF status
+
+show a **colorful notice/poster-style image/card** in the Student Portal containing:
+
+* Student Name
+* Roll Number
+* Class
+* Semester
+* Notice Type: `WARNING` / `STRUCK OFF`
+* Reason
+* Relevant attendance percentage
+* Required attendance percentage
+* Effective date
+* Clear instructions for the student
+
+For a struck-off student, clearly display:
+
+**“STRUCK OFF NOTICE”**
+
+For a warning:
+
+**“ATTENDANCE WARNING”**
+
+The notice should look like an official college notice, not a plain database table.
+
+### 5. Backend Requirements
+
+* Implement all eligibility checks on the **server/backend**, not only frontend.
+* Use the existing database/schema wherever possible.
+* Do not duplicate attendance records.
+* Respect semester opening/closing dates.
+* Respect existing attendance calculation rules.
+* Ensure Coordinator and Teacher attendance submissions trigger the same centralized evaluation.
+* Use transactions where required so attendance + status changes remain consistent.
+* Add proper validation and error handling.
+* Existing attendance functionality must continue working.
+
+### 6. Important Edge Cases
+
+Test these scenarios:
+
+1. Semester has 1–9 attendance days → **Nobody can be auto struck-off.**
+2. Semester reaches 10 attendance days → evaluate eligibility.
+3. Student has sufficient attendance → remains ACTIVE.
+4. Student has short attendance after 10 days → STRUCK_OFF.
+5. Struck-off student is manually changed back to ACTIVE → **new 10-day protection period starts.**
+6. During those new 10 days → student cannot be auto struck-off.
+7. After those new 10 days → short attendance can trigger STRUCK_OFF again.
+8. Coordinator marks attendance → logic runs.
+9. Teacher marks attendance → same logic runs.
+10. Attendance is edited/reprocessed → no duplicate status changes or incorrect counting.
+11. Semester changes → protection/counting must be isolated to the correct semester.
+12. Existing students and existing attendance data must remain intact.
+
+### 7. Implementation Instructions
+
+First inspect the existing:
+
+* Student status implementation
+* Attendance schema
+* Semester schema
+* Coordinator attendance workflow
+* Teacher attendance workflow
+* Attendance percentage calculation
+* Existing struck-off/short-attendance logic
+
+Then implement this using the **existing architecture and database conventions**.
+
+Do not create a parallel attendance system.
+
+Finally, test the complete workflow end-to-end and fix any TypeScript, database, API, or UI errors introduced by the implementation.
