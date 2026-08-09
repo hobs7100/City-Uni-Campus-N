@@ -33,6 +33,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   const d = parsed.data;
 
+  // Assistants cannot change a student's status.
+  if (session!.role === "assistant" && d.status !== undefined) {
+    return NextResponse.json({ error: "Assistants are not permitted to change student status." }, { status: 403 });
+  }
+
   if (d.cnic) {
     const existing = await queryOne(`select id from students where cnic = $1 and id != $2`, [d.cnic, id]);
     if (existing) return NextResponse.json({ error: "A student with this CNIC already exists." }, { status: 409 });

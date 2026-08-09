@@ -67,15 +67,16 @@ const emptyForm = {
 type Tab = "active" | "struck_off";
 
 interface Props {
-  /** "admin" | "coordinator" | "hod" | "readonly" — controls which action buttons appear */
-  role: "admin" | "coordinator" | "hod" | "readonly";
+  /** "admin" | "coordinator" | "hod" | "assistant" | "readonly" — controls which action buttons appear */
+  role: "admin" | "coordinator" | "hod" | "assistant" | "readonly";
 }
 
 export default function StudentManagementPage({ role }: Props) {
-  const canAdd    = role === "admin" || role === "coordinator";
-  const canEdit   = role === "admin" || role === "coordinator" || role === "hod";
-  const canDelete = role === "admin" || role === "coordinator";
-  const canRegen  = role === "admin" || role === "coordinator";
+  const canAdd    = role === "admin" || role === "coordinator" || role === "assistant";
+  const canEdit   = role === "admin" || role === "coordinator" || role === "hod" || role === "assistant";
+  const canDelete = role === "admin" || role === "coordinator" || role === "assistant";
+  const canRegen  = role === "admin" || role === "coordinator" || role === "assistant";
+  const canChangeStatus = role !== "assistant";
 
   const [tab, setTab] = useState<Tab>("active");
   const [items, setItems] = useState<Student[]>([]);
@@ -592,15 +593,25 @@ export default function StudentManagementPage({ role }: Props) {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
-            <SearchableSelect options={statusOptions}
-              value={statusOptions.find((s) => s.value === form.status)}
-              onChange={(opt) => setForm({ ...form, status: (opt as { value: string }).value as Student["status"] })}
-              isClearable={false} />
-          </div>
+          {canChangeStatus ? (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
+              <SearchableSelect options={statusOptions}
+                value={statusOptions.find((s) => s.value === form.status)}
+                onChange={(opt) => setForm({ ...form, status: (opt as { value: string }).value as Student["status"] })}
+                isClearable={false} />
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                {statusOptions.find((s) => s.value === form.status)?.label ?? form.status}
+                <span className="ml-2 text-xs text-slate-400">(cannot be changed by Assistant)</span>
+              </div>
+            </div>
+          )}
 
-          {needsStatusFields && (
+          {canChangeStatus && needsStatusFields && (
             <div className="grid grid-cols-2 gap-4 rounded-lg bg-amber-50 p-3 dark:bg-amber-500/10">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Effective Date</label>

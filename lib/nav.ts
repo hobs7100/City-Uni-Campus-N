@@ -105,6 +105,30 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
   ],
+  assistant: [
+    { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
+    { label: "Users", href: "/dashboard/admin/users", icon: "Users" },
+    { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
+    { label: "Faculties", href: "/dashboard/admin/departments", icon: "Building2" },
+    { label: "Classes", href: "/dashboard/admin/classes", icon: "School" },
+    { label: "Students", href: "/dashboard/admin/students", icon: "GraduationCap" },
+    { label: "Teachers", href: "/dashboard/admin/teachers", icon: "UsersRound" },
+    { label: "Course Catalog", href: "/dashboard/admin/courses", icon: "BookOpen" },
+    { label: "Semesters", href: "/dashboard/admin/semesters", icon: "CalendarRange" },
+    { label: "Allocations", href: "/dashboard/admin/allocations", icon: "ClipboardList" },
+    { label: "Timetables", href: "/dashboard/admin/timetables", icon: "CalendarClock" },
+    { label: "Teacher Attendance", href: "/dashboard/admin/attendance", icon: "UserCheck" },
+    { label: "Student Attendance", href: "/dashboard/admin/student-attendance", icon: "ClipboardCheck" },
+    { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
+    { label: "Exams & Results", href: "/dashboard/admin/results", icon: "Award" },
+    { label: "Dept. Attendance", href: "/dashboard/admin/dept-attendance", icon: "BarChart2" },
+    { label: "Course Attendance", href: "/dashboard/admin/course-attendance", icon: "BookCheck" },
+    { label: "Leave Management", href: "/dashboard/admin/leave-management", icon: "UserX" },
+    { label: "DIT Mock Exam", href: "/dashboard/admin/dit-mock", icon: "PenLine" },
+    { label: "Roll No. Slips", href: "/dashboard/admin/rollno-slips", icon: "FileCheck2" },
+    { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
+    { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
+  ],
 };
 
 export const roleLabels: Record<UserRole, string> = {
@@ -114,4 +138,5 @@ export const roleLabels: Record<UserRole, string> = {
   teacher: "Teacher",
   student: "Student",
   finance_manager: "Finance Manager",
+  assistant: "Assistant",
 };
