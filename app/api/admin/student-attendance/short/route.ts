@@ -4,7 +4,7 @@ import { pool, query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator", "hod");
+  const { session: authSession, response } = await requireRole("admin", "coordinator", "hod");
   if (response) return response;
 
   const semesterId = request.nextUrl.searchParams.get("semester_id");
@@ -29,6 +29,18 @@ export async function GET(request: NextRequest) {
   if (departmentId) {
     conditions.push(`cl.department_id = $${i++}`);
     values.push(departmentId);
+  }
+
+  // For HoD role with no explicit department filter: restrict to their own departments
+  if (!departmentId && authSession?.role === "hod") {
+    const hodDepts = await query<{ id: string }>(
+      `select id from departments where hod_id = $1`,
+      [authSession.userId]
+    );
+    if (hodDepts.length > 0) {
+      conditions.push(`cl.department_id = any($${i++}::uuid[])`);
+      values.push(hodDepts.map((d) => d.id));
+    }
   }
 
   const rows = await query<{
@@ -58,7 +70,7 @@ export async function GET(request: NextRequest) {
      having
        count(*) filter (where sar.status in ('present','absent')) > 0
        and (count(*) filter (where sar.status = 'present'))::float /
-           nullif(count(*) filter (where sar.status in ('present','absent')), 0) < 0.5
+           nullif(count(*) filter (where sar.status in ('present','absent')), 0) < 0.6
      order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
     values
   );
@@ -114,7 +126,7 @@ export async function POST(request: NextRequest) {
     const updated = await client.query<{ id: string }>(
       `update students
        set status                 = 'struck_off',
-           status_changed_by_name = 'Short Attendance — Below 50%',
+           status_changed_by_name = 'Short Attendance — Below 60%',
            reactivated_at         = NULL,
            updated_at             = now()
        where id = any($1::uuid[])
@@ -129,7 +141,7 @@ export async function POST(request: NextRequest) {
       await client.query(
         `insert into student_status_history
            (student_id, previous_status, new_status, reason, triggered_by)
-         values ($1, 'active', 'struck_off', 'Manually struck off — short attendance (below 50%)', $2)`,
+         values ($1, 'active', 'struck_off', 'Manually struck off — short attendance (below 60%)', $2)`,
         [row.id, actorRole]
       );
     }

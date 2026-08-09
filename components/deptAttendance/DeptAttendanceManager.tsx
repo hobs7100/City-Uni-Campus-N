@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Building2, Search, RefreshCw, Users, CalendarDays,
-  CheckCircle2, XCircle, TrendingUp, Filter,
+  TrendingUp, Filter, Eye, X, ChevronRight,
 } from "lucide-react";
 import { DataFetchLoader } from "@/components/ui/Loaders";
 
@@ -97,15 +97,20 @@ function deptGradient(idx: number) {
 }
 
 /* ── card component ───────────────────────────────────────────────────────── */
-function ClassAttCard({ card, idx }: { card: ClassCard; idx: number }) {
+function ClassAttCard({
+  card, idx, onShowDetails,
+}: {
+  card: ClassCard;
+  idx: number;
+  onShowDetails: (card: ClassCard) => void;
+}) {
   const tier    = pctTier(card.pct);
   const styles  = TIER_STYLES[tier];
   const barPct  = card.pct ?? 0;
-  const total   = card.presents_n + card.absents_n;
 
   return (
     <div
-      className={`dept-card card-3d card-hover group relative overflow-hidden rounded-2xl bg-white p-5
+      className={`dept-card card-3d group relative overflow-hidden rounded-2xl bg-white p-5
         ring-2 ${styles.ring} ${styles.glow} shadow-lg
         dark:bg-slate-900`}
       style={{ animationDelay: `${idx * 60}ms` }}
@@ -146,8 +151,8 @@ function ClassAttCard({ card, idx }: { card: ClassCard; idx: number }) {
         />
       </div>
 
-      {/* stats grid */}
-      <div className="grid grid-cols-2 gap-2">
+      {/* stats row: students + days only */}
+      <div className="mb-3 grid grid-cols-2 gap-2">
         <div className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/60">
           <Users size={12} className="shrink-0 text-slate-400" />
           <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -160,31 +165,30 @@ function ClassAttCard({ card, idx }: { card: ClassCard; idx: number }) {
             <span className="font-semibold text-slate-700 dark:text-slate-200">{card.marked_days_n}</span> days
           </span>
         </div>
-        <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 dark:bg-emerald-500/5">
-          <CheckCircle2 size={12} className="shrink-0 text-emerald-500" />
-          <span className="text-xs text-emerald-700 dark:text-emerald-400">
-            <span className="font-semibold">{card.presents_n}</span> present
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 dark:bg-red-500/5">
-          <XCircle size={12} className="shrink-0 text-red-400" />
-          <span className="text-xs text-red-700 dark:text-red-400">
-            <span className="font-semibold">{card.absents_n}</span> absent
-          </span>
-        </div>
       </div>
 
-      {/* total records footer */}
-      {total > 0 && (
-        <p className="mt-3 text-center text-[10px] text-slate-400 dark:text-slate-600">
-          {total.toLocaleString()} total records
-        </p>
-      )}
+      {/* Show Details button */}
+      <button
+        onClick={() => onShowDetails(card)}
+        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-600 transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300"
+      >
+        <Eye size={12} /> Show Details <ChevronRight size={11} className="ml-auto" />
+      </button>
 
       {/* subtle gradient overlay on hover */}
       <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/0 to-white/0 transition-all duration-300 group-hover:from-indigo-50/20 group-hover:to-purple-50/20 dark:group-hover:from-indigo-900/10 dark:group-hover:to-purple-900/10" />
     </div>
   );
+}
+
+interface DetailRow {
+  student_id: string;
+  name: string;
+  roll_no: string | null;
+  presents: number;
+  absents: number;
+  leaves: number;
+  percentage: number | null;
 }
 
 /* ── main component ───────────────────────────────────────────────────────── */
@@ -199,7 +203,27 @@ export default function DeptAttendanceManager({ role }: { role: "admin" | "hod" 
   const [deptFilter, setDeptFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "good" | "warn" | "low" | "none">("all");
 
+  // details panel
+  const [detailsCard,    setDetailsCard]    = useState<ClassCard | null>(null);
+  const [detailsRows,    setDetailsRows]    = useState<DetailRow[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
   const endpoint = role === "admin" ? "/api/admin/dept-attendance" : "/api/hod/dept-attendance";
+
+  const loadDetails = useCallback(async (card: ClassCard) => {
+    setDetailsCard(card);
+    setDetailsRows([]);
+    setDetailsLoading(true);
+    try {
+      const res  = await fetch(
+        `/api/admin/dept-attendance-details?class_id=${card.class_id}&semester_id=${card.semester_id}`
+      );
+      const data = await res.json();
+      if (res.ok) setDetailsRows(data.students ?? []);
+    } finally {
+      setDetailsLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -402,6 +426,74 @@ export default function DeptAttendanceManager({ role }: { role: "admin" | "hod" 
         </div>
       )}
 
+      {/* ── details modal ────────────────────────────────────────────────── */}
+      {detailsCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setDetailsCard(null)}>
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 bg-indigo-50 px-6 py-4 dark:border-slate-800 dark:bg-indigo-900/20">
+              <div>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">
+                  {detailsCard.class_name} — Coordinator Attendance
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {detailsCard.session} · Sem {detailsCard.semester_number} · {detailsCard.department_name}
+                </p>
+              </div>
+              <button onClick={() => setDetailsCard(null)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {detailsLoading ? (
+                <div className="p-8"><DataFetchLoader /></div>
+              ) : detailsRows.length === 0 ? (
+                <p className="p-8 text-center text-sm text-slate-400">No attendance records found for this class.</p>
+              ) : (
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/90 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">#</th>
+                      <th className="px-4 py-3">Student</th>
+                      <th className="px-4 py-3 text-center">Present</th>
+                      <th className="px-4 py-3 text-center">Absent</th>
+                      <th className="px-4 py-3 text-center">Leave</th>
+                      <th className="px-4 py-3 text-center">%</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {detailsRows.map((r, i) => {
+                      const pct = r.percentage;
+                      const pctCls = pct === null ? "text-slate-400"
+                        : pct >= 75 ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                        : pct >= 60 ? "text-amber-600 dark:text-amber-400 font-semibold"
+                        : "text-red-600 dark:text-red-400 font-bold";
+                      return (
+                        <tr key={r.student_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="px-4 py-2.5 text-slate-400">{i + 1}</td>
+                          <td className="px-4 py-2.5">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                            <div className="text-xs text-slate-400">{r.roll_no || "—"}</div>
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-emerald-600">{r.presents}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-red-500">{r.absents}</td>
+                          <td className="px-4 py-2.5 text-center text-amber-500">{r.leaves}</td>
+                          <td className={`px-4 py-2.5 text-center ${pctCls}`}>
+                            {pct !== null ? `${pct}%` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="border-t border-slate-100 px-6 py-3 text-right dark:border-slate-800">
+              <span className="text-xs text-slate-400">{detailsRows.length} student{detailsRows.length !== 1 ? "s" : ""} · Coordinator-marked attendance</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── grouped cards ───────────────────────────────────────────────── */}
       {!loading && grouped.map((group, gIdx) => {
         const grad = deptGradient(gIdx);
@@ -438,6 +530,7 @@ export default function DeptAttendanceManager({ role }: { role: "admin" | "hod" 
                   key={card.class_id}
                   card={card}
                   idx={globalIdx++}
+                  onShowDetails={loadDetails}
                 />
               ))}
             </div>

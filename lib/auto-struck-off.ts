@@ -52,7 +52,7 @@ export interface RunAutoStruckOffParams {
 }
 
 const MIN_ATTENDANCE_DAYS = 10;
-const STRUCK_OFF_THRESHOLD = 0.5; // < 50 % → struck off
+const STRUCK_OFF_THRESHOLD = 0.6; // < 60 % → struck off
 
 type AttendanceSource = "coordinator" | "teacher" | "none";
 

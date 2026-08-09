@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award, Bell, BookOpen, Building2, CalendarCheck, ClipboardCheck, ClipboardList,
   FileDown, FileText, GraduationCap, LayoutDashboard, Pencil, RefreshCcw, Save, School, Search,
-  Trash2, UsersRound, TrendingUp, User, UserCog, UserMinus,
+  Trash2, UsersRound, TrendingUp, User, UserCog, UserMinus, AlertTriangle, Eye, ExternalLink,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -62,6 +62,22 @@ interface ShortRow {
   presents: number; absents: number; leaves: number; percentage: number | null;
 }
 
+interface WarnRow {
+  student_id: string; name: string; roll_no: string | null;
+  class_name: string; session: string; department_name: string;
+  presents: number; absents: number; percentage: number;
+  days_in_warning: number;
+}
+
+interface LeaveRow {
+  id: string; student_id: string; student_name: string;
+  father_name: string | null; cnic: string;
+  class_name: string; session: string; department_name: string;
+  issue_date: string; reason: string | null; notes: string | null;
+  proof_urls: string[]; issued_by_name: string | null;
+  revoked_at: string | null; created_at: string;
+}
+
 interface ClassOption { id: string; class_name: string; session: string }
     interface SemOption   { id: string; semester_number: number; term_type: string }
 
@@ -115,18 +131,20 @@ interface HodArRosterRow {
 }
 
 const tabs = [
-  { id: "overview",       label: "Dashboard",          icon: LayoutDashboard },
-  { id: "students",       label: "Students",            icon: GraduationCap },
-  { id: "classes",        label: "All Classes",         icon: School },
-  { id: "teachers",       label: "Teachers",            icon: UsersRound },
+  { id: "overview",        label: "Dashboard",          icon: LayoutDashboard },
+  { id: "students",        label: "Students",            icon: GraduationCap },
+  { id: "classes",         label: "All Classes",         icon: School },
+  { id: "teachers",        label: "Teachers",            icon: UsersRound },
   { id: "attendance",      label: "Student Attendance",  icon: ClipboardCheck },
   { id: "dept-attendance", label: "Dept. Attendance",    icon: TrendingUp },
   { id: "short",           label: "Short Attendance",    icon: UserMinus },
-  { id: "results",        label: "Exam & Results",      icon: Award },
-  { id: "all-results",    label: "All Results",          icon: ClipboardList },
+  { id: "warning-list",   label: "Warning List",        icon: AlertTriangle },
+  { id: "permanent-leave", label: "Permanent Leave",     icon: FileText },
+  { id: "results",         label: "Exam & Results",      icon: Award },
+  { id: "all-results",     label: "All Results",         icon: ClipboardList },
   { id: "remid-datesheet", label: "Re-Mid Date Sheet",   icon: RefreshCcw },
-  { id: "notifications",  label: "Notifications",       icon: Bell },
-  { id: "profile",        label: "Profile",             icon: UserCog },
+  { id: "notifications",   label: "Notifications",       icon: Bell },
+  { id: "profile",         label: "Profile",             icon: UserCog },
 ] as const;
 type TabId = (typeof tabs)[number]["id"];
 
@@ -135,13 +153,13 @@ const PIE_COLORS = ["#6366f1","#64748b","#f59e0b","#06b6d4","#ef4444"];
 function pctColor(pct: number | null) {
   if (pct === null) return "text-slate-400";
   if (pct >= 75) return "text-emerald-600 dark:text-emerald-400";
-  if (pct >= 50) return "text-amber-600 dark:text-amber-400";
+  if (pct >= 60) return "text-amber-600 dark:text-amber-400";
   return "text-red-500 dark:text-red-400";
 }
 function pctBadge(pct: number | null) {
   if (pct === null) return <span className="text-xs text-slate-400">—</span>;
   const cls = pct >= 75 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
-    : pct >= 50 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+    : pct >= 60 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
     : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{pct}%</span>;
 }
@@ -303,6 +321,16 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
   const [shortLoading,         setShortLoading]         = useState(false);
   const [shortStruckOffLoading,setShortStruckOffLoading]= useState(false);
 
+  // ── warning list ──────────────────────────────────────────────────────────
+  const [warnRows,            setWarnRows]            = useState<WarnRow[]>([]);
+  const [warnLoading,         setWarnLoading]         = useState(false);
+  const [warnStruckOffId,     setWarnStruckOffId]     = useState<string | null>(null);
+
+  // ── permanent leave ───────────────────────────────────────────────────────
+  const [leaveRows,           setLeaveRows]           = useState<LeaveRow[]>([]);
+  const [leaveLoading,        setLeaveLoading]        = useState(false);
+  const [leaveModal,          setLeaveModal]          = useState<LeaveRow | null>(null);
+
   // ── load overview data ────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
@@ -371,12 +399,38 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
     }
   }, [shortDeptId, shortClassId, shortSemId]);
 
+  const loadWarnList = useCallback(async () => {
+    setWarnLoading(true);
+    try {
+      const res  = await fetch("/api/hod/warning-list");
+      const data = await res.json();
+      if (res.ok) setWarnRows(data.students ?? []);
+      else toast.error(data.error || "Could not load warning list.");
+    } finally {
+      setWarnLoading(false);
+    }
+  }, []);
+
+  const loadLeaveList = useCallback(async () => {
+    setLeaveLoading(true);
+    try {
+      const res  = await fetch("/api/hod/leave-management");
+      const data = await res.json();
+      if (res.ok) setLeaveRows(data.leaves ?? []);
+      else toast.error(data.error || "Could not load leave records.");
+    } finally {
+      setLeaveLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (tab === "short")         loadShortAttendance();
-    if (tab === "notifications") loadNotifications();
+    if (tab === "short")           loadShortAttendance();
+    if (tab === "warning-list")    loadWarnList();
+    if (tab === "permanent-leave") loadLeaveList();
+    if (tab === "notifications")   loadNotifications();
     if (tab === "remid-datesheet") loadRdDatesheet();
-    if (tab === "all-results")   loadHodAllResults();
-  }, [tab, loadShortAttendance, loadNotifications, loadRdDatesheet, loadHodAllResults]);
+    if (tab === "all-results")     loadHodAllResults();
+  }, [tab, loadShortAttendance, loadWarnList, loadLeaveList, loadNotifications, loadRdDatesheet, loadHodAllResults]);
 
   const hodUnread = notifications.filter((n) => !n.is_read).length;
 
@@ -396,6 +450,24 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
       await loadShortAttendance();
     } finally {
       setShortStruckOffLoading(false);
+    }
+  }
+
+  async function handleWarnStruckOff(studentId: string) {
+    if (!confirm("Strike off this student? This will mark their enrollment as Struck Off and notify them immediately.")) return;
+    setWarnStruckOffId(studentId);
+    try {
+      const res  = await fetch("/api/hod/warning-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed to strike off."); return; }
+      toast.success(`${data.name} has been struck off and notified.`);
+      await loadWarnList();
+    } finally {
+      setWarnStruckOffId(null);
     }
   }
 
@@ -838,7 +910,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
             <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-3 dark:border-slate-800 dark:from-red-900/20 dark:to-rose-900/20">
               <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
                 <UserMinus size={15} className="text-red-500" />
-                Students with Attendance Below 50%
+                Students with Attendance Below 60%
                 <span className="ml-auto text-xs font-normal text-slate-500 dark:text-slate-400">
                   {shortRows.length} student{shortRows.length !== 1 ? "s" : ""}
                 </span>
@@ -864,7 +936,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                   ) : shortRows.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
-                        No students with attendance below 50% found.
+                        No students with attendance below 60% found.
                       </td>
                     </tr>
                   ) : (
@@ -904,6 +976,264 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                         </tr>
                       );
                     })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════ WARNING LIST TAB ════════════════════════ */}
+      {tab === "warning-list" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Warning List</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Active students with attendance between 60 % and 74 %. Rows highlighted in amber have been in the warning zone for ≥ 10 consecutive school days.
+              </p>
+            </div>
+            <button onClick={loadWarnList} className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">↻ Refresh</button>
+          </div>
+
+          <div className="overflow-hidden card-3d">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 dark:border-slate-800 dark:from-amber-900/20 dark:to-yellow-900/20">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                <AlertTriangle size={15} className="text-amber-500" />
+                Students in Warning Zone (60 %–74 %)
+                <span className="ml-auto text-xs font-normal text-slate-500 dark:text-slate-400">
+                  {warnRows.length} student{warnRows.length !== 1 ? "s" : ""}
+                </span>
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px] border-collapse text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">#</th>
+                    <th className="px-4 py-3">Student</th>
+                    <th className="px-4 py-3">Class / Session</th>
+                    <th className="px-4 py-3">Department</th>
+                    <th className="px-4 py-3 text-center">Present</th>
+                    <th className="px-4 py-3 text-center">Absent</th>
+                    <th className="px-4 py-3 text-center">%</th>
+                    <th className="px-4 py-3 text-center">Days in Warning</th>
+                    <th className="px-4 py-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {warnLoading ? (
+                    <TableLoader colSpan={9} />
+                  ) : warnRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        No students currently in the warning zone.
+                      </td>
+                    </tr>
+                  ) : (
+                    warnRows.map((r, idx) => {
+                      const critical = r.days_in_warning >= 10;
+                      return (
+                        <tr
+                          key={r.student_id}
+                          className={`transition-colors ${
+                            critical
+                              ? "bg-amber-50/70 dark:bg-amber-900/10"
+                              : "hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
+                          }`}
+                        >
+                          <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                          <td className="px-4 py-2.5">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">{r.name}</div>
+                            <div className="text-xs text-slate-400">{r.roll_no || "—"}</div>
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                            {r.class_name} <span className="text-xs">({r.session})</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{r.department_name}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-emerald-600">{r.presents}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-red-500">{r.absents}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                              {r.percentage}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                              critical
+                                ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                            }`}>
+                              {r.days_in_warning} day{r.days_in_warning !== 1 ? "s" : ""}
+                              {critical && " ⚠"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <button
+                              onClick={() => handleWarnStruckOff(r.student_id)}
+                              disabled={warnStruckOffId === r.student_id}
+                              className="flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 mx-auto"
+                            >
+                              {warnStruckOffId === r.student_id ? <ButtonLoader /> : <UserMinus size={12} />}
+                              Struck Off
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════ PERMANENT LEAVE TAB ═════════════════════ */}
+      {tab === "permanent-leave" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Permanent Leave</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Students from your department(s) who have been issued a permanent leave.
+              </p>
+            </div>
+            <button onClick={loadLeaveList} className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">↻ Refresh</button>
+          </div>
+
+          {/* Detail modal */}
+          {leaveModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setLeaveModal(null)}>
+              <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+                <div className="border-b border-slate-100 bg-indigo-50 px-6 py-4 dark:border-slate-800 dark:bg-indigo-900/20">
+                  <h3 className="font-bold text-slate-800 dark:text-slate-100">Leave Details — {leaveModal.student_name}</h3>
+                  <p className="text-xs text-slate-500">{leaveModal.class_name} · {leaveModal.session} · {leaveModal.department_name}</p>
+                </div>
+                <div className="space-y-3 p-6 text-sm">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Father Name", value: leaveModal.father_name || "—" },
+                      { label: "CNIC", value: leaveModal.cnic || "—" },
+                      { label: "Issue Date", value: leaveModal.issue_date },
+                      { label: "Issued By", value: leaveModal.issued_by_name || "—" },
+                      { label: "Status", value: leaveModal.revoked_at ? `Revoked (${formatDateOnly(leaveModal.revoked_at)})` : "Active" },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                        <p className="font-medium text-slate-700 dark:text-slate-200">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {leaveModal.reason && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Reason</p>
+                      <p className="text-slate-700 dark:text-slate-200">{leaveModal.reason}</p>
+                    </div>
+                  )}
+                  {leaveModal.notes && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Notes</p>
+                      <p className="text-slate-600 dark:text-slate-300">{leaveModal.notes}</p>
+                    </div>
+                  )}
+                  {leaveModal.proof_urls?.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Proof Documents</p>
+                      <div className="flex flex-wrap gap-2">
+                        {leaveModal.proof_urls.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                            className="group relative overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt={`Proof ${i + 1}`} className="h-20 w-20 object-cover" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                              <ExternalLink size={16} className="text-white" />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="border-t border-slate-100 px-6 py-3 text-right dark:border-slate-800">
+                  <button onClick={() => setLeaveModal(null)} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-hidden card-3d">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">#</th>
+                    <th className="px-4 py-3">Student</th>
+                    <th className="px-4 py-3">Class / Session</th>
+                    <th className="px-4 py-3">Department</th>
+                    <th className="px-4 py-3">Issue Date</th>
+                    <th className="px-4 py-3">Reason</th>
+                    <th className="px-4 py-3 text-center">Proof</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-center">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {leaveLoading ? (
+                    <TableLoader colSpan={9} />
+                  ) : leaveRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        No permanent leave records found for your department(s).
+                      </td>
+                    </tr>
+                  ) : (
+                    leaveRows.map((r, idx) => (
+                      <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium text-slate-800 dark:text-slate-100">{r.student_name}</div>
+                          <div className="text-xs text-slate-400">{r.father_name || ""}</div>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                          {r.class_name} <span className="text-xs">({r.session})</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{r.department_name}</td>
+                        <td className="px-4 py-2.5 text-slate-500">{formatDateOnly(r.issue_date)}</td>
+                        <td className="max-w-[160px] truncate px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                          {r.reason || "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {r.proof_urls?.length > 0 ? (
+                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+                              {r.proof_urls.length} doc{r.proof_urls.length !== 1 ? "s" : ""}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {r.revoked_at ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                              Revoked
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                              Active
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <button
+                            onClick={() => setLeaveModal(r)}
+                            className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 mx-auto"
+                          >
+                            <Eye size={12} /> View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>

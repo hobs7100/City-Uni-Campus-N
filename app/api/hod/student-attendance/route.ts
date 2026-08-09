@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
     return {
       student_id: r.student_id, name: r.name, roll_no: r.roll_no,
       presents: p, absents: a, leaves: l, percentage: pct,
-      status: pct === null ? "no-data" : pct >= 75 ? "ok" : pct >= 50 ? "warning" : "struck-off",
+      status: pct === null ? "no-data" : pct >= 75 ? "ok" : pct >= 60 ? "warning" : "struck-off",
     };
   });
 

@@ -738,7 +738,7 @@ export default function StudentDashboardManager() {
             if (!profile) return null;
             const activeSemAtt = semAtts.find((s) => s.semester_status === "active") ?? semAtts[semAtts.length - 1] ?? null;
             const pct = activeSemAtt?.overall.percentage ?? null;
-            const isStruckOff = profile.status === "struck_off" || (pct !== null && pct < 50 && activeSemAtt?.overall.flag === "struck_off");
+            const isStruckOff = profile.status === "struck_off" || (pct !== null && pct < 60);
             const isWarning   = !isStruckOff && pct !== null && pct < 75;
             if (!isStruckOff && !isWarning) return null;
 
@@ -781,7 +781,7 @@ export default function StudentDashboardManager() {
                       { label: "Semester", value: `Sem ${activeSemAtt.semester_number} (${activeSemAtt.semester_status})` },
                       { label: "Attendance %", value: `${pct?.toFixed(1)}%` },
                       { label: "Required %", value: "75%" },
-                      { label: "Struck-Off Threshold", value: "< 50%" },
+                      { label: "Struck-Off Threshold", value: "< 60%" },
                     ] : []),
                     ...(profile.status_change_date ? [
                       { label: "Effective Date", value: formatDateOnly(profile.status_change_date) },
@@ -806,22 +806,27 @@ export default function StudentDashboardManager() {
                   {isStruckOff ? (
                     <>
                       <p className="mb-2 font-semibold">
-                        Your name has been struck off from the class register due to insufficient attendance (below 50%).
+                        Your name has been struck off from the class register due to insufficient attendance (below 60%).
                       </p>
                       <ul className="list-disc space-y-1 pl-5">
                         <li>You are <strong>not eligible</strong> to appear in mid/final examinations.</li>
                         <li>Your Roll Number Slip will <strong>not be issued</strong> until your status is restored.</li>
-                        <li>Contact the coordinator or administration immediately to apply for re-admission.</li>
+                        <li>Contact the coordinator or administration immediately to apply for reinstatement.</li>
                         <li>Attendance must reach 75% minimum after reactivation to regain full eligibility.</li>
                       </ul>
                     </>
                   ) : (
                     <>
                       <p className="mb-2 font-semibold">
-                        Your attendance is below the required 75% minimum. You are currently in the warning zone.
+                        Your attendance is below the required 75% minimum. You are currently in the warning zone (60%–74%).
                       </p>
                       <ul className="list-disc space-y-1 pl-5">
-                        <li>If attendance falls below 50% you will be <strong>automatically struck off</strong>.</li>
+                        <li>
+                          Sustained attendance in the warning zone for <strong>one consecutive week</strong> may result
+                          in your enrollment being <strong>struck off</strong> from the class register. Improve your
+                          attendance promptly to avoid this outcome.
+                        </li>
+                        <li>If attendance falls below 60% you will be <strong>automatically struck off</strong>.</li>
                         <li>Maintain regular attendance to remain eligible for examinations and the Roll Number Slip.</li>
                         <li>Contact your coordinator if you believe there is an error in your records.</li>
                       </ul>
@@ -1848,9 +1853,9 @@ export default function StudentDashboardManager() {
                     </div>
                   </div>
                   <div>
-                    <p className="font-bold text-amber-800 dark:text-amber-300">Warning Zone: 50% – 74%</p>
+                    <p className="font-bold text-amber-800 dark:text-amber-300">Warning Zone: 60% – 74%</p>
                     <p className="mt-0.5 text-amber-700 dark:text-amber-400">
-                      Falling below <strong>75%</strong> places you in the warning zone. You will see a warning notice on your dashboard. Improve attendance immediately or contact your coordinator.
+                      Falling below <strong>75%</strong> places you in the warning zone. Remaining in the warning zone for one consecutive week may result in your enrollment being struck off. Improve attendance immediately or contact your coordinator.
                     </p>
                   </div>
                 </div>
@@ -1863,9 +1868,9 @@ export default function StudentDashboardManager() {
                     </div>
                   </div>
                   <div>
-                    <p className="font-bold text-red-800 dark:text-red-300">Auto Struck-Off: Below 50%</p>
+                    <p className="font-bold text-red-800 dark:text-red-300">Auto Struck-Off: Below 60%</p>
                     <p className="mt-0.5 text-red-700 dark:text-red-400">
-                      If your attendance drops below <strong>50%</strong> after at least 10 marked school days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
+                      If your attendance drops below <strong>60%</strong> after at least 10 marked school days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
                     </p>
                   </div>
                 </div>
