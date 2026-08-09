@@ -1802,7 +1802,6 @@ export default function StudentDashboardManager() {
             {/* gradient header */}
             <div className="relative bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-8 py-7 text-white">
               <div className="absolute inset-0 opacity-10" style={{backgroundImage:"radial-gradient(circle at 80% 20%, #fff 0%, transparent 60%)"}} />
-              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-indigo-200">City College — Official</p>
               <h2 className="text-2xl font-extrabold leading-tight">Attendance Policy</h2>
               <p className="mt-1 text-sm text-indigo-100">Please read and acknowledge the attendance requirements for this semester.</p>
               <button
@@ -1858,7 +1857,7 @@ export default function StudentDashboardManager() {
                   <div>
                     <p className="font-bold text-red-800 dark:text-red-300">Auto Struck-Off: Below 60%</p>
                     <p className="mt-0.5 text-red-700 dark:text-red-400">
-                      If your attendance drops below <strong>60%</strong> after at least 10 marked school days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
+                      If your attendance drops below <strong>60%</strong> after at least 10 marked working days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
                     </p>
                   </div>
                 </div>
