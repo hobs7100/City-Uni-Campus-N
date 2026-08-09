@@ -10,8 +10,9 @@ const allowSchema = z.object({
 
 // POST — grant override (upsert so re-granting refreshes the record)
 export async function POST(request: NextRequest) {
-  const { session, response } = await requireRole("admin");
+  const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
 
   const body   = await request.json().catch(() => null);
   const parsed = allowSchema.safeParse(body);
@@ -43,8 +44,9 @@ export async function POST(request: NextRequest) {
 
 // DELETE — revoke override
 export async function DELETE(request: NextRequest) {
-  const { response } = await requireRole("admin");
+  const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
 
   const body       = await request.json().catch(() => null);
   const studentId  = body?.student_id as string | undefined;

@@ -10,8 +10,9 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ studentId: string }> }
 ) {
-  const { response } = await requireRole("admin");
+  const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
 
   const { studentId } = await params;
 

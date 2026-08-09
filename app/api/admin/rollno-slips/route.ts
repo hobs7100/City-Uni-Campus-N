@@ -7,8 +7,9 @@ import { requireRole } from "@/lib/requireRole";
 // overall coordinator/admin-marked attendance (student_attendance_records)
 // is below 75 %, together with their current override status.
 export async function GET() {
-  const { response } = await requireRole("admin");
+  const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
 
   const rows = await query<{
     student_id:       string;

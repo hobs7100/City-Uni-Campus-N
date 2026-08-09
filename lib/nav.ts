@@ -67,6 +67,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Student Attendance", href: "/dashboard/hod?tab=attendance", icon: "ClipboardCheck" },
     { label: "Dept. Attendance", href: "/dashboard/hod?tab=dept-attendance", icon: "BarChart2" },
     { label: "Exam & Results", href: "/dashboard/hod?tab=results", icon: "Award" },
+    { label: "Roll No. Slips", href: "/dashboard/admin/rollno-slips", icon: "FileCheck2" },
     { label: "Notifications", href: "/dashboard/hod?tab=notifications", icon: "Bell" },
     { label: "Profile", href: "/dashboard/hod/profile", icon: "UserCog" },
   ],
@@ -104,6 +105,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Teacher Attendance", href: "/dashboard/admin/attendance", icon: "UserCheck" },
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
+    // Roll No. Slips intentionally excluded for Finance Manager
   ],
   assistant: [
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
@@ -124,9 +126,9 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Course Attendance", href: "/dashboard/admin/course-attendance", icon: "BookCheck" },
     { label: "Leave Management", href: "/dashboard/admin/leave-management", icon: "UserX" },
     { label: "DIT Mock Exam", href: "/dashboard/admin/dit-mock", icon: "PenLine" },
-    { label: "Roll No. Slips", href: "/dashboard/admin/rollno-slips", icon: "FileCheck2" },
     { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
+    // Roll No. Slips intentionally excluded for Assistant
   ],
 };
 
