@@ -198,14 +198,8 @@ export default function StudentDashboardManager() {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  /* attendance policy modal (shown once per browser session).
-   * Initialized from sessionStorage in the lazy-initializer (SSR-safe because
-   * client components run their initializer on the client after hydration;
-   * the typeof guard prevents a server-side ReferenceError). */
-  const [showPolicyModal, setShowPolicyModal] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return !sessionStorage.getItem("policyModalShown");
-  });
+  /* attendance policy modal — shown on every page load / login */
+  const [showPolicyModal, setShowPolicyModal] = useState(true);
 
   /* roll no. slip */
   const [slipLoading, setSlipLoading] = useState(false);
@@ -354,7 +348,7 @@ export default function StudentDashboardManager() {
 
   useEffect(() => { loadProfile(); loadCourseAtt(); loadAttChart(); }, [loadProfile, loadCourseAtt, loadAttChart]);
 
-  // (policyModal state is initialized from sessionStorage via lazy useState — no effect needed)
+  // (policyModal always starts open on every page load)
 
   // Load DIT data once profile is known and student is in DIT class
   useEffect(() => {
@@ -1799,10 +1793,7 @@ export default function StudentDashboardManager() {
       {showPolicyModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => {
-            setShowPolicyModal(false);
-            sessionStorage.setItem("policyModalShown", "1");
-          }}
+          onClick={() => setShowPolicyModal(false)}
         >
           <div
             className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900"
@@ -1815,10 +1806,7 @@ export default function StudentDashboardManager() {
               <h2 className="text-2xl font-extrabold leading-tight">Attendance Policy</h2>
               <p className="mt-1 text-sm text-indigo-100">Please read and acknowledge the attendance requirements for this semester.</p>
               <button
-                onClick={() => {
-                  setShowPolicyModal(false);
-                  sessionStorage.setItem("policyModalShown", "1");
-                }}
+                onClick={() => setShowPolicyModal(false)}
                 className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                 aria-label="Close"
               >
@@ -1896,10 +1884,7 @@ export default function StudentDashboardManager() {
             {/* footer */}
             <div className="border-t border-slate-100 px-8 py-4 dark:border-slate-800">
               <button
-                onClick={() => {
-                  setShowPolicyModal(false);
-                  sessionStorage.setItem("policyModalShown", "1");
-                }}
+                onClick={() => setShowPolicyModal(false)}
                 className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-sm font-bold text-white shadow transition hover:from-indigo-700 hover:to-violet-700"
               >
                 I Understand — Go to Dashboard
