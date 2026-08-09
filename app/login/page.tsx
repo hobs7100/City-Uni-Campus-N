@@ -28,7 +28,16 @@ export default function LoginPage() {
         return;
       }
       toast.success(`Welcome back, ${data.name}!`);
-      router.push(`/dashboard/${data.role}`);
+      const dashboardMap: Record<string, string> = {
+        admin: "/dashboard/admin",
+        hod: "/dashboard/hod",
+        coordinator: "/dashboard/coordinator",
+        teacher: "/dashboard/teacher",
+        student: "/dashboard/student",
+        finance_manager: "/dashboard/admin",
+        assistant: "/dashboard/admin",
+      };
+      router.push(dashboardMap[data.role] ?? "/dashboard/admin");
       router.refresh();
     } catch {
       toast.error("Something went wrong. Please try again.");
