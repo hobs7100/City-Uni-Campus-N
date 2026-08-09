@@ -107,7 +107,6 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   assistant: [
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
-    { label: "Users", href: "/dashboard/admin/users", icon: "Users" },
     { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
     { label: "Faculties", href: "/dashboard/admin/departments", icon: "Building2" },
     { label: "Classes", href: "/dashboard/admin/classes", icon: "School" },

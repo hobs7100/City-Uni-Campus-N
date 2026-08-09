@@ -14,8 +14,9 @@ const createSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireRole("admin", "hod", "coordinator", "finance_manager");
+  const { session, response } = await requireRole("admin", "hod", "coordinator", "finance_manager");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
 
   const role = request.nextUrl.searchParams.get("role");
   const users = role
@@ -32,8 +33,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin");
+  const { session, response } = await requireRole("admin");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   const parsed = createSchema.safeParse(body);

@@ -5,8 +5,9 @@ import { requireRole } from "@/lib/requireRole";
 import { sendPasswordResetEmail } from "@/lib/email";
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin");
+  const { session, response } = await requireRole("admin");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   const { id } = await params;
 
   const existing = await queryOne<{ name: string; email: string }>(

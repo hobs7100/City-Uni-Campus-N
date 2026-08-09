@@ -14,6 +14,7 @@ const updateSchema = z.object({
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { session, response } = await requireRole("admin");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   const { id } = await params;
 
   const body = await request.json().catch(() => null);
@@ -61,6 +62,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { session, response } = await requireRole("admin");
   if (response) return response;
+  if (session!.role === "assistant") return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   const { id } = await params;
 
   if (session!.userId === id) {
