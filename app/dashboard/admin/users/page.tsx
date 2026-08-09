@@ -14,7 +14,7 @@ interface UserRow {
   name: string;
   email: string;
   cellno: string | null;
-  role: "admin" | "hod" | "coordinator" | "finance_manager";
+  role: "admin" | "hod" | "coordinator" | "finance_manager" | "assistant";
   status: "active" | "blocked";
   created_at: string;
 }
@@ -24,6 +24,7 @@ const roleOptions = [
   { value: "hod", label: "HoD" },
   { value: "coordinator", label: "Coordinator" },
   { value: "finance_manager", label: "Finance Manager" },
+  { value: "assistant", label: "Assistant" },
 ];
 
 const statusOptions = [
