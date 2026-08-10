@@ -293,3 +293,17 @@ body {
 .rich-text-viewer h3 { font-size: 1.1em; font-weight: 600; margin: 0.5em 0 0.25em; }
 .rich-text-viewer > *:first-child { margin-top: 0; }
 .rich-text-viewer > *:last-child  { margin-bottom: 0; }
+
+/* ── Campus Report: print-only area ──────────────────────────────────────── */
+@media print {
+  * { visibility: hidden !important; }
+  #campus-report-print-area,
+  #campus-report-print-area * { visibility: visible !important; }
+  #campus-report-print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: #fff;
+  }
+  @page { margin: 16mm 14mm; size: A4 portrait; }
+}

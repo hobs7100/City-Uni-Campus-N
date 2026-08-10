@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Building2, UserX, Clock, RefreshCw, CalendarDays, Users, TrendingUp,
+  Building2, UserX, Clock, RefreshCw, CalendarDays, Users, TrendingUp, Download,
 } from "lucide-react";
 import { DataFetchLoader } from "@/components/ui/Loaders";
 
@@ -135,6 +135,7 @@ export default function CampusReportManager() {
     : "";
 
   return (
+    <>
     <div className="space-y-6">
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -162,6 +163,14 @@ export default function CampusReportManager() {
           >
             <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
             Refresh
+          </button>
+          <button
+            onClick={() => window.print()}
+            disabled={loading || deptRows.length === 0}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            <Download size={13} />
+            Export PDF
           </button>
         </div>
       </div>
@@ -380,5 +389,141 @@ export default function CampusReportManager() {
         </>
       )}
     </div>
+
+    {/* ── Print-only area (hidden on screen, visible on print via globals.css) ── */}
+    <div id="campus-report-print-area" style={{ display: "none", fontFamily: "Arial, sans-serif", color: "#111", padding: "0 8px" }}>
+
+      {/* Logo + title */}
+      <div style={{ textAlign: "center", marginBottom: 12 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/logo.png" alt="City College — University Campus" style={{ height: 64, width: "auto", objectFit: "contain" }} />
+      </div>
+      <h1 style={{ textAlign: "center", fontSize: 20, fontWeight: "bold", margin: "0 0 4px" }}>
+        Campus Report
+      </h1>
+      <p style={{ textAlign: "center", fontSize: 13, color: "#555", margin: "0 0 24px" }}>
+        {date
+          ? new Date(date + "T00:00:00").toLocaleDateString("en-PK", {
+              weekday: "long", year: "numeric", month: "long", day: "numeric",
+            })
+          : ""}
+      </p>
+      <hr style={{ border: "none", borderTop: "2px solid #3730a3", marginBottom: 20 }} />
+
+      {/* ── Section 1: Department-wise Attendance ── */}
+      <h2 style={{ fontSize: 14, fontWeight: "bold", marginBottom: 8, color: "#3730a3" }}>
+        1. Department-wise Student Attendance
+      </h2>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24 }}>
+        <thead>
+          <tr style={{ background: "#e0e7ff" }}>
+            {["#", "Department", "Total Students", "Present", "Absent", "Attendance %"].map((h) => (
+              <th key={h} style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: h === "Department" || h === "#" ? "left" : "center", fontWeight: "bold" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {deptRows.map((r, i) => (
+            <tr key={r.department_id} style={{ background: i % 2 === 0 ? "#fff" : "#f8f8ff" }}>
+              <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", color: "#888" }}>{i + 1}</td>
+              <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", fontWeight: 500 }}>{r.department_name}</td>
+              <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", fontWeight: "bold" }}>{r.total_students}</td>
+              <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", color: "#059669", fontWeight: "bold" }}>{r.presents}</td>
+              <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", color: "#dc2626", fontWeight: "bold" }}>{r.absents}</td>
+              <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", fontWeight: "bold",
+                color: r.percentage === null ? "#aaa" : r.percentage >= 75 ? "#059669" : r.percentage >= 60 ? "#d97706" : "#dc2626" }}>
+                {r.percentage !== null ? `${r.percentage.toFixed(1)}%` : "—"}
+              </td>
+            </tr>
+          ))}
+          {/* Totals row */}
+          <tr style={{ background: "#e0e7ff", fontWeight: "bold" }}>
+            <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px" }} />
+            <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", color: "#3730a3" }}>OVERALL TOTAL</td>
+            <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center" }}>{totalStudents}</td>
+            <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center", color: "#059669" }}>{totalPresents}</td>
+            <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center", color: "#dc2626" }}>{totalAbsents}</td>
+            <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center",
+              color: totalPct === null ? "#aaa" : totalPct >= 75 ? "#059669" : totalPct >= 60 ? "#d97706" : "#dc2626" }}>
+              {totalPct !== null ? `${totalPct.toFixed(1)}%` : "—"}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* ── Section 2: Absent Teachers ── */}
+      <h2 style={{ fontSize: 14, fontWeight: "bold", marginBottom: 8, color: "#991b1b" }}>
+        2. Absent Teachers ({absentTeachers.length})
+      </h2>
+      {absentTeachers.length === 0 ? (
+        <p style={{ fontSize: 12, color: "#888", marginBottom: 24 }}>No absent teachers recorded for this date.</p>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24 }}>
+          <thead>
+            <tr style={{ background: "#fee2e2" }}>
+              {["#", "Teacher Name", "Course", "Department", "Type", "Remarks"].map((h) => (
+                <th key={h} style={{ border: "1px solid #fecaca", padding: "6px 10px", textAlign: "left", fontWeight: "bold" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {absentTeachers.map((t, i) => (
+              <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#fff5f5" }}>
+                <td style={{ border: "1px solid #fecaca", padding: "5px 10px", color: "#888" }}>{i + 1}</td>
+                <td style={{ border: "1px solid #fecaca", padding: "5px 10px", fontWeight: 500 }}>{t.teacher_name}</td>
+                <td style={{ border: "1px solid #fecaca", padding: "5px 10px" }}>
+                  <span style={{ fontWeight: "bold", color: "#3730a3" }}>{t.course_code}</span> — {t.course_title}
+                </td>
+                <td style={{ border: "1px solid #fecaca", padding: "5px 10px" }}>{t.department_name}</td>
+                <td style={{ border: "1px solid #fecaca", padding: "5px 10px", textTransform: "capitalize" }}>{t.teacher_type}</td>
+                <td style={{ border: "1px solid #fecaca", padding: "5px 10px", color: "#555" }}>{t.remarks ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* ── Section 3: Late Teachers ── */}
+      <h2 style={{ fontSize: 14, fontWeight: "bold", marginBottom: 8, color: "#92400e" }}>
+        3. Late Teachers ({lateTeachers.length})
+      </h2>
+      {lateTeachers.length === 0 ? (
+        <p style={{ fontSize: 12, color: "#888", marginBottom: 24 }}>No late teachers recorded for this date.</p>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24 }}>
+          <thead>
+            <tr style={{ background: "#fef3c7" }}>
+              {["#", "Teacher Name", "Course", "Department", "Type", "Minutes Late"].map((h) => (
+                <th key={h} style={{ border: "1px solid #fde68a", padding: "6px 10px", textAlign: h === "Minutes Late" ? "center" : "left", fontWeight: "bold" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {lateTeachers.map((t, i) => (
+              <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#fffbeb" }}>
+                <td style={{ border: "1px solid #fde68a", padding: "5px 10px", color: "#888" }}>{i + 1}</td>
+                <td style={{ border: "1px solid #fde68a", padding: "5px 10px", fontWeight: 500 }}>{t.teacher_name}</td>
+                <td style={{ border: "1px solid #fde68a", padding: "5px 10px" }}>
+                  <span style={{ fontWeight: "bold", color: "#3730a3" }}>{t.course_code}</span> — {t.course_title}
+                </td>
+                <td style={{ border: "1px solid #fde68a", padding: "5px 10px" }}>{t.department_name}</td>
+                <td style={{ border: "1px solid #fde68a", padding: "5px 10px", textTransform: "capitalize" }}>{t.teacher_type}</td>
+                <td style={{ border: "1px solid #fde68a", padding: "5px 10px", textAlign: "center",
+                  fontWeight: "bold", color: t.late_minutes >= 15 ? "#dc2626" : "#d97706" }}>
+                  {t.late_minutes} min
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Footer */}
+      <hr style={{ border: "none", borderTop: "1px solid #e5e7eb", margin: "8px 0 6px" }} />
+      <p style={{ textAlign: "center", fontSize: 10, color: "#aaa" }}>
+        Generated on {typeof window !== "undefined" ? new Date().toLocaleString("en-PK") : ""} — City College University Campus
+      </p>
+    </div>
+    </>
   );
 }
