@@ -8,6 +8,10 @@ const closeSchema = z.object({
   close_date: z.string().min(4),
 });
 
+const statusSchema = z.object({
+  status: z.enum(["active", "mid_term", "final_term"]),
+});
+
 const detailsSchema = z.object({
   term_type: z.enum(["Fall", "Spring"]).optional(),
   start_date: z.string().min(4).optional(),
@@ -23,6 +27,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const semester = await queryOne<{ id: string; status: string }>(`select id, status from semesters where id = $1`, [id]);
   if (!semester) return NextResponse.json({ error: "Semester not found." }, { status: 404 });
 
+  // ── Close semester (terminal action, requires close_date) ──────────────
   if (body && typeof body === "object" && "close_date" in body) {
     const parsed = closeSchema.safeParse(body);
     if (!parsed.success) {
@@ -52,6 +57,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ semester: updated });
   }
 
+  // ── Status-only update (Active / Mid Term Exam / Final Term Exam) ──────
+  if (body && typeof body === "object" && "status" in body && !("term_type" in body) && !("start_date" in body)) {
+    const parsed = statusSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid status." }, { status: 400 });
+    }
+    if (semester.status === "closed") {
+      return NextResponse.json({ error: "Cannot change the status of a closed semester." }, { status: 409 });
+    }
+    const updated = await queryOne(
+      `update semesters set status = $1, updated_at = now() where id = $2 returning *`,
+      [parsed.data.status, id]
+    );
+    return NextResponse.json({ semester: updated });
+  }
+
+  // ── Details update (term_type / start_date) ────────────────────────────
   const parsed = detailsSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });

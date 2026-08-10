@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, X } from "lucide-react";
+import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, RefreshCw, X } from "lucide-react";
 import OutlineUploadButton from "@/components/ui/OutlineUploadButton";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -47,7 +47,7 @@ interface Semester {
   term_type: "Fall" | "Spring";
   start_date: string;
   close_date: string | null;
-  status: "active" | "closed";
+  status: "active" | "mid_term" | "final_term" | "closed";
   courses: SemesterCourse[];
 }
 
@@ -57,7 +57,7 @@ const termOptions = [
 ];
 
 export default function SemestersPage() {
-  const [tab, setTab] = useState<"start" | "close" | "history">("start");
+  const [tab, setTab] = useState<"start" | "update" | "close" | "history">("start");
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
@@ -80,6 +80,13 @@ export default function SemestersPage() {
   const [closing, setClosing] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
 
+  // Update-status tab
+  const [updateDeptId,    setUpdateDeptId]    = useState("");
+  const [updateClassId,   setUpdateClassId]   = useState("");
+  const [updateTarget,    setUpdateTarget]    = useState<Semester | null>(null);
+  const [updateStatus,    setUpdateStatus]    = useState<"active" | "mid_term" | "final_term">("active");
+  const [updatingStatus,  setUpdatingStatus]  = useState(false);
+
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editSemester, setEditSemester] = useState<Semester | null>(null);
   const [editTermType, setEditTermType] = useState<"Fall" | "Spring">("Fall");
@@ -98,7 +105,7 @@ export default function SemestersPage() {
   // History tab filters
   const [historyDeptId,   setHistoryDeptId]   = useState("");
   const [historySession,  setHistorySession]   = useState("");
-  const [historyStatus,   setHistoryStatus]    = useState<"" | "active" | "closed">("");
+  const [historyStatus,   setHistoryStatus]    = useState<"" | "active" | "mid_term" | "final_term" | "closed">("");
   const [historyTermType, setHistoryTermType]  = useState<"" | "Fall" | "Spring">("");
 
   const load = useCallback(async () => {
@@ -272,9 +279,51 @@ export default function SemestersPage() {
       setActiveSemester(null);
       return;
     }
-    const found = semesters.find((s) => s.class_id === closeClassId && s.status === "active");
+    const found = semesters.find((s) => s.class_id === closeClassId && s.status !== "closed");
     setActiveSemester(found || null);
   }, [closeClassId, semesters]);
+
+  const updateClassOptions = useMemo(
+    () =>
+      classes
+        .filter((c) => c.department_id === updateDeptId)
+        .map((c) => ({ value: c.id, label: `${c.class_name} (${c.session})` })),
+    [classes, updateDeptId],
+  );
+
+  useEffect(() => {
+    if (!updateClassId) {
+      setUpdateTarget(null);
+      return;
+    }
+    const found = semesters.find((s) => s.class_id === updateClassId && s.status !== "closed");
+    setUpdateTarget(found || null);
+    if (found) setUpdateStatus(found.status as "active" | "mid_term" | "final_term");
+  }, [updateClassId, semesters]);
+
+  async function handleUpdateStatus() {
+    if (!updateTarget) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/admin/semesters/${updateTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: updateStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Something went wrong.");
+        return;
+      }
+      toast.success("Semester status updated.");
+      setUpdateClassId("");
+      setUpdateDeptId("");
+      setUpdateTarget(null);
+      load();
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
 
   async function handleClose() {
     if (!activeSemester || !closeDate) return;
@@ -460,9 +509,10 @@ export default function SemestersPage() {
 
       <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-800">
         {[
-          { key: "start", label: "Start Semester", icon: Play },
-          { key: "close", label: "Close Semester", icon: Lock },
-          { key: "history", label: "History", icon: Calendar },
+          { key: "start",   label: "Start Semester",  icon: Play },
+          { key: "update",  label: "Update Status",   icon: RefreshCw },
+          { key: "close",   label: "Close Semester",  icon: Lock },
+          { key: "history", label: "History",          icon: Calendar },
         ].map((t) => (
           <button
             key={t.key}
@@ -704,6 +754,99 @@ export default function SemestersPage() {
           </div>
         </form>
         )
+      ) : tab === "update" ? (
+        <div className="max-w-2xl space-y-5 card-3d p-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Department
+              </label>
+              <SearchableSelect
+                options={departments}
+                value={departments.find((d) => d.value === updateDeptId) || null}
+                onChange={(opt) => {
+                  setUpdateDeptId(opt ? (opt as SelectOption).value : "");
+                  setUpdateClassId("");
+                  setUpdateTarget(null);
+                }}
+                placeholder="Select..."
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Class
+              </label>
+              <SearchableSelect
+                options={updateClassOptions}
+                value={updateClassOptions.find((c) => c.value === updateClassId) || null}
+                onChange={(opt) => setUpdateClassId(opt ? (opt as SelectOption).value : "")}
+                placeholder="Select..."
+                isDisabled={!updateDeptId}
+              />
+            </div>
+          </div>
+
+          {updateClassId && !updateTarget && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+              This class has no running semester.
+            </p>
+          )}
+
+          {updateTarget && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                  Semester {updateTarget.semester_number} — {updateTarget.term_type}
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    ({updateTarget.class_name}, {updateTarget.session})
+                  </span>
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  Started: {new Date(updateTarget.start_date).toLocaleDateString()}
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  New Status
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {(
+                    [
+                      { value: "active",     label: "Active",          color: "text-emerald-600 dark:text-emerald-400" },
+                      { value: "mid_term",   label: "Mid Term Exam",   color: "text-violet-600 dark:text-violet-400" },
+                      { value: "final_term", label: "Final Term Exam", color: "text-blue-600 dark:text-blue-400" },
+                    ] as const
+                  ).map(({ value, label, color }) => (
+                    <label key={value} className="flex cursor-pointer items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name="update-status"
+                        value={value}
+                        checked={updateStatus === value}
+                        onChange={() => setUpdateStatus(value)}
+                        className="accent-indigo-600"
+                      />
+                      <span className={`text-sm font-medium ${color}`}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  disabled={updatingStatus || updateStatus === updateTarget.status}
+                  onClick={handleUpdateStatus}
+                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  <RefreshCw size={15} />
+                  {updatingStatus ? "Saving..." : "Update Status"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       ) : tab === "close" ? (
         <div className="max-w-2xl space-y-4 card-3d p-6">
           <div className="grid grid-cols-2 gap-4">
@@ -860,6 +1003,8 @@ export default function SemestersPage() {
                 >
                   <option value="">All Statuses</option>
                   <option value="active">Active</option>
+                  <option value="mid_term">Mid Term Exam</option>
+                  <option value="final_term">Final Term Exam</option>
                   <option value="closed">Closed</option>
                 </select>
               </div>

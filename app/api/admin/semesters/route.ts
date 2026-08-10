@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
   const d = parsed.data;
 
   const activeExisting = await queryOne(
-    `select id from semesters where class_id = $1 and status = 'active'`,
+    `select id from semesters where class_id = $1 and status != 'closed'`,
     [d.class_id]
   );
   if (activeExisting) {
-    return NextResponse.json({ error: "This class already has an active semester. Close it before starting a new one." }, { status: 409 });
+    return NextResponse.json({ error: "This class already has a running semester. Close it before starting a new one." }, { status: 409 });
   }
 
   const classRow = await queryOne<{ total_semesters: number }>(
