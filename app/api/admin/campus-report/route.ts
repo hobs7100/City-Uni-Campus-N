@@ -82,6 +82,7 @@ export async function GET(request: NextRequest) {
      JOIN departments d            ON d.id   = cl.department_id
      WHERE ar.attendance_date = $1
        AND ar.status          = 'absent'
+       AND sem.status         = 'active'
      GROUP BY t.id, t.name, t.type
      ORDER BY t.name`,
     [date]
@@ -114,6 +115,7 @@ export async function GET(request: NextRequest) {
      WHERE ar.attendance_date = $1
        AND ar.late_minutes    > 0
        AND ar.status         != 'absent'
+       AND sem.status         = 'active'
      GROUP BY t.id, t.name, c.id, c.code, c.title, d.id, d.name, t.type
      ORDER BY MAX(ar.late_minutes) DESC, d.name, t.name`,
     [date]
