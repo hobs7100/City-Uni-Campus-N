@@ -20,6 +20,7 @@ interface AbsentTeacher {
   teacher_name:    string;
   department_name: string;
   teacher_type:    "permanent" | "visiting";
+  classes:         string;
   remarks:         string | null;
 }
 
@@ -279,6 +280,7 @@ export default function CampusReportManager() {
                       <th className="px-5 py-3">#</th>
                       <th className="px-5 py-3">Teacher Name</th>
                       <th className="px-5 py-3">Department</th>
+                      <th className="px-5 py-3">Classes / Semester</th>
                       <th className="px-5 py-3 text-center">Status</th>
                       <th className="px-5 py-3">Remarks</th>
                     </tr>
@@ -291,6 +293,7 @@ export default function CampusReportManager() {
                           <span className="font-medium text-slate-800 dark:text-slate-100">{t.teacher_name}</span>
                         </td>
                         <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{t.department_name}</td>
+                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{t.classes}</td>
                         <td className="px-5 py-3 text-center">
                           <TypeBadge type={t.teacher_type} />
                         </td>
@@ -453,7 +456,7 @@ export default function CampusReportManager() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24 }}>
           <thead>
             <tr style={{ background: "#fee2e2" }}>
-              {["#", "Teacher Name", "Department", "Type", "Remarks"].map((h) => (
+              {["#", "Teacher Name", "Department", "Classes / Semester", "Type", "Remarks"].map((h) => (
                 <th key={h} style={{ border: "1px solid #fecaca", padding: "6px 10px", textAlign: "left", fontWeight: "bold" }}>{h}</th>
               ))}
             </tr>
@@ -464,6 +467,7 @@ export default function CampusReportManager() {
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", color: "#888" }}>{i + 1}</td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", fontWeight: 500 }}>{t.teacher_name}</td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px" }}>{t.department_name}</td>
+                <td style={{ border: "1px solid #fecaca", padding: "5px 10px" }}>{t.classes}</td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", textTransform: "capitalize" }}>{t.teacher_type}</td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", color: "#555" }}>{t.remarks ?? "—"}</td>
               </tr>

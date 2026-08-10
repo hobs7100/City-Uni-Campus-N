@@ -65,12 +65,15 @@ export async function GET(request: NextRequest) {
     teacher_name: string;
     department_name: string;
     teacher_type: string;
+    classes: string;
     remarks: string | null;
   }>(
     `SELECT
        t.name  AS teacher_name,
        t.type  AS teacher_type,
        STRING_AGG(DISTINCT d.name, ', ' ORDER BY d.name) AS department_name,
+       STRING_AGG(DISTINCT cl.class_name || ' Sem-' || sem.semester_number::text, ', '
+                  ORDER BY cl.class_name || ' Sem-' || sem.semester_number::text) AS classes,
        STRING_AGG(DISTINCT ar.remarks, '; ')
          FILTER (WHERE ar.remarks IS NOT NULL AND ar.remarks <> '') AS remarks
      FROM attendance_records ar
