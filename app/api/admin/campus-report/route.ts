@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       total_students:  total,
       presents:        p,
       absents:         a,
-      percentage:      p + a > 0 ? parseFloat(((p / (p + a)) * 100).toFixed(1)) : null,
+      percentage:      total > 0 ? parseFloat(((p / total) * 100).toFixed(1)) : null,
     };
   });
 

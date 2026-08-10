@@ -123,8 +123,8 @@ export default function CampusReportManager() {
   const totalStudents = deptRows.reduce((s, r) => s + r.total_students, 0);
   const totalPresents = deptRows.reduce((s, r) => s + r.presents,       0);
   const totalAbsents  = deptRows.reduce((s, r) => s + r.absents,        0);
-  const totalPct      = totalPresents + totalAbsents > 0
-    ? parseFloat(((totalPresents / (totalPresents + totalAbsents)) * 100).toFixed(1))
+  const totalPct      = totalStudents > 0
+    ? parseFloat(((totalPresents / totalStudents) * 100).toFixed(1))
     : null;
 
   /* friendly date label */
