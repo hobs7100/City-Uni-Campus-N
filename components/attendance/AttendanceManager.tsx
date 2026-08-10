@@ -73,6 +73,19 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  ok:          "Present",
+  absent:      "Absent",
+  fixture:     "Fixture (Rescheduled)",
+  mid_term:    "Mid Term Exam",
+  all_absent:  "All Students Absent",
+  final_term:  "Final Term Exams",
+};
+
+function statusLabel(s: string) {
+  return STATUS_LABELS[s] ?? s;
+}
+
 export default function AttendanceManager() {
   const readOnly = useUserRole() === "finance_manager";
   const [tab, setTab] = useState<"mark" | "report">(readOnly ? "report" : "mark");
@@ -86,7 +99,7 @@ export default function AttendanceManager() {
   const [markTarget, setMarkTarget] = useState<Lecture | null>(null);
   const [lectureCount, setLectureCount] = useState("1");
   const [lateMinutes, setLateMinutes] = useState("0");
-  const [status, setStatus] = useState<"ok" | "fixture" | "absent">("ok");
+  const [status, setStatus] = useState<"ok" | "fixture" | "absent" | "mid_term" | "all_absent" | "final_term">("ok");
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -146,7 +159,7 @@ export default function AttendanceManager() {
     setMarkTarget(l);
     setLectureCount(l.lecture_count ?? "1");
     setLateMinutes(String(l.late_minutes ?? 0));
-    setStatus((l.status as "ok" | "fixture") ?? "ok");
+    setStatus((l.status as "ok" | "fixture" | "absent" | "mid_term" | "all_absent" | "final_term") ?? "ok");
     setRemarks(l.remarks ?? "");
   }
 
@@ -544,7 +557,7 @@ export default function AttendanceManager() {
                       </td>
                       <td className="px-4 py-3">{r.lecture_count}</td>
                       <td className="px-4 py-3">{r.late_minutes}</td>
-                      <td className="px-4 py-3 capitalize">{r.status}</td>
+                      <td className="px-4 py-3">{statusLabel(r.status)}</td>
                     </tr>
                   ))
                 )}
@@ -591,8 +604,8 @@ export default function AttendanceManager() {
                           <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
                             {r.late_minutes}
                           </td>
-                          <td className="border border-indigo-200 px-1.5 py-0.5 capitalize text-slate-800">
-                            {r.status}
+                          <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
+                            {statusLabel(r.status)}
                           </td>
                         </tr>
                       ))}
@@ -622,25 +635,26 @@ export default function AttendanceManager() {
                 Status
               </label>
               <div className="flex flex-wrap gap-3">
-                {(["ok", "absent", "fixture"] as const).map((opt) => (
-                  <label key={opt} className="flex cursor-pointer items-center gap-1.5">
+                {(
+                  [
+                    { value: "ok",         label: "Present",              color: "text-emerald-600 dark:text-emerald-400" },
+                    { value: "absent",      label: "Absent",               color: "text-red-500 dark:text-red-400" },
+                    { value: "fixture",     label: "Fixture (Rescheduled)",color: "text-amber-500 dark:text-amber-400" },
+                    { value: "mid_term",    label: "Mid Term Exam",        color: "text-violet-600 dark:text-violet-400" },
+                    { value: "all_absent",  label: "All Students Absent",  color: "text-orange-500 dark:text-orange-400" },
+                    { value: "final_term",  label: "Final Term Exams",     color: "text-blue-600 dark:text-blue-400" },
+                  ] as const
+                ).map(({ value, label, color }) => (
+                  <label key={value} className="flex cursor-pointer items-center gap-1.5">
                     <input
                       type="radio"
                       name="mark-status"
-                      value={opt}
-                      checked={status === opt}
-                      onChange={() => setStatus(opt)}
+                      value={value}
+                      checked={status === value}
+                      onChange={() => setStatus(value)}
                       className="accent-indigo-600"
                     />
-                    <span className={`text-sm font-medium ${
-                      opt === "ok"
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : opt === "absent"
-                        ? "text-red-500 dark:text-red-400"
-                        : "text-amber-500 dark:text-amber-400"
-                    }`}>
-                      {opt === "ok" ? "OK" : opt === "absent" ? "Absent" : "Fixture (Rescheduled)"}
-                    </span>
+                    <span className={`text-sm font-medium ${color}`}>{label}</span>
                   </label>
                 ))}
               </div>
