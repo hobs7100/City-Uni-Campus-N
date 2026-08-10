@@ -249,11 +249,14 @@ export default function StudentManagementPage({ role }: Props) {
     setSaving(true);
     try {
       const needsStatusFields = ["left", "dropped", "freezed"].includes(form.status);
-      const payload = {
-        ...form,
-        status_change_date: needsStatusFields ? form.status_change_date || null : null,
-        status_change_semester: needsStatusFields && form.status_change_semester ? Number(form.status_change_semester) : null,
-      };
+      const { status, status_change_date, status_change_semester, ...formWithoutStatus } = form;
+      const payload = canChangeStatus
+        ? {
+            ...form,
+            status_change_date: needsStatusFields ? form.status_change_date || null : null,
+            status_change_semester: needsStatusFields && form.status_change_semester ? Number(form.status_change_semester) : null,
+          }
+        : formWithoutStatus;
       const url    = editing ? `/api/admin/students/${form.id}` : "/api/admin/students";
       const method = editing ? "PATCH" : "POST";
       const res  = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
