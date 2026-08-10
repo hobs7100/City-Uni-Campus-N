@@ -26,9 +26,13 @@ export async function GET(request: NextRequest) {
        COUNT(sar.student_id) FILTER (WHERE sar.status = 'absent')::text  AS absents
      FROM departments d
      JOIN classes cl ON cl.department_id = d.id
+     -- Only classes with a currently running semester (active / mid_term / final_term)
+     JOIN semesters sem
+       ON sem.class_id = cl.id
+      AND sem.status  != 'closed'
      JOIN students s
-       ON s.class_id = cl.id
-      AND s.status   = 'active'
+       ON s.class_id   = cl.id
+      AND s.status     = 'active'
       AND s.deleted_at IS NULL
      LEFT JOIN (
        SELECT sar2.student_id, sar2.status
