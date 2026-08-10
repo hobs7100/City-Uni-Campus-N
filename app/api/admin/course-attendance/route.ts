@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
   let pIdx = 1;
 
   const whereClauses: string[] = [];
-
   if (courseId) {
     whereClauses.push(`al.course_id = $${pIdx++}`);
     params.push(courseId);
@@ -27,21 +26,55 @@ export async function GET(request: NextRequest) {
     params.push(deptId);
   }
 
-  let dateFilter = "";
+  // Separate alias-aware date filters for each subquery table alias
+  let arDateFilter  = "";   // attendance_records        alias: ar
+  let scaDateFilter = "";   // student_course_attendance  alias: sca
   if (dateFrom) {
-    dateFilter += ` AND ar.attendance_date >= $${pIdx++}`;
+    arDateFilter  += ` AND ar.attendance_date  >= $${pIdx}`;
+    scaDateFilter += ` AND sca.attendance_date >= $${pIdx}`;
+    pIdx++;
     params.push(dateFrom);
   }
   if (dateTo) {
-    dateFilter += ` AND ar.attendance_date <= $${pIdx++}`;
+    arDateFilter  += ` AND ar.attendance_date  <= $${pIdx}`;
+    scaDateFilter += ` AND sca.attendance_date <= $${pIdx}`;
+    pIdx++;
     params.push(dateTo);
   }
 
   const whereSQL = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
-  // teacher_count  = slots where marked_by IS NULL (teacher-reported)
-  // coord_count    = slots where a system user (coordinator / admin / HoD)
-  //                  explicitly marked the record (marked_by IS NOT NULL)
+  // teacher_count:
+  //   Number of distinct teaching sessions the teacher held, evidenced by
+  //   them marking student attendance in student_course_attendance.
+  //   (marked_by in that table references teachers.id, same as al.teacher_id)
+  //
+  // coord_count:
+  //   Number of sessions the coordinator/admin recorded in attendance_records
+  //   for the same allocation.
+  const teacherCountExpr = `
+    COALESCE((
+      SELECT COUNT(*) FROM (
+        SELECT DISTINCT sca.attendance_date, sca.start_time, sca.end_time
+        FROM   student_course_attendance sca
+        WHERE  sca.allocation_id = al.id
+          AND  sca.marked_by     = al.teacher_id
+          ${scaDateFilter}
+      ) _tsub
+    ), 0)::int`;
+
+  const coordCountExpr = `
+    COALESCE((
+      SELECT COUNT(*)
+      FROM   attendance_records ar
+      WHERE  ar.allocation_id = al.id
+        ${arDateFilter}
+    ), 0)::int`;
+
+  const havingSQL = mismatchOnly
+    ? `HAVING (${teacherCountExpr}) != (${coordCountExpr})`
+    : "";
+
   const rows = await query(
     `SELECT
        c.title          AS course_title,
@@ -54,31 +87,19 @@ export async function GET(request: NextRequest) {
        te.id            AS teacher_id,
        te.name          AS teacher_name,
        te.type          AS teacher_type,
-       COALESCE((
-         SELECT COUNT(*)
-         FROM   attendance_records ar
-         WHERE  ar.allocation_id = al.id
-         AND    ar.marked_by IS NULL
-         ${dateFilter}
-       ), 0)::int AS teacher_count,
-       COALESCE((
-         SELECT COUNT(*)
-         FROM   attendance_records ar
-         WHERE  ar.allocation_id = al.id
-         AND    ar.marked_by IS NOT NULL
-         ${dateFilter}
-       ), 0)::int AS coord_count
+       (${teacherCountExpr}) AS teacher_count,
+       (${coordCountExpr})   AS coord_count
      FROM   allocations al
-     JOIN   courses c                ON c.id  = al.course_id
+     JOIN   courses  c               ON c.id  = al.course_id
      JOIN   teachers te              ON te.id = al.teacher_id
      JOIN   allocation_semesters als ON als.allocation_id = al.id
      JOIN   semesters s              ON s.id  = als.semester_id
-     JOIN   classes cl               ON cl.id = s.class_id
+     JOIN   classes   cl             ON cl.id = s.class_id
      ${whereSQL}
      GROUP  BY c.title, c.code, c.credit_hours,
                cl.id, cl.class_name, cl.session, s.semester_number,
                te.id, te.name, te.type, al.id
-     ${mismatchOnly ? "HAVING COALESCE((SELECT COUNT(*) FROM attendance_records ar WHERE ar.allocation_id = al.id AND ar.marked_by IS NULL" + dateFilter + "), 0) != COALESCE((SELECT COUNT(*) FROM attendance_records ar WHERE ar.allocation_id = al.id AND ar.marked_by IS NOT NULL" + dateFilter + "), 0)" : ""}
+     ${havingSQL}
      ORDER  BY cl.class_name, cl.session, s.semester_number`,
     params
   );
