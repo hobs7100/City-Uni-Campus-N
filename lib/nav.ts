@@ -34,6 +34,7 @@ export interface NavItem {
 export const navByRole: Record<UserRole, NavItem[]> = {
   admin: [
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
+    { label: "Campus Report", href: "/dashboard/admin/campus-report", icon: "FileSearch" },
     { label: "Users", href: "/dashboard/admin/users", icon: "Users" },
     { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
     { label: "Faculties", href: "/dashboard/admin/departments", icon: "Building2" },
@@ -109,6 +110,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   assistant: [
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
+    { label: "Campus Report", href: "/dashboard/admin/campus-report", icon: "FileSearch" },
     { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
     { label: "Faculties", href: "/dashboard/admin/departments", icon: "Building2" },
     { label: "Classes", href: "/dashboard/admin/classes", icon: "School" },
