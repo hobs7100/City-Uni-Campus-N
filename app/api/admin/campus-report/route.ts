@@ -56,35 +56,30 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  // ── 2. Absent teachers ────────────────────────────────────────────────────
+  // ── 2. Absent teachers (one row per teacher regardless of courses) ────────
   const absentTeachers = await query<{
     teacher_name: string;
-    course_code: string;
-    course_title: string;
     department_name: string;
     teacher_type: string;
     remarks: string | null;
   }>(
     `SELECT
        t.name  AS teacher_name,
-       c.code  AS course_code,
-       c.title AS course_title,
-       d.name  AS department_name,
        t.type  AS teacher_type,
+       STRING_AGG(DISTINCT d.name, ', ' ORDER BY d.name) AS department_name,
        STRING_AGG(DISTINCT ar.remarks, '; ')
          FILTER (WHERE ar.remarks IS NOT NULL AND ar.remarks <> '') AS remarks
      FROM attendance_records ar
-     JOIN allocations al          ON al.id  = ar.allocation_id
-     JOIN teachers    t           ON t.id   = al.teacher_id AND t.deleted_at IS NULL
-     JOIN courses     c           ON c.id   = al.course_id
+     JOIN allocations al           ON al.id  = ar.allocation_id
+     JOIN teachers    t            ON t.id   = al.teacher_id AND t.deleted_at IS NULL
      JOIN allocation_semesters als ON als.allocation_id = al.id
-     JOIN semesters sem           ON sem.id = als.semester_id
-     JOIN classes   cl            ON cl.id  = sem.class_id
-     JOIN departments d           ON d.id   = cl.department_id
+     JOIN semesters sem            ON sem.id = als.semester_id
+     JOIN classes   cl             ON cl.id  = sem.class_id
+     JOIN departments d            ON d.id   = cl.department_id
      WHERE ar.attendance_date = $1
        AND ar.status          = 'absent'
-     GROUP BY t.id, t.name, c.id, c.code, c.title, d.id, d.name, t.type
-     ORDER BY d.name, t.name, c.code`,
+     GROUP BY t.id, t.name, t.type
+     ORDER BY t.name`,
     [date]
   );
 

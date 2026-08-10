@@ -18,8 +18,6 @@ interface DeptRow {
 
 interface AbsentTeacher {
   teacher_name:    string;
-  course_code:     string;
-  course_title:    string;
   department_name: string;
   teacher_type:    "permanent" | "visiting";
   remarks:         string | null;
@@ -280,7 +278,6 @@ export default function CampusReportManager() {
                     <tr>
                       <th className="px-5 py-3">#</th>
                       <th className="px-5 py-3">Teacher Name</th>
-                      <th className="px-5 py-3">Subject / Course</th>
                       <th className="px-5 py-3">Department</th>
                       <th className="px-5 py-3 text-center">Status</th>
                       <th className="px-5 py-3">Remarks</th>
@@ -292,11 +289,6 @@ export default function CampusReportManager() {
                         <td className="px-5 py-3 text-slate-400">{i + 1}</td>
                         <td className="px-5 py-3">
                           <span className="font-medium text-slate-800 dark:text-slate-100">{t.teacher_name}</span>
-                        </td>
-                        <td className="px-5 py-3 text-slate-600 dark:text-slate-300">
-                          <span className="font-semibold text-indigo-700 dark:text-indigo-300">{t.course_code}</span>
-                          {" — "}
-                          {t.course_title}
                         </td>
                         <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{t.department_name}</td>
                         <td className="px-5 py-3 text-center">
@@ -461,7 +453,7 @@ export default function CampusReportManager() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24 }}>
           <thead>
             <tr style={{ background: "#fee2e2" }}>
-              {["#", "Teacher Name", "Course", "Department", "Type", "Remarks"].map((h) => (
+              {["#", "Teacher Name", "Department", "Type", "Remarks"].map((h) => (
                 <th key={h} style={{ border: "1px solid #fecaca", padding: "6px 10px", textAlign: "left", fontWeight: "bold" }}>{h}</th>
               ))}
             </tr>
@@ -471,9 +463,6 @@ export default function CampusReportManager() {
               <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#fff5f5" }}>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", color: "#888" }}>{i + 1}</td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", fontWeight: 500 }}>{t.teacher_name}</td>
-                <td style={{ border: "1px solid #fecaca", padding: "5px 10px" }}>
-                  <span style={{ fontWeight: "bold", color: "#3730a3" }}>{t.course_code}</span> — {t.course_title}
-                </td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px" }}>{t.department_name}</td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", textTransform: "capitalize" }}>{t.teacher_type}</td>
                 <td style={{ border: "1px solid #fecaca", padding: "5px 10px", color: "#555" }}>{t.remarks ?? "—"}</td>
