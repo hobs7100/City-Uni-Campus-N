@@ -91,7 +91,7 @@ export async function GET() {
     const toNum = (s: string | undefined) => parseInt(s ?? "0", 10);
     const calcFlag = (p: number, a: number) => {
       const pct = p + a > 0 ? (p / (p + a)) * 100 : 0;
-      const flag = pct < 50 ? "struck_off" : pct < 75 ? "warning" : "ok";
+      const flag = pct < 60 ? "struck_off" : pct < 75 ? "warning" : "ok";
       return { percentage: Number(pct.toFixed(2)), flag };
     };
 

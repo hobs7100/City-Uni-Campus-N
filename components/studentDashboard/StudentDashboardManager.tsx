@@ -732,7 +732,7 @@ export default function StudentDashboardManager() {
             if (!profile) return null;
             const activeSemAtt = semAtts.find((s) => s.semester_status === "active") ?? semAtts[semAtts.length - 1] ?? null;
             const pct = activeSemAtt?.overall.percentage ?? null;
-            const isStruckOff = profile.status === "struck_off" || (pct !== null && pct < 60);
+            const isStruckOff = profile.status === "struck_off";
             const isWarning   = !isStruckOff && pct !== null && pct < 75;
             if (!isStruckOff && !isWarning) return null;
 

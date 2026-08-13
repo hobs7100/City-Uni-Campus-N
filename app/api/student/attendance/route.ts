@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   const absents = records.filter((r) => (r as { status: string }).status === "absent").length;
   const leaves = records.filter((r) => (r as { status: string }).status === "leave").length;
   const percentage = presents + absents > 0 ? (presents / (presents + absents)) * 100 : 0;
-  const flag = percentage < 50 ? "struck_off" : percentage < 75 ? "warning" : "ok";
+  const flag = percentage < 60 ? "struck_off" : percentage < 75 ? "warning" : "ok";
 
   return NextResponse.json({
     semester,
