@@ -17,13 +17,15 @@ export async function GET(request: NextRequest) {
     total_students: string;
     presents: string;
     absents: string;
+    leaves: string;
   }>(
     `SELECT
        d.id   AS department_id,
        d.name AS department_name,
-       COUNT(DISTINCT s.id)::text                                    AS total_students,
+       COUNT(DISTINCT s.id)::text                                        AS total_students,
        COUNT(sar.student_id) FILTER (WHERE sar.status = 'present')::text AS presents,
-       COUNT(sar.student_id) FILTER (WHERE sar.status = 'absent')::text  AS absents
+       COUNT(sar.student_id) FILTER (WHERE sar.status = 'absent')::text  AS absents,
+       COUNT(sar.student_id) FILTER (WHERE sar.status = 'leave')::text   AS leaves
      FROM departments d
      JOIN classes cl ON cl.department_id = d.id
      -- Only classes with an Active semester (mid_term / final_term / closed are excluded)
@@ -50,12 +52,14 @@ export async function GET(request: NextRequest) {
     const total = parseInt(r.total_students, 10);
     const p     = parseInt(r.presents, 10);
     const a     = parseInt(r.absents, 10);
+    const l     = parseInt(r.leaves, 10);
     return {
       department_id:   r.department_id,
       department_name: r.department_name,
       total_students:  total,
       presents:        p,
       absents:         a,
+      leaves:          l,
       percentage:      total > 0 ? parseFloat(((p / total) * 100).toFixed(1)) : null,
     };
   });

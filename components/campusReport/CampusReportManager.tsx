@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Building2, UserX, Clock, RefreshCw, CalendarDays, Users, TrendingUp, Download,
+  ChevronRight, X,
 } from "lucide-react";
 import { DataFetchLoader } from "@/components/ui/Loaders";
 
@@ -13,6 +14,18 @@ interface DeptRow {
   total_students:  number;
   presents:        number;
   absents:         number;
+  leaves:          number;
+  percentage:      number | null;
+}
+
+interface ClassDetail {
+  class_name:      string;
+  session:         string;
+  semester_number: number;
+  total_students:  number;
+  presents:        number;
+  absents:         number;
+  leaves:          number;
   percentage:      number | null;
 }
 
@@ -95,6 +108,12 @@ export default function CampusReportManager() {
   const [lateTeachers,   setLateTeachers]   = useState<LateTeacher[]>([]);
   const [loading,        setLoading]        = useState(false);
 
+  /* detail modal state */
+  const [detailDeptId,   setDetailDeptId]   = useState<string | null>(null);
+  const [detailDeptName, setDetailDeptName] = useState("");
+  const [classDetails,   setClassDetails]   = useState<ClassDetail[]>([]);
+  const [detailLoading,  setDetailLoading]  = useState(false);
+
   /* set today's date client-side (avoids SSR hydration mismatch) */
   useEffect(() => {
     setDate(new Date().toISOString().slice(0, 10));
@@ -118,10 +137,26 @@ export default function CampusReportManager() {
 
   useEffect(() => { if (date) load(date); }, [date, load]);
 
+  /* open class-detail modal for a department */
+  const openDetail = useCallback(async (deptId: string, deptName: string) => {
+    setDetailDeptId(deptId);
+    setDetailDeptName(deptName);
+    setClassDetails([]);
+    setDetailLoading(true);
+    try {
+      const res  = await fetch(`/api/admin/campus-report/dept-detail?date=${date}&department_id=${deptId}`);
+      const data = await res.json();
+      if (res.ok) setClassDetails(data.classes ?? []);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [date]);
+
   /* totals row */
   const totalStudents = deptRows.reduce((s, r) => s + r.total_students, 0);
   const totalPresents = deptRows.reduce((s, r) => s + r.presents,       0);
   const totalAbsents  = deptRows.reduce((s, r) => s + r.absents,        0);
+  const totalLeaves   = deptRows.reduce((s, r) => s + r.leaves,         0);
   const totalPct      = totalStudents > 0
     ? parseFloat(((totalPresents / totalStudents) * 100).toFixed(1))
     : null;
@@ -200,7 +235,9 @@ export default function CampusReportManager() {
                       <th className="px-5 py-3 text-center">Total Students</th>
                       <th className="px-5 py-3 text-center">Present</th>
                       <th className="px-5 py-3 text-center">Absent</th>
+                      <th className="px-5 py-3 text-center">Leaves</th>
                       <th className="px-5 py-3 text-center">Attendance %</th>
+                      <th className="px-5 py-3 text-center">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -219,7 +256,18 @@ export default function CampusReportManager() {
                         <td className="px-5 py-3 text-center font-semibold text-red-500 dark:text-red-400">
                           {r.absents}
                         </td>
+                        <td className="px-5 py-3 text-center font-semibold text-amber-500 dark:text-amber-400">
+                          {r.leaves}
+                        </td>
                         <td className="px-5 py-3 text-center">{pctBadge(r.percentage)}</td>
+                        <td className="px-5 py-3 text-center">
+                          <button
+                            onClick={() => openDetail(r.department_id, r.department_name)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+                          >
+                            View Details <ChevronRight size={12} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
 
@@ -243,6 +291,9 @@ export default function CampusReportManager() {
                       <td className="px-5 py-3 text-center text-base font-extrabold text-red-600 dark:text-red-400">
                         {totalAbsents}
                       </td>
+                      <td className="px-5 py-3 text-center text-base font-extrabold text-amber-600 dark:text-amber-400">
+                        {totalLeaves}
+                      </td>
                       <td className="px-5 py-3 text-center">
                         <span className={`rounded-full px-3 py-1 text-sm font-extrabold tabular-nums ${
                           totalPct === null ? "text-slate-400"
@@ -253,6 +304,7 @@ export default function CampusReportManager() {
                           {totalPct !== null ? `${totalPct.toFixed(1)}%` : "—"}
                         </span>
                       </td>
+                      <td className="px-5 py-3" />
                     </tr>
                   </tbody>
                 </table>
@@ -385,6 +437,108 @@ export default function CampusReportManager() {
       )}
     </div>
 
+    {/* ── Department detail modal ───────────────────────────────────────────── */}
+    {detailDeptId && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        onClick={() => setDetailDeptId(null)}
+      >
+        <div
+          className="relative w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* modal header */}
+          <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-6 py-4 dark:border-slate-800 dark:from-indigo-900/20 dark:to-blue-900/20">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 dark:text-indigo-400">
+                Class-wise Breakdown
+              </p>
+              <h3 className="text-lg font-extrabold text-slate-800 dark:text-slate-100">
+                {detailDeptName}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Only classes with an <span className="font-semibold text-emerald-600 dark:text-emerald-400">Active</span> semester &mdash; {date
+                  ? new Date(date + "T00:00:00").toLocaleDateString("en-PK", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+                  : ""}
+              </p>
+            </div>
+            <button
+              onClick={() => setDetailDeptId(null)}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* modal body */}
+          <div className="overflow-y-auto" style={{ maxHeight: "calc(85vh - 110px)" }}>
+            {detailLoading ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
+                <RefreshCw size={16} className="animate-spin" />
+                Loading class details…
+              </div>
+            ) : classDetails.length === 0 ? (
+              <p className="py-16 text-center text-sm text-slate-400">
+                No active-semester classes found for this department on this date.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800/90 dark:text-slate-400">
+                    <tr>
+                      <th className="px-5 py-3">#</th>
+                      <th className="px-5 py-3">Class</th>
+                      <th className="px-5 py-3">Session / Semester</th>
+                      <th className="px-5 py-3 text-center">Total Students</th>
+                      <th className="px-5 py-3 text-center">Present</th>
+                      <th className="px-5 py-3 text-center">Absent</th>
+                      <th className="px-5 py-3 text-center">Leave</th>
+                      <th className="px-5 py-3 text-center">Attendance %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {classDetails.map((c, i) => (
+                      <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                        <td className="px-5 py-3 text-slate-400">{i + 1}</td>
+                        <td className="px-5 py-3 font-semibold text-slate-800 dark:text-slate-100">{c.class_name}</td>
+                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                          {c.session} &mdash; Sem {c.semester_number}
+                        </td>
+                        <td className="px-5 py-3 text-center font-semibold text-slate-700 dark:text-slate-300">{c.total_students}</td>
+                        <td className="px-5 py-3 text-center font-semibold text-emerald-600 dark:text-emerald-400">{c.presents}</td>
+                        <td className="px-5 py-3 text-center font-semibold text-red-500 dark:text-red-400">{c.absents}</td>
+                        <td className="px-5 py-3 text-center font-semibold text-amber-500 dark:text-amber-400">{c.leaves}</td>
+                        <td className="px-5 py-3 text-center">{pctBadge(c.percentage)}</td>
+                      </tr>
+                    ))}
+                    {/* summary row */}
+                    {(() => {
+                      const tp = classDetails.reduce((s, c) => s + c.presents, 0);
+                      const ta = classDetails.reduce((s, c) => s + c.absents,  0);
+                      const tl = classDetails.reduce((s, c) => s + c.leaves,   0);
+                      const tt = classDetails.reduce((s, c) => s + c.total_students, 0);
+                      const tpct = (tp + ta) > 0 ? parseFloat(((tp / (tp + ta)) * 100).toFixed(1)) : null;
+                      return (
+                        <tr className="border-t-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 font-bold dark:border-indigo-700 dark:from-indigo-900/30 dark:to-blue-900/30">
+                          <td className="px-5 py-3" />
+                          <td className="px-5 py-3 font-extrabold text-indigo-700 dark:text-indigo-300" colSpan={2}>TOTAL</td>
+                          <td className="px-5 py-3 text-center font-extrabold text-slate-800 dark:text-slate-100">{tt}</td>
+                          <td className="px-5 py-3 text-center font-extrabold text-emerald-700 dark:text-emerald-300">{tp}</td>
+                          <td className="px-5 py-3 text-center font-extrabold text-red-600 dark:text-red-400">{ta}</td>
+                          <td className="px-5 py-3 text-center font-extrabold text-amber-600 dark:text-amber-400">{tl}</td>
+                          <td className="px-5 py-3 text-center">{pctBadge(tpct)}</td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* ── Print-only area (hidden on screen, visible on print via globals.css) ── */}
     <div id="campus-report-print-area" style={{ display: "none", fontFamily: "Arial, sans-serif", color: "#111", padding: "0 8px" }}>
 
@@ -412,7 +566,7 @@ export default function CampusReportManager() {
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24 }}>
         <thead>
           <tr style={{ background: "#e0e7ff" }}>
-            {["#", "Department", "Total Students", "Present", "Absent", "Attendance %"].map((h) => (
+            {["#", "Department", "Total Students", "Present", "Absent", "Leaves", "Attendance %"].map((h) => (
               <th key={h} style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: h === "Department" || h === "#" ? "left" : "center", fontWeight: "bold" }}>{h}</th>
             ))}
           </tr>
@@ -425,6 +579,7 @@ export default function CampusReportManager() {
               <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", fontWeight: "bold" }}>{r.total_students}</td>
               <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", color: "#059669", fontWeight: "bold" }}>{r.presents}</td>
               <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", color: "#dc2626", fontWeight: "bold" }}>{r.absents}</td>
+              <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", color: "#d97706", fontWeight: "bold" }}>{r.leaves}</td>
               <td style={{ border: "1px solid #e0e7ff", padding: "5px 10px", textAlign: "center", fontWeight: "bold",
                 color: r.percentage === null ? "#aaa" : r.percentage >= 75 ? "#059669" : r.percentage >= 60 ? "#d97706" : "#dc2626" }}>
                 {r.percentage !== null ? `${r.percentage.toFixed(1)}%` : "—"}
@@ -438,6 +593,7 @@ export default function CampusReportManager() {
             <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center" }}>{totalStudents}</td>
             <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center", color: "#059669" }}>{totalPresents}</td>
             <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center", color: "#dc2626" }}>{totalAbsents}</td>
+            <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center", color: "#d97706" }}>{totalLeaves}</td>
             <td style={{ border: "1px solid #c7d2fe", padding: "6px 10px", textAlign: "center",
               color: totalPct === null ? "#aaa" : totalPct >= 75 ? "#059669" : totalPct >= 60 ? "#d97706" : "#dc2626" }}>
               {totalPct !== null ? `${totalPct.toFixed(1)}%` : "—"}
