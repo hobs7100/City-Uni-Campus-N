@@ -608,46 +608,9 @@ export default function SemestersPage() {
             </div>
           </div>
         ) : (
-        <div className="space-y-6">
-          {/* ── Upcoming Semesters ─────────────────────────────────────────── */}
-          {upcomingClasses.length > 0 && (
-            <div className="overflow-hidden rounded-xl card-3d">
-              <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-yellow-50 px-5 py-4 dark:border-slate-800 dark:from-amber-900/20 dark:to-yellow-900/20">
-                <Calendar size={17} className="text-amber-500" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-slate-800 dark:text-slate-100">Upcoming Semesters</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Active classes with no running semester — ready to start
-                  </p>
-                </div>
-                <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-                  {upcomingClasses.length} {upcomingClasses.length === 1 ? "class" : "classes"}
-                </span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
-                    <tr>
-                      <th className="px-5 py-3">#</th>
-                      <th className="px-5 py-3">Class Name</th>
-                      <th className="px-5 py-3">Session</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {upcomingClasses.map((c, i) => (
-                      <tr key={c.id} className="hover:bg-amber-50/30 dark:hover:bg-amber-900/10">
-                        <td className="px-5 py-3 text-slate-400">{i + 1}</td>
-                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{c.class_name}</td>
-                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{c.session}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <form onSubmit={handleStart} className="max-w-2xl space-y-4 card-3d p-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+          {/* ── Left column: Start Semester form ──────────────────────────── */}
+          <form onSubmit={handleStart} className="space-y-4 card-3d p-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -803,6 +766,52 @@ export default function SemestersPage() {
             </button>
           </div>
           </form>
+
+          {/* ── Right column: Upcoming Semesters ──────────────────────────── */}
+          <div className="overflow-hidden rounded-xl card-3d">
+            <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-yellow-50 px-5 py-4 dark:border-slate-800 dark:from-amber-900/20 dark:to-yellow-900/20">
+              <Calendar size={17} className="text-amber-500" />
+              <div className="flex-1">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">Upcoming Semesters</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Active classes with no running semester — ready to start
+                </p>
+              </div>
+              <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                {upcomingClasses.length} {upcomingClasses.length === 1 ? "class" : "classes"}
+              </span>
+            </div>
+            {upcomingClasses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 px-5 py-14 text-center">
+                <span className="text-3xl">🎓</span>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">All caught up!</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  Every active class already has a running semester.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+                    <tr>
+                      <th className="px-5 py-3">#</th>
+                      <th className="px-5 py-3">Class Name</th>
+                      <th className="px-5 py-3">Session</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {upcomingClasses.map((c, i) => (
+                      <tr key={c.id} className="hover:bg-amber-50/30 dark:hover:bg-amber-900/10">
+                        <td className="px-5 py-3 text-slate-400">{i + 1}</td>
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{c.class_name}</td>
+                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{c.session}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
         )
       ) : tab === "update" ? (
