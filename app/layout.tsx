@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "City College Campus Management System",
   description: "Campus Management System for City College (University Campus)",
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export default function RootLayout({
