@@ -677,11 +677,11 @@ export default function StudentDashboardManager() {
   }
 
   // Visible tabs:
-  //   - Struck-off students: only Overview (notice) and Profile
+  //   - Struck-off students: Overview, Attendance, and Profile
   //   - Others: all tabs except Mock Exam Results for non-DIT students
   const visibleTabs = TABS.filter((t) => {
     if (profile?.status === "struck_off") {
-      return t.id === "overview" || t.id === "profile";
+      return t.id === "overview" || t.id === "attendance" || t.id === "profile";
     }
     return t.id !== "mock-exam-results" || profile?.class_type === "DIT";
   });
