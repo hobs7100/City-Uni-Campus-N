@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Award, Bell, BookOpen, Building2, CalendarCheck, ClipboardCheck, ClipboardList,
   FileDown, FileText, GraduationCap, LayoutDashboard, Pencil, RefreshCcw, Save, School, Search,
-  Trash2, UsersRound, TrendingUp, User, UserCog, UserMinus, AlertTriangle, Eye, ExternalLink,
+  Trash2, UsersRound, TrendingUp, UserCog, UserMinus, AlertTriangle, Eye, ExternalLink,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -15,13 +15,12 @@ import { PageLoader, DataFetchLoader, TableLoader, ButtonLoader } from "@/compon
 import RichTextViewer from "@/components/ui/RichTextViewer";
 import toast from "react-hot-toast";
 import StatusBadge from "@/components/ui/StatusBadge";
-import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import ProfilePasswordForm from "@/components/ProfilePasswordForm";
 import Logo from "@/components/Logo";
 import StudentManagementPage from "@/components/students/StudentManagementPage";
 import TeacherWorkloadTabs from "@/components/teachers/TeacherWorkloadTabs";
 import DeptAttendanceManager from "@/components/deptAttendance/DeptAttendanceManager";
-import type { SingleValue } from "react-select";
+import StudentAttendanceLookup from "@/components/studentAttendance/StudentAttendanceLookup";
 
 interface Department  { id: string; name: string }
 interface Counters {
@@ -34,16 +33,6 @@ interface ClassRow {
   total_students: string; active_students: string; struck_off: string;
 }
 interface StudentOption { id: string; name: string; roll_no: string | null; class_name: string; session: string }
-
-interface CourseAtt {
-  course_title: string; teacher_name: string;
-  presents: number; absents: number; leaves: number; percentage: number | null;
-}
-interface SemAtt {
-  semester_id: string; semester_number: number; term_type: string; sem_status: string;
-  courses: CourseAtt[];
-  overall: { presents: number; absents: number; leaves: number; percentage: number | null };
-}
 
 interface ResultCourse {
   course_code: string; course_title: string;
@@ -156,14 +145,6 @@ function pctColor(pct: number | null) {
   if (pct >= 60) return "text-amber-600 dark:text-amber-400";
   return "text-red-500 dark:text-red-400";
 }
-function pctBadge(pct: number | null) {
-  if (pct === null) return <span className="text-xs text-slate-400">—</span>;
-  const cls = pct >= 75 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
-    : pct >= 60 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-    : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300";
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{pct}%</span>;
-}
-
 export default function HodDashboardManager({ initialTab }: { initialTab?: string }) {
   const validTabs = tabs.map((t) => t.id) as string[];
   const [tab, setTab] = useState<TabId>(
@@ -178,10 +159,6 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
 
   // ── attendance ────────────────────────────────────────────────────────────
   const [allStudents, setAllStudents]         = useState<StudentOption[]>([]);
-  const [attStudentId, setAttStudentId]       = useState<string>("");
-  const [attSemesters, setAttSemesters]       = useState<SemAtt[]>([]);
-  const [attLoading, setAttLoading]           = useState(false);
-  const [attStudentInfo, setAttStudentInfo]   = useState<StudentOption | null>(null);
 
   // ── all-results tab ──────────────────────────────────────────────────────
   const [hodArRows, setHodArRows]               = useState<HodAllResultRow[]>([]);
@@ -344,28 +321,6 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
     }).finally(() => setLoading(false));
   }, []);
 
-  // ── student options for SearchableSelect ─────────────────────────────────
-  const studentOptions = useMemo(
-    () => allStudents.map((s) => ({
-      value: s.id,
-      label: `${s.name}${s.roll_no ? ` (${s.roll_no})` : ""} — ${s.class_name} ${s.session}`,
-    })),
-    [allStudents]
-  );
-
-  // ── load per-student attendance ───────────────────────────────────────────
-  const loadAttendance = useCallback(async (sid: string) => {
-    if (!sid) { setAttSemesters([]); return; }
-    setAttLoading(true);
-    try {
-      const res  = await fetch(`/api/hod/student-attendance?student_id=${sid}`);
-      const data = await res.json();
-      if (res.ok) setAttSemesters(data.semesters ?? []);
-    } finally {
-      setAttLoading(false);
-    }
-  }, []);
-
   // ── short attendance: load classes when dept changes ─────────────────────
   useEffect(() => {
     setShortClassId(""); setShortSemId(""); setShortClasses([]); setShortSems([]);
@@ -469,15 +424,6 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
     } finally {
       setWarnStruckOffId(null);
     }
-  }
-
-  function handleAttStudentChange(opt: SingleValue<SelectOption>) {
-    const val = opt?.value ?? "";
-    setAttStudentId(val);
-    const stu = allStudents.find((s) => s.id === val) ?? null;
-    setAttStudentInfo(stu);
-    setAttSemesters([]);
-    if (val) loadAttendance(val);
   }
 
   // ── results ───────────────────────────────────────────────────────────────
@@ -732,104 +678,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
 
       {/* ══════════════════════ ATTENDANCE TAB ════════════════════════════ */}
       {tab === "attendance" && (
-        <div className="space-y-4">
-          {/* search card */}
-          <div className="card-3d p-4">
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              <User size={12} className="mr-1 inline" /> Search Student
-            </label>
-            <SearchableSelect
-              options={studentOptions}
-              value={studentOptions.find((o) => o.value === attStudentId) ?? null}
-              onChange={(opt) => handleAttStudentChange(opt as SingleValue<SelectOption>)}
-              placeholder="Select student by name, roll no, class or session…"
-            />
-            {attStudentInfo && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                {attStudentInfo.class_name} &middot; {attStudentInfo.session}
-                {attStudentInfo.roll_no ? ` · Roll: ${attStudentInfo.roll_no}` : ""}
-              </p>
-            )}
-          </div>
-
-          {!attStudentId ? (
-            <div className="card-3d flex flex-col items-center justify-center gap-3 py-16 text-center">
-              <ClipboardCheck size={40} className="text-slate-300 dark:text-slate-600" />
-              <p className="text-sm text-slate-400">Select a student above to view their attendance record.</p>
-            </div>
-          ) : attLoading ? (
-            <DataFetchLoader />
-          ) : attSemesters.length === 0 ? (
-            <div className="card-3d py-16 text-center text-sm text-slate-400">No attendance records found for this student.</div>
-          ) : (
-            attSemesters.map((sem) => {
-              const ov = sem.overall;
-              const ovTotal = ov.presents + ov.absents;
-              const ovPct = ovTotal > 0 ? Math.round((ov.presents / ovTotal) * 100) : null;
-              return (
-                <div key={sem.semester_id} className="overflow-hidden card-3d">
-                  {/* semester header */}
-                  <div className="border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-3 dark:border-slate-800 dark:from-indigo-900/20 dark:to-blue-900/20">
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                      Semester {sem.semester_number}
-                      {sem.term_type ? ` — ${sem.term_type}` : ""}
-                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${
-                        sem.sem_status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
-                          : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-                      }`}>{sem.sem_status}</span>
-                    </h3>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[600px] border-collapse text-left text-sm">
-                      <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                        <tr>
-                          <th className="px-4 py-2">Course</th>
-                          <th className="px-4 py-2">Teacher</th>
-                          <th className="px-4 py-2 text-center">Present</th>
-                          <th className="px-4 py-2 text-center">Absent</th>
-                          <th className="px-4 py-2 text-center">Leave</th>
-                          <th className="px-4 py-2 text-center">%</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {sem.courses.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-4 text-center text-xs text-slate-400">
-                              No course-wise attendance marked by teachers for this semester.
-                            </td>
-                          </tr>
-                        ) : (
-                          sem.courses.map((c, ci) => (
-                            <tr key={ci} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                              <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{c.course_title}</td>
-                              <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{c.teacher_name}</td>
-                              <td className="px-4 py-2.5 text-center font-semibold text-emerald-600">{c.presents}</td>
-                              <td className="px-4 py-2.5 text-center font-semibold text-red-500">{c.absents}</td>
-                              <td className="px-4 py-2.5 text-center font-semibold text-amber-500">{c.leaves}</td>
-                              <td className="px-4 py-2.5 text-center">{pctBadge(c.percentage)}</td>
-                            </tr>
-                          ))
-                        )}
-
-                        {/* overall row */}
-                        <tr className="bg-indigo-50/60 dark:bg-indigo-900/20">
-                          <td colSpan={2} className="px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-                            Overall Attendance (Admin / Coordinator)
-                          </td>
-                          <td className="px-4 py-2.5 text-center font-bold text-emerald-600">{ov.presents}</td>
-                          <td className="px-4 py-2.5 text-center font-bold text-red-500">{ov.absents}</td>
-                          <td className="px-4 py-2.5 text-center font-bold text-amber-500">{ov.leaves}</td>
-                          <td className="px-4 py-2.5 text-center">{pctBadge(ovPct)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+        <StudentAttendanceLookup students={allStudents} />
       )}
 
       {/* ══════════════════════ SHORT ATTENDANCE TAB ══════════════════════ */}

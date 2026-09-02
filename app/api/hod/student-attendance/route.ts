@@ -3,7 +3,7 @@ import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
 export async function GET(request: NextRequest) {
-  const { session, response } = await requireRole("hod");
+  const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
 
   const studentId  = request.nextUrl.searchParams.get("student_id");
@@ -11,26 +11,36 @@ export async function GET(request: NextRequest) {
   const semesterId = request.nextUrl.searchParams.get("semester_id");
   const dateFrom   = request.nextUrl.searchParams.get("from");
   const dateTo     = request.nextUrl.searchParams.get("to");
+  const isCampusAdmin = session!.role !== "hod";
 
   const departments = await query<{ id: string }>(
     `select id from departments where hod_id = $1`,
     [session!.userId]
   );
   const deptIds = departments.map((d) => d.id);
-  if (deptIds.length === 0) return NextResponse.json({ rows: [], semesters: [], classes: [] });
+  if (!isCampusAdmin && deptIds.length === 0) {
+    return NextResponse.json({ rows: [], semesters: [], classes: [] });
+  }
 
   const classes = await query<{ id: string; class_name: string; session: string }>(
-    `select id, class_name, session from classes where department_id = any($1::uuid[]) order by class_name`,
-    [deptIds]
+    isCampusAdmin
+      ? `select id, class_name, session from classes order by class_name`
+      : `select id, class_name, session from classes where department_id = any($1::uuid[]) order by class_name`,
+    isCampusAdmin ? [] : [deptIds]
   );
 
   // ── NEW: per-student detailed attendance (course-wise + overall) ──────────
   if (studentId) {
-    // Verify the student belongs to this HoD's department
-    const stuCheck = await query<{ id: string }>(
-      `select s.id from students s where s.id = $1 and s.department_id = any($2::uuid[])`,
-      [studentId, deptIds]
-    );
+    // HoDs are restricted to their departments; admins can search campus-wide.
+    const stuCheck = isCampusAdmin
+      ? await query<{ id: string }>(
+          `select s.id from students s where s.id = $1 and s.deleted_at is null`,
+          [studentId]
+        )
+      : await query<{ id: string }>(
+          `select s.id from students s where s.id = $1 and s.department_id = any($2::uuid[]) and s.deleted_at is null`,
+          [studentId, deptIds]
+        );
     if (stuCheck.length === 0)
       return NextResponse.json({ error: "Student not found." }, { status: 403 });
 
