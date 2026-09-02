@@ -7,3 +7,4 @@
 - [Next.js Server->Client icon props](nav-icon-serialization.md) — never pass Lucide/component values as props from a Server Component into a Client Component; pass a string key and map to the component inside the client file.
 - [Bulk regex file edits](bulk-regex-file-edits.md) — never chain a generic whitespace-cleanup regex onto a targeted find/replace sweep across many files; verify with git diff / prettier before trusting bulk edits.
 - [SSR client component + Date() hydration mismatches](ssr-date-hydration.md) — server/client clock or locale differences break hydration when a client component renders raw dates/"today" on first render.
+- [Imported runtime alignment](imported-runtime-alignment.md) — verify generated Replit modules match the package engine before installing dependencies or validating the workflow.

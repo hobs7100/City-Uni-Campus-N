@@ -73,3 +73,12 @@ All 18 modules from the original spec in `attached_assets/` are now built.
 
 ## User Preferences
 None recorded yet.
+
+## Replit Setup
+
+- Install dependencies with `pnpm install --frozen-lockfile`.
+- Run the app with `npm run dev` (Next.js listens on `0.0.0.0:5000`).
+- The Replit workflow is `Start application` and runs `npm run dev`.
+- `SESSION_SECRET` is required for cookie sessions and is configured as a Replit Secret.
+- Database-backed features require `SUPABASE_DB_URL`, using Supabase's session-mode connection-pooling URI.
+- Upload and email features require their respective Cloudinary (`CLOUDINARY_*`) and Resend (`RESEND_API_KEY`) settings.
