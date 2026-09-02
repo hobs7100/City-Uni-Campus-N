@@ -12,6 +12,7 @@ import PrintableTimetable, {
 } from "@/components/timetable/PrintableTimetable";
 import { TableLoader } from "@/components/ui/Loaders";
 import { useUserRole } from "@/lib/roleContext";
+import { usePortalAccess } from "@/lib/usePortalAccess";
 
 interface ClassOption {
   id: string;
@@ -53,6 +54,9 @@ const shiftOptions = [
 
 export default function TimetablesPage() {
   const readOnly = useUserRole() === "finance_manager";
+  const { canEdit, canDelete } = usePortalAccess("timetables");
+  const canManage = canEdit && !readOnly;
+  const canRemove = canDelete && !readOnly;
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [semesters, setSemesters] = useState<SemesterRow[]>([]);
@@ -144,6 +148,7 @@ export default function TimetablesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManage) return;
     if (!activeSemester) {
       toast.error("Selected class has no active semester.");
       return;
@@ -179,7 +184,7 @@ export default function TimetablesPage() {
   }
 
   async function handleDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canRemove) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/admin/timetables/${deleteTarget.id}`, { method: "DELETE" });
@@ -277,7 +282,7 @@ export default function TimetablesPage() {
           >
             <FileDown size={18} /> Export Selected ({visibleSelectedIds.length})
           </button>
-          {!readOnly && (
+          {canManage && (
             <button
               onClick={openCreate}
               className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
@@ -379,14 +384,16 @@ export default function TimetablesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
-                      <Link
-                        href={`/dashboard/admin/timetables/${tt.id}`}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
-                        title="Open grid"
-                      >
-                        <CalendarDays size={16} />
-                      </Link>
-                      {!readOnly && (
+                      {canEdit && (
+                        <Link
+                          href={`/dashboard/admin/timetables/${tt.id}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                          title="Open grid"
+                        >
+                          <CalendarDays size={16} />
+                        </Link>
+                      )}
+                      {canRemove && (
                         <button
                           onClick={() => setDeleteTarget(tt)}
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"

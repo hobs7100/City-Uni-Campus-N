@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
 
 const closeSchema = z.object({
@@ -18,7 +18,7 @@ const detailsSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("semesters", "edit", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 

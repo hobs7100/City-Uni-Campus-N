@@ -10,6 +10,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { TableLoader } from "@/components/ui/Loaders";
+import { usePortalAccess } from "@/lib/usePortalAccess";
 
 interface Student {
   id: string;
@@ -72,10 +73,11 @@ interface Props {
 }
 
 export default function StudentManagementPage({ role }: Props) {
-  const canAdd    = role === "admin" || role === "coordinator" || role === "assistant";
-  const canEdit   = role === "admin" || role === "coordinator" || role === "hod" || role === "assistant";
-  const canDelete = role === "admin" || role === "coordinator" || role === "assistant";
-  const canRegen  = role === "admin" || role === "coordinator" || role === "assistant";
+  const { canEdit: portalCanEdit, canDelete: portalCanDelete } = usePortalAccess("students");
+  const canAdd    = (role === "admin" || role === "coordinator" || role === "assistant") && portalCanEdit;
+  const canEdit   = (role === "admin" || role === "coordinator" || role === "hod" || role === "assistant") && portalCanEdit;
+  const canDelete = (role === "admin" || role === "coordinator" || role === "assistant") && portalCanDelete;
+  const canRegen  = (role === "admin" || role === "coordinator" || role === "assistant") && portalCanEdit;
   const canChangeStatus = role !== "assistant";
 
   const [tab, setTab] = useState<Tab>("active");
@@ -526,7 +528,7 @@ export default function StudentManagementPage({ role }: Props) {
             )}
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
               <Upload size={16} /> {uploading ? "Uploading..." : "Upload Photo (Optional)"}
-              <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
+              <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploading || !canEdit} />
             </label>
           </div>
 

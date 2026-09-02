@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 import {
   deleteCourseOutlineFromCloudinary,
   uploadCourseOutlineToCloudinary,
@@ -49,7 +49,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("courses", "edit", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 
@@ -104,7 +104,7 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("courses", "delete", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 

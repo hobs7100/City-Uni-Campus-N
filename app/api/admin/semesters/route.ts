@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const schema = z.object({
   department_id: z.string().uuid(),
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("semesters", "edit", "admin", "coordinator");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

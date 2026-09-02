@@ -26,6 +26,7 @@ import {
   UserX,
   BookCheck,
   FileCheck2,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem, NavIconName } from "@/lib/nav";
@@ -55,6 +56,7 @@ const iconMap: Record<NavIconName, LucideIcon> = {
   UserX,
   BookCheck,
   FileCheck2,
+  ShieldCheck,
 };
 
 export default function Sidebar({

@@ -8,6 +8,8 @@ import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { DataFetchLoader } from "@/components/ui/Loaders";
+import { useUserRole } from "@/lib/roleContext";
+import { usePortalAccess } from "@/lib/usePortalAccess";
 
 interface TimetableInfo {
   id: string;
@@ -66,6 +68,10 @@ export default function TimetableGridPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params.id;
+  const readOnly = useUserRole() === "finance_manager";
+  const { canEdit, canDelete } = usePortalAccess("timetables");
+  const canManage = canEdit && !readOnly;
+  const canRemove = canDelete && !readOnly;
 
   const [info, setInfo] = useState<TimetableInfo | null>(null);
   const [days, setDays] = useState<DayRow[]>([]);
@@ -156,13 +162,14 @@ export default function TimetableGridPage() {
   );
 
   function openCell(cell: CellRow) {
+    if (!canManage) return;
     setActiveCell(cell);
     setSelectedAllocationId(cell.allocation_id || "");
     setCellModalOpen(true);
   }
 
   async function handleSaveCell() {
-    if (!activeCell) return;
+    if (!activeCell || !canManage) return;
     setSavingCell(true);
     try {
       const res = await fetch(`/api/admin/timetables/${id}/cells/${activeCell.id}`, {
@@ -185,6 +192,7 @@ export default function TimetableGridPage() {
 
   async function handleAddPeriod(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManage) return;
     if (!newStart || !newEnd) {
       toast.error("Please provide start and end time.");
       return;
@@ -213,6 +221,7 @@ export default function TimetableGridPage() {
 
   async function handleAddDay(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManage) return;
     if (!newDayName.trim()) {
       toast.error("Please provide a day name.");
       return;
@@ -239,7 +248,7 @@ export default function TimetableGridPage() {
   }
 
   async function handleRemovePeriod() {
-    if (!removePeriodTarget) return;
+    if (!removePeriodTarget || !canRemove) return;
     setRemoving(true);
     try {
       const res = await fetch(`/api/admin/timetables/${id}/periods/${removePeriodTarget.id}`, {
@@ -259,7 +268,7 @@ export default function TimetableGridPage() {
   }
 
   async function handleRemoveDay() {
-    if (!removeDayTarget) return;
+    if (!removeDayTarget || !canRemove) return;
     setRemoving(true);
     try {
       const res = await fetch(`/api/admin/timetables/${id}/days/${removeDayTarget.id}`, {
@@ -311,18 +320,22 @@ export default function TimetableGridPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setAddDayOpen(true)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            + Day
-          </button>
-          <button
-            onClick={() => setAddPeriodOpen(true)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            + Time Slot
-          </button>
+          {canManage && (
+            <>
+              <button
+                onClick={() => setAddDayOpen(true)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                + Day
+              </button>
+              <button
+                onClick={() => setAddPeriodOpen(true)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                + Time Slot
+              </button>
+            </>
+          )}
           <button
             onClick={() => window.print()}
             className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
@@ -357,13 +370,15 @@ export default function TimetableGridPage() {
                     <span>
                       {formatTime(p.start_time)} – {formatTime(p.end_time)}
                     </span>
-                    <button
-                      onClick={() => setRemovePeriodTarget(p)}
-                      className="print:hidden flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
-                      title="Remove period"
-                    >
-                      <X size={12} />
-                    </button>
+                    {canRemove && (
+                      <button
+                        onClick={() => setRemovePeriodTarget(p)}
+                        className="print:hidden flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
+                        title="Remove period"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 </th>
               ))}
@@ -378,13 +393,15 @@ export default function TimetableGridPage() {
                 <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700 dark:border-slate-800 dark:text-slate-200 print:border-indigo-200 print:font-bold print:text-indigo-800">
                   <div className="flex items-center justify-between gap-1">
                     <span>{day.day_name}</span>
-                    <button
-                      onClick={() => setRemoveDayTarget(day)}
-                      className="print:hidden flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
-                      title="Remove day"
-                    >
-                      <X size={12} />
-                    </button>
+                    {canRemove && (
+                      <button
+                        onClick={() => setRemoveDayTarget(day)}
+                        className="print:hidden flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
+                        title="Remove day"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 </td>
                 {periods.map((p) => {
@@ -397,6 +414,7 @@ export default function TimetableGridPage() {
                       {cell?.allocation_id ? (
                         <button
                           onClick={() => openCell(cell)}
+                          disabled={!canManage}
                           className="w-full rounded-lg border border-indigo-200 bg-gradient-to-br from-indigo-50 to-sky-50 p-2 text-left shadow-sm hover:from-indigo-100 hover:to-sky-100 dark:border-indigo-500/30 dark:from-indigo-500/10 dark:to-sky-500/10 dark:hover:from-indigo-500/20 dark:hover:to-sky-500/20 print:border-indigo-300 print:bg-indigo-50 print:shadow-none print:hover:bg-indigo-50"
                         >
                           <div className="flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 print:text-indigo-800">
@@ -419,6 +437,7 @@ export default function TimetableGridPage() {
                       ) : (
                         <button
                           onClick={() => cell && openCell(cell)}
+                          disabled={!canManage}
                           className="flex h-12 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-300 hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 print:hidden"
                         >
                           <Plus size={16} />
@@ -466,7 +485,7 @@ export default function TimetableGridPage() {
             </button>
             <button
               type="button"
-              disabled={savingCell}
+              disabled={savingCell || !canManage}
               onClick={handleSaveCell}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
             >
@@ -519,7 +538,7 @@ export default function TimetableGridPage() {
             </button>
             <button
               type="submit"
-              disabled={savingPeriod}
+              disabled={savingPeriod || !canManage}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
             >
               {savingPeriod ? "Adding..." : "Add"}
@@ -558,7 +577,7 @@ export default function TimetableGridPage() {
             </button>
             <button
               type="submit"
-              disabled={savingDay}
+              disabled={savingDay || !canManage}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
             >
               {savingDay ? "Adding..." : "Add"}

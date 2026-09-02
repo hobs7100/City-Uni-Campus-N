@@ -12,3 +12,11 @@ export async function requireRole(...roles: UserRole[]) {
   }
   return { session, response: null };
 }
+
+export async function requireExactRole(...roles: UserRole[]) {
+  const session = await getSession();
+  if (!session.isLoggedIn || !roles.includes(session.role)) {
+    return { session: null, response: NextResponse.json({ error: "Unauthorized." }, { status: 403 }) };
+  }
+  return { session, response: null };
+}

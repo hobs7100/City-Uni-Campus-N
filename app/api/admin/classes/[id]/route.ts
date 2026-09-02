@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8 };
 
@@ -18,7 +18,7 @@ const schema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("classes", "edit", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 
@@ -49,7 +49,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin");
+  const { response } = await requirePortalPermission("classes", "delete", "admin");
   if (response) return response;
   const { id } = await params;
 

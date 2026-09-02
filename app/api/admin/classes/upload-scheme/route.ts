@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 import cloudinary from "@/lib/cloudinary";
 import type { UploadApiResponse } from "cloudinary";
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("classes", "edit", "admin", "coordinator");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

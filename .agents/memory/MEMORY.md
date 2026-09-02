@@ -9,3 +9,4 @@
 - [SSR client component + Date() hydration mismatches](ssr-date-hydration.md) — server/client clock or locale differences break hydration when a client component renders raw dates/"today" on first render.
 - [Imported runtime alignment](imported-runtime-alignment.md) — verify generated Replit modules match the package engine before installing dependencies or validating the workflow.
 - [Shared allocation attendance scoping](shared-allocation-attendance-scoping.md) — allocation-semester links cross classes; attendance joins must anchor the semester to the student's class.
+- [Portal permissions are restrictive overlays](portal-permission-overlay.md) — role/module locks narrow existing access; they never grant new routes, Admin always bypasses, and unset rows preserve prior behavior.

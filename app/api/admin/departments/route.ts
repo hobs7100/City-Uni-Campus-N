@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -25,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin");
+  const { response } = await requirePortalPermission("departments", "edit", "admin");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

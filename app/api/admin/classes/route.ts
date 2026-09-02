@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8, "BS-Bridging": 4 };
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("classes", "edit", "admin", "coordinator");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { generateRandomPassword, hashPassword } from "@/lib/auth";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 import { sendPasswordResetEmail } from "@/lib/email";
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin");
+  const { response } = await requirePortalPermission("teachers", "edit", "admin");
   if (response) return response;
   const { id } = await params;
 

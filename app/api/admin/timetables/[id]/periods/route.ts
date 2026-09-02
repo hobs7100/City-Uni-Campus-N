@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const schema = z
   .object({
@@ -14,7 +14,7 @@ const schema = z
   });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("timetables", "edit", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 

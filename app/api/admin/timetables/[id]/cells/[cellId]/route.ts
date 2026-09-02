@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const schema = z.object({
   allocation_id: z.string().uuid().nullable(),
@@ -11,7 +11,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; cellId: string }> }
 ) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("timetables", "edit", "admin", "coordinator");
   if (response) return response;
   const { id, cellId } = await params;
 

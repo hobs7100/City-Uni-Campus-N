@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 import { deleteCourseOutlineFromCloudinary } from "@/lib/cloudinary";
 
 const schema = z.object({
@@ -13,7 +13,7 @@ const schema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("courses", "edit", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 
@@ -58,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin");
+  const { response } = await requirePortalPermission("courses", "delete", "admin");
   if (response) return response;
   const { id } = await params;
 

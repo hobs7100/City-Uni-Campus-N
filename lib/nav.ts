@@ -23,7 +23,8 @@ export type NavIconName =
   | "BarChart2"
   | "UserX"
   | "BookCheck"
-  | "FileCheck2";
+  | "FileCheck2"
+  | "ShieldCheck";
 
 export interface NavItem {
   label: string;
@@ -36,6 +37,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Campus Report", href: "/dashboard/admin/campus-report", icon: "FileSearch" },
     { label: "Users", href: "/dashboard/admin/users", icon: "Users" },
+    { label: "Portal Management", href: "/dashboard/admin/portal-management", icon: "ShieldCheck" },
     { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
     { label: "Faculties", href: "/dashboard/admin/departments", icon: "Building2" },
     { label: "Classes", href: "/dashboard/admin/classes", icon: "School" },

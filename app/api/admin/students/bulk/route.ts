@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { generateRandomPassword, hashPassword } from "@/lib/auth";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 import { sendWelcomeEmail } from "@/lib/email";
 import * as XLSX from "xlsx";
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("students", "edit", "admin", "coordinator");
   if (response) return response;
 
   const formData = await request.formData().catch(() => null);

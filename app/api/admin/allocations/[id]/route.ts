@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const patchSchema = z.object({
   teacher_id: z.string().uuid(),
@@ -11,7 +11,7 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("allocations", "edit", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 
@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin", "coordinator");
+  const { response } = await requirePortalPermission("allocations", "delete", "admin", "coordinator");
   if (response) return response;
   const { id } = await params;
 

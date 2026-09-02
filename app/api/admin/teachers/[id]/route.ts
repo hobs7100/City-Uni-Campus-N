@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
-import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 
 const schema = z.object({
   name: z.string().min(2).optional(),
@@ -20,7 +20,7 @@ const schema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin");
+  const { response } = await requirePortalPermission("teachers", "edit", "admin");
   if (response) return response;
   const { id } = await params;
 
@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireRole("admin");
+  const { response } = await requirePortalPermission("teachers", "delete", "admin");
   if (response) return response;
   const { id } = await params;
   await query(`update teachers set deleted_at = now() where id = $1`, [id]);

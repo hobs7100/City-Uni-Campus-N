@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { generateRandomPassword, hashPassword } from "@/lib/auth";
 import { requireRole } from "@/lib/requireRole";
+import { requirePortalPermission } from "@/lib/portalPermissions";
 import { sendWelcomeEmail } from "@/lib/email";
 
 const schema = z.object({
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireRole("admin");
+  const { response } = await requirePortalPermission("teachers", "edit", "admin");
   if (response) return response;
 
   const body = await request.json().catch(() => null);
