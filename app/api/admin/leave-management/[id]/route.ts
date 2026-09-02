@@ -26,6 +26,8 @@ export async function GET(
     reason: string | null;
     notes: string | null;
     proof_urls: string[];
+    leave_type: "permanent" | "partial";
+    partial_days_per_week: number | null;
     issued_by_name: string | null;
     revoked_at: string | null;
     created_at: string;
@@ -44,6 +46,8 @@ export async function GET(
        sl.reason,
        sl.notes,
        sl.proof_urls,
+       sl.leave_type,
+       sl.partial_days_per_week,
        u.name            as issued_by_name,
        sl.revoked_at,
        sl.created_at
@@ -84,8 +88,8 @@ export async function PUT(
 
   const d = parsed.data;
 
-  const existing = await queryOne<{ id: string; student_id: string; revoked_at: string | null }>(
-    `select id, student_id, revoked_at from student_leaves where id = $1`,
+  const existing = await queryOne<{ id: string; student_id: string; revoked_at: string | null; leave_type: "permanent" | "partial" }>(
+    `select id, student_id, revoked_at, leave_type from student_leaves where id = $1`,
     [id]
   );
   if (!existing) return NextResponse.json({ error: "Leave not found." }, { status: 404 });
@@ -95,7 +99,7 @@ export async function PUT(
     await client.query("begin");
 
     if (d.revoke) {
-      // Revoke leave: set revoked_at, restore student status to 'active'
+      // Revoke leave; only permanent leave restores the student's status.
       if (existing.revoked_at)
         return NextResponse.json({ error: "Leave is already revoked." }, { status: 409 });
 
@@ -105,19 +109,21 @@ export async function PUT(
          where id = $2`,
         [session!.userId, id]
       );
-      await client.query(
-        `update students
-         set status = 'active', status_changed_by_name = $1, reactivated_at = now(), updated_at = now()
-         where id = $2`,
-        [session!.name, existing.student_id]
-      );
-      // Audit trail
-      await client.query(
-        `insert into student_status_history
-           (student_id, previous_status, new_status, reason, triggered_by)
-         values ($1, 'permanent_leave', 'active', 'Permanent leave revoked — student restored to active', 'ADMIN')`,
-        [existing.student_id]
-      );
+      if (existing.leave_type === "permanent") {
+        await client.query(
+          `update students
+           set status = 'active', status_changed_by_name = $1, reactivated_at = now(), updated_at = now()
+           where id = $2`,
+          [session!.name, existing.student_id]
+        );
+        // Audit trail
+        await client.query(
+          `insert into student_status_history
+             (student_id, previous_status, new_status, reason, triggered_by)
+           values ($1, 'permanent_leave', 'active', 'Permanent leave revoked — student restored to active', 'ADMIN')`,
+          [existing.student_id]
+        );
+      }
     } else {
       // Regular update of leave fields
       const sets: string[] = ["updated_at = now()"];

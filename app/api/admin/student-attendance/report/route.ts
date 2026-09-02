@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
 
 export async function GET(request: NextRequest) {
   const { response } = await requireRole("admin", "coordinator");
@@ -31,12 +32,18 @@ export async function GET(request: NextRequest) {
     `select st.id as student_id, st.name, st.roll_no, st.contact, st.status as student_status,
             count(*) filter (where r.status = 'present') as presents,
             count(*) filter (where r.status = 'absent') as absents,
-            count(*) filter (where r.status = 'leave') as leaves
+             count(*) filter (where r.status = 'leave') as leaves,
+             case when exists (
+               select 1 from student_leaves sl
+               where sl.student_id = st.id
+                 and sl.revoked_at is null
+                 and sl.leave_type = 'partial'
+             ) then 'partial'::varchar else 'permanent'::varchar end as leave_type
      from students st
      join classes c on c.id = st.class_id
      left join student_attendance_records r on r.student_id = st.id and ${dateConditions.join(" and ")}
      where ${conditions.join(" and ")}
-     group by st.id, st.name, st.roll_no, st.contact, st.status
+      group by st.id, st.name, st.roll_no, st.contact, st.status
      order by (st.roll_no is null), st.roll_no, st.name`,
     values
   );
@@ -47,11 +54,9 @@ export async function GET(request: NextRequest) {
     const leaves = Number(r.leaves ?? 0);
     const denom = presents + absents;
     const percentage = denom > 0 ? Math.round((presents / denom) * 10000) / 100 : null;
-    let flag: "ok" | "warning" | "low" = "ok";
-    if (percentage !== null) {
-      if (percentage < 50) flag = "low";
-      else if (percentage < 75) flag = "warning";
-    }
+    const leaveType = r.leave_type as StudentLeaveType;
+    const policy = getAttendancePolicy(leaveType);
+    const flag = percentage === null ? "ok" : getAttendanceFlag(percentage, leaveType);
     return {
       student_id: r.student_id,
       name: r.name,
@@ -63,6 +68,8 @@ export async function GET(request: NextRequest) {
       leaves,
       percentage,
       flag,
+      leave_type: leaveType,
+      policy_threshold: policy.struckOffBelow,
     };
   });
 

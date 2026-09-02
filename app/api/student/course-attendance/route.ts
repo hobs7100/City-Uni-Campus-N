@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
 
 export async function GET() {
   const { session, response } = await requireRole("student");
@@ -8,13 +9,23 @@ export async function GET() {
 
   const studentId = session!.userId;
 
-  const student = await queryOne<{ class_id: string }>(
-    `select class_id from students where id = $1 and deleted_at is null`,
+  const student = await queryOne<{ class_id: string; active_leave_type: StudentLeaveType }>(
+    `select st.class_id, active_leave.leave_type as active_leave_type
+     from students st
+     left join lateral (
+       select leave_type from student_leaves
+       where student_id = st.id and revoked_at is null
+       order by created_at desc
+       limit 1
+     ) active_leave on true
+     where st.id = $1 and st.deleted_at is null`,
     [studentId]
   );
   if (!student) return NextResponse.json({ error: "Student not found." }, { status: 404 });
 
   const classId = student.class_id;
+  const leaveType = student.active_leave_type ?? null;
+  const policy = getAttendancePolicy(leaveType);
 
   const semesters = await query<{
     id: string; semester_number: number; term_type: string; status: string;
@@ -26,7 +37,7 @@ export async function GET() {
     [classId]
   );
 
-  if (semesters.length === 0) return NextResponse.json({ semesters: [] });
+  if (semesters.length === 0) return NextResponse.json({ semesters: [], leave_type: leaveType, policy });
 
   const result = [];
 
@@ -74,7 +85,7 @@ export async function GET() {
     const toNum = (s: string | undefined) => parseInt(s ?? "0", 10);
     const calcFlag = (p: number, a: number) => {
       const pct = p + a > 0 ? (p / (p + a)) * 100 : 0;
-      const flag = pct < 60 ? "struck_off" : pct < 75 ? "warning" : "ok";
+      const flag = getAttendanceFlag(pct, leaveType);
       return { percentage: Number(pct.toFixed(2)), flag };
     };
 
@@ -95,5 +106,5 @@ export async function GET() {
     });
   }
 
-  return NextResponse.json({ semesters: result });
+  return NextResponse.json({ semesters: result, leave_type: leaveType, policy });
 }

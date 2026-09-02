@@ -51,6 +51,8 @@ interface Profile {
   session: string; department_name: string; class_name: string;
   class_id: string; class_type: string;
   scheme_of_studies_url: string | null;
+  active_leave_type: "permanent" | "partial" | null;
+  partial_days_per_week: number | null;
 }
 
 interface DitMockResult {
@@ -614,6 +616,10 @@ export default function StudentDashboardManager() {
   }
 
   const unread = notifications.filter((n) => !n.is_read).length;
+  const isPartialLeave = profile?.active_leave_type === "partial";
+  const attendancePolicy = isPartialLeave
+    ? { required: 50, struckOffBelow: 40, warningCeiling: 49 }
+    : { required: 75, struckOffBelow: 60, warningCeiling: 74 };
 
   // DIT overview chart: pivot results into { date, label, [seriesName]: pct }[]
   const ditChartData = useMemo(() => {
@@ -733,7 +739,9 @@ export default function StudentDashboardManager() {
             const activeSemAtt = semAtts.find((s) => s.semester_status === "active") ?? semAtts[semAtts.length - 1] ?? null;
             const pct = activeSemAtt?.overall.percentage ?? null;
             const isStruckOff = profile.status === "struck_off";
-            const isWarning   = !isStruckOff && pct !== null && pct < 75;
+            const isBelowStrikeThreshold =
+              !isStruckOff && pct !== null && pct < attendancePolicy.struckOffBelow;
+            const isWarning   = !isStruckOff && pct !== null && pct < attendancePolicy.required;
             if (!isStruckOff && !isWarning) return null;
 
             return (
@@ -752,7 +760,11 @@ export default function StudentDashboardManager() {
                       City College &mdash; Official Notice
                     </p>
                     <p className={`text-lg font-extrabold ${isStruckOff ? "text-red-700 dark:text-red-300" : "text-amber-700 dark:text-amber-300"}`}>
-                      {isStruckOff ? "⚠ STRUCK-OFF NOTICE" : "⚠ ATTENDANCE WARNING"}
+                      {isStruckOff
+                        ? "⚠ STRUCK-OFF NOTICE"
+                        : isBelowStrikeThreshold
+                          ? "⚠ CRITICAL ATTENDANCE ALERT"
+                          : "⚠ ATTENDANCE WARNING"}
                     </p>
                   </div>
                   <span className={`ml-auto rounded-full px-3 py-1 text-xs font-bold uppercase ${
@@ -774,8 +786,11 @@ export default function StudentDashboardManager() {
                     ...(activeSemAtt ? [
                       { label: "Semester", value: `Sem ${activeSemAtt.semester_number} (${activeSemAtt.semester_status})` },
                       { label: "Attendance %", value: `${pct?.toFixed(1)}%` },
-                      { label: "Required %", value: "75%" },
-                      { label: "Struck-Off Threshold", value: "< 60%" },
+                      ...(isPartialLeave ? [
+                        { label: "Approved Attendance", value: `${profile.partial_days_per_week ?? "—"} days/week` },
+                      ] : []),
+                      { label: "Required %", value: `${attendancePolicy.required}%` },
+                      { label: "Struck-Off Threshold", value: `< ${attendancePolicy.struckOffBelow}%` },
                     ] : []),
                     ...(profile.status_change_date ? [
                       { label: "Effective Date", value: formatDateOnly(profile.status_change_date) },
@@ -800,19 +815,28 @@ export default function StudentDashboardManager() {
                   {isStruckOff ? (
                     <>
                       <p className="mb-2 font-semibold">
-                        Your name has been struck off from the class register due to insufficient attendance (below 60%).
+                        Your name has been struck off from the class register due to insufficient attendance (below {attendancePolicy.struckOffBelow}%).
                       </p>
                       <ul className="list-disc space-y-1 pl-5">
                         <li>You are <strong>not eligible</strong> to appear in mid/final examinations.</li>
                         <li>Your Roll Number Slip will <strong>not be issued</strong> until your status is restored.</li>
                         <li>Contact the coordinator or administration immediately to apply for reinstatement.</li>
-                        <li>Attendance must reach 75% minimum after reactivation to regain full eligibility.</li>
+                        <li>
+                          Attendance must reach {attendancePolicy.required}% after reactivation
+                          {isPartialLeave ? " to leave the partial-leave warning zone." : " to regain full eligibility."}
+                        </li>
                       </ul>
                     </>
                   ) : (
                     <>
                       <p className="mb-2 font-semibold">
-                        Your attendance is below the required 75% minimum. You are currently in the warning zone (60%–74%).
+                        {isBelowStrikeThreshold ? (
+                          <>Your attendance is below the {attendancePolicy.struckOffBelow}% struck-off threshold. Automatic action applies after at least 10 marked working days.</>
+                        ) : isPartialLeave ? (
+                          <>Your approved partial leave permits attendance on {profile.partial_days_per_week} days per week. Your attendance is below the required 50% minimum and is currently in the warning zone (40%–49%).</>
+                        ) : (
+                          <>Your attendance is below the required 75% minimum. You are currently in the warning zone (60%–74%).</>
+                        )}
                       </p>
                       <ul className="list-disc space-y-1 pl-5">
                         <li>
@@ -820,8 +844,12 @@ export default function StudentDashboardManager() {
                           in your enrollment being <strong>struck off</strong> from the class register. Improve your
                           attendance promptly to avoid this outcome.
                         </li>
-                        <li>If attendance falls below 60% you will be <strong>automatically struck off</strong>.</li>
-                        <li>Maintain regular attendance to remain eligible for examinations and the Roll Number Slip.</li>
+                        <li>If attendance falls below {attendancePolicy.struckOffBelow}% you will be <strong>automatically struck off</strong>.</li>
+                        <li>
+                          {isPartialLeave
+                            ? "Your attendance-status threshold and Roll Number Slip eligibility are separate rules; see the Attendance Policy for both."
+                            : "Maintain regular attendance to remain eligible for examinations and the Roll Number Slip."}
+                        </li>
                         <li>Contact your coordinator if you believe there is an error in your records.</li>
                       </ul>
                     </>
@@ -932,7 +960,7 @@ export default function StudentDashboardManager() {
                     formatter={(v: unknown) => `${v}%`}
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
                   />
-                  <ReferenceLine y={75} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "75%", position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }} />
+                  <ReferenceLine y={attendancePolicy.required} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: `${attendancePolicy.required}%`, position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }} />
                   <Line
                     type="monotone"
                     dataKey="cumulative_pct"
@@ -1825,9 +1853,13 @@ export default function StudentDashboardManager() {
                     </div>
                   </div>
                   <div>
-                    <p className="font-bold text-emerald-800 dark:text-emerald-300">Minimum Required: 75%</p>
+                    <p className="font-bold text-emerald-800 dark:text-emerald-300">Minimum Required: {attendancePolicy.required}%</p>
                     <p className="mt-0.5 text-emerald-700 dark:text-emerald-400">
-                      You must maintain at least <strong>75% attendance</strong> throughout the semester to remain eligible for examinations.
+                      {isPartialLeave ? (
+                        <>Under approved Partial Leave, maintain at least <strong>50% attendance</strong> to stay outside the warning zone. Examination and Roll Number Slip eligibility remains subject to the separate rule below.</>
+                      ) : (
+                        <>You must maintain at least <strong>75% attendance</strong> throughout the semester to remain eligible for examinations.</>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1840,9 +1872,9 @@ export default function StudentDashboardManager() {
                     </div>
                   </div>
                   <div>
-                    <p className="font-bold text-amber-800 dark:text-amber-300">Warning Zone: 60% – 74%</p>
+                    <p className="font-bold text-amber-800 dark:text-amber-300">Warning Zone: {attendancePolicy.struckOffBelow}% – {attendancePolicy.warningCeiling}%</p>
                     <p className="mt-0.5 text-amber-700 dark:text-amber-400">
-                      Falling below <strong>75%</strong> places you in the warning zone. Remaining in the warning zone for one consecutive week may result in your enrollment being struck off. Improve attendance immediately or contact your coordinator.
+                      Falling below <strong>{attendancePolicy.required}%</strong> places you in the warning zone. Remaining in the warning zone for one consecutive week may result in your enrollment being struck off. Improve attendance immediately or contact your coordinator.
                     </p>
                   </div>
                 </div>
@@ -1855,9 +1887,9 @@ export default function StudentDashboardManager() {
                     </div>
                   </div>
                   <div>
-                    <p className="font-bold text-red-800 dark:text-red-300">Auto Struck-Off: Below 60%</p>
+                    <p className="font-bold text-red-800 dark:text-red-300">Auto Struck-Off: Below {attendancePolicy.struckOffBelow}%</p>
                     <p className="mt-0.5 text-red-700 dark:text-red-400">
-                      If your attendance drops below <strong>60%</strong> after at least 10 marked working days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
+                      If your attendance drops below <strong>{attendancePolicy.struckOffBelow}%</strong> after at least 10 marked working days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
                     </p>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
 
 export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("admin", "hod");
@@ -195,11 +196,18 @@ export async function GET(request: NextRequest) {
   const rows = await query<{
     student_id: string; name: string; roll_no: string | null;
     presents: string; absents: string; leaves: string;
+    leave_type: StudentLeaveType;
   }>(
     `select st.id as student_id, st.name, st.roll_no,
             count(*) filter (where sar.status = 'present' ${dateWhere}) as presents,
             count(*) filter (where sar.status = 'absent'  ${dateWhere}) as absents,
-            count(*) filter (where sar.status = 'leave'   ${dateWhere}) as leaves
+             count(*) filter (where sar.status = 'leave'   ${dateWhere}) as leaves,
+             case when exists (
+               select 1 from student_leaves sl
+               where sl.student_id = st.id
+                 and sl.revoked_at is null
+                 and sl.leave_type = 'partial'
+             ) then 'partial'::varchar else 'permanent'::varchar end as leave_type
      from students st
      left join student_attendance_records sar
        on sar.student_id = st.id and sar.semester_id = $2
@@ -213,10 +221,14 @@ export async function GET(request: NextRequest) {
     const p = Number(r.presents), a = Number(r.absents), l = Number(r.leaves);
     const total = p + a;
     const pct = total > 0 ? Math.round((p / total) * 100) : null;
+    const leaveType = r.leave_type;
+    const policy = getAttendancePolicy(leaveType);
     return {
       student_id: r.student_id, name: r.name, roll_no: r.roll_no,
       presents: p, absents: a, leaves: l, percentage: pct,
-      status: pct === null ? "no-data" : pct >= 75 ? "ok" : pct >= 60 ? "warning" : "struck-off",
+      status: pct === null ? "no-data" : getAttendanceFlag(pct, leaveType).replace("_", "-"),
+      leave_type: leaveType,
+      policy_threshold: policy.struckOffBelow,
     };
   });
 

@@ -54,12 +54,19 @@ export async function GET(request: NextRequest) {
     presents: string;
     absents: string;
     leaves: string;
+    leave_type: "permanent" | "partial";
   }>(
     `select st.id as student_id, st.name, st.roll_no, st.contact,
             cl.class_name, cl.session, st.status as student_status,
             count(*) filter (where sar.status = 'present') as presents,
             count(*) filter (where sar.status = 'absent')  as absents,
-            count(*) filter (where sar.status = 'leave')   as leaves
+             count(*) filter (where sar.status = 'leave')   as leaves,
+             case when exists (
+               select 1 from student_leaves sl
+               where sl.student_id = st.id
+                 and sl.revoked_at is null
+                 and sl.leave_type = 'partial'
+             ) then 'partial'::varchar else 'permanent'::varchar end as leave_type
      from students st
      join classes cl on cl.id = st.class_id
      join semesters sem on sem.class_id = st.class_id and sem.status = 'active'
@@ -70,7 +77,13 @@ export async function GET(request: NextRequest) {
      having
        count(*) filter (where sar.status in ('present','absent')) > 0
        and (count(*) filter (where sar.status = 'present'))::float /
-           nullif(count(*) filter (where sar.status in ('present','absent')), 0) < 0.6
+            nullif(count(*) filter (where sar.status in ('present','absent')), 0)
+              < case when exists (
+                select 1 from student_leaves sl
+                where sl.student_id = st.id
+                  and sl.revoked_at is null
+                  and sl.leave_type = 'partial'
+              ) then 0.4 else 0.6 end
      order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
     values
   );
@@ -81,6 +94,7 @@ export async function GET(request: NextRequest) {
     const l = Number(r.leaves);
     const total = p + a;
     const pct = total > 0 ? Math.round((p / total) * 100) : null;
+    const threshold = r.leave_type === "partial" ? 40 : 60;
     return {
       student_id: r.student_id,
       name: r.name,
@@ -93,6 +107,8 @@ export async function GET(request: NextRequest) {
       absents: a,
       leaves: l,
       percentage: pct,
+      leave_type: r.leave_type,
+      policy_threshold: threshold,
     };
   });
 
@@ -117,33 +133,82 @@ export async function POST(request: NextRequest) {
   }
 
   const actorRole = session!.role === "hod" ? "HOD" : "ADMIN";
+  const hodDepartments = session!.role === "hod"
+    ? await query<{ id: string }>(`select id from departments where hod_id = $1`, [session!.userId])
+    : [];
+  const hodDepartmentIds = hodDepartments.map((department) => department.id);
 
   const client = await pool.connect();
   try {
     await client.query("begin");
 
-    // Strike off and collect which students were actually updated
-    const updated = await client.query<{ id: string }>(
-      `update students
+    // Re-evaluate selected students in the current active semester instead of
+    // trusting IDs submitted by the client.
+    const eligible = await client.query<{
+      id: string;
+      leave_type: "permanent" | "partial";
+      threshold: number;
+    }>(
+      `select st.id,
+              case when exists (
+                select 1 from student_leaves sl
+                where sl.student_id = st.id
+                  and sl.revoked_at is null
+                  and sl.leave_type = 'partial'
+              ) then 'partial'::varchar else 'permanent'::varchar end as leave_type,
+              case when exists (
+                select 1 from student_leaves sl
+                where sl.student_id = st.id
+                  and sl.revoked_at is null
+                  and sl.leave_type = 'partial'
+              ) then 40 else 60 end as threshold
+       from students st
+       join semesters sem on sem.class_id = st.class_id and sem.status = 'active'
+       left join student_attendance_records sar
+         on sar.student_id = st.id and sar.semester_id = sem.id
+       where st.id = any($1::uuid[])
+         and st.deleted_at is null
+         and st.status = 'active'
+         and ($2::uuid[] is null or st.department_id = any($2::uuid[]))
+       group by st.id
+       having count(*) filter (where sar.status in ('present', 'absent')) > 0
+          and count(*) filter (where sar.status = 'present')::float /
+              nullif(count(*) filter (where sar.status in ('present', 'absent')), 0)
+              < case when exists (
+                select 1 from student_leaves sl
+                where sl.student_id = st.id
+                  and sl.revoked_at is null
+                  and sl.leave_type = 'partial'
+              ) then 0.4 else 0.6 end`,
+      [parsed.data.student_ids, session!.role === "hod" ? hodDepartmentIds : null]
+    );
+
+    for (const student of eligible.rows) {
+      const updated = await client.query<{ id: string }>(
+        `update students
        set status                 = 'struck_off',
-           status_changed_by_name = 'Short Attendance — Below 60%',
+            status_changed_by_name = $2,
            reactivated_at         = NULL,
            updated_at             = now()
-       where id = any($1::uuid[])
+        where id = $1
          and deleted_at is null
          and status = 'active'
        returning id`,
-      [parsed.data.student_ids]
-    );
-
-    // Audit trail for every student actually changed
-    for (const row of updated.rows) {
-      await client.query(
-        `insert into student_status_history
-           (student_id, previous_status, new_status, reason, triggered_by)
-         values ($1, 'active', 'struck_off', 'Manually struck off — short attendance (below 60%)', $2)`,
-        [row.id, actorRole]
+        [student.id, `Short Attendance — Below ${student.threshold}%`]
       );
+
+      if (updated.rows.length > 0) {
+        await client.query(
+          `insert into student_status_history
+           (student_id, previous_status, new_status, reason, triggered_by)
+           values ($1, 'active', 'struck_off', $2, $3)`,
+          [
+            student.id,
+            `Manually struck off — short attendance (below ${student.threshold}%; ${student.leave_type} leave policy)`,
+            actorRole,
+          ]
+        );
+      }
     }
 
     await client.query("commit");

@@ -36,6 +36,8 @@ interface LeaveRecord {
   reason: string | null;
   notes: string | null;
   proof_urls: string[];
+  leave_type: "permanent" | "partial";
+  partial_days_per_week: number | null;
   issued_by_name: string | null;
   revoked_at: string | null;
   created_at: string;
@@ -55,6 +57,19 @@ function statusBadge(status: string) {
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${map[status] ?? "bg-slate-100 text-slate-500"}`}>
       {label}
+    </span>
+  );
+}
+
+function leaveTypeBadge(type: LeaveRecord["leave_type"]) {
+  const partial = type === "partial";
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      partial
+        ? "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400"
+        : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+    }`}>
+      {partial ? "Partial Leave" : "Permanent Leave"}
     </span>
   );
 }
@@ -136,6 +151,8 @@ export default function LeaveManagementManager() {
   const [selected,      setSelected]      = useState<StudentResult | null>(null);
 
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
+  const [leaveType, setLeaveType] = useState<"permanent" | "partial">("permanent");
+  const [partialDaysPerWeek, setPartialDaysPerWeek] = useState<2 | 3>(2);
   const [reason,    setReason]    = useState("");
   const [notes,     setNotes]     = useState("");
 
@@ -162,7 +179,10 @@ export default function LeaveManagementManager() {
         l.student_name.toLowerCase().includes(q) ||
         (l.father_name ?? "").toLowerCase().includes(q) ||
         l.class_name.toLowerCase().includes(q) ||
-        l.session.toLowerCase().includes(q),
+        l.session.toLowerCase().includes(q) ||
+        l.leave_type.toLowerCase().includes(q) ||
+        (l.leave_type === "partial" && "partial leave".includes(q)) ||
+        (l.leave_type === "permanent" && "permanent leave".includes(q)),
     );
   }, [leaves, allLeavesSearch]);
 
@@ -259,6 +279,8 @@ export default function LeaveManagementManager() {
         body: JSON.stringify({
           student_id: selected.id,
           issue_date: issueDate,
+          leave_type: leaveType,
+          partial_days_per_week: leaveType === "partial" ? partialDaysPerWeek : null,
           reason:     reason || null,
           notes:      notes  || null,
           proof_urls: proofUrls,
@@ -267,10 +289,11 @@ export default function LeaveManagementManager() {
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Failed to issue leave."); return; }
 
-      toast.success(`Permanent leave issued for ${selected.name}.`);
+      toast.success(`${leaveType === "partial" ? "Partial" : "Permanent"} leave issued for ${selected.name}.`);
       // Reset form
       setSelected(null); setSearchQuery("");
       setIssueDate(new Date().toISOString().slice(0, 10));
+      setLeaveType("permanent"); setPartialDaysPerWeek(2);
       setReason(""); setNotes("");
       setProofFiles([]); setProofPreviews([]);
       setLeavesFetched(false); // force refresh of all-leaves
@@ -369,7 +392,9 @@ export default function LeaveManagementManager() {
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Failed to revoke."); return; }
-      toast.success("Leave revoked. Student restored to active.");
+      toast.success(selected2.leave_type === "permanent"
+        ? "Permanent leave revoked. Student restored to active."
+        : "Partial leave revoked.");
       setSelected2(null);
       setLeavesFetched(false);
       loadLeaves();
@@ -390,7 +415,7 @@ export default function LeaveManagementManager() {
         </div>
         <div>
           <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">Leave Management</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Issue and manage permanent student leaves</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Issue and manage permanent and partial student leaves</p>
         </div>
       </div>
 
@@ -523,6 +548,19 @@ export default function LeaveManagementManager() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                  Leave Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={leaveType}
+                  onChange={(e) => setLeaveType(e.target.value as "permanent" | "partial")}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="permanent">Permanent Leave</option>
+                  <option value="partial">Partial Leave</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
                   Date of Issue <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -535,6 +573,21 @@ export default function LeaveManagementManager() {
                     dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
+              {leaveType === "partial" && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500">
+                    Approved Days Per Week <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={partialDaysPerWeek}
+                    onChange={(e) => setPartialDaysPerWeek(Number(e.target.value) as 2 | 3)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value={2}>2 days per week</option>
+                    <option value={3}>3 days per week</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div>
@@ -543,7 +596,7 @@ export default function LeaveManagementManager() {
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Reason for permanent leave…"
+                placeholder={`Reason for ${leaveType} leave…`}
                 className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm
                   focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20
                   dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -607,7 +660,7 @@ export default function LeaveManagementManager() {
                 hover:bg-amber-600 disabled:opacity-50 shadow-lg shadow-amber-500/25"
             >
               {submitting ? <ButtonLoader /> : <UserX size={15} />}
-              {submitting ? "Issuing Leave…" : "Issue Permanent Leave"}
+              {submitting ? `Issuing ${leaveType === "partial" ? "Partial" : "Permanent"} Leave…` : `Issue ${leaveType === "partial" ? "Partial" : "Permanent"} Leave`}
             </button>
           </div>
         </form>
@@ -638,7 +691,7 @@ export default function LeaveManagementManager() {
             <input
               value={allLeavesSearch}
               onChange={(e) => setAllLeavesSearch(e.target.value)}
-              placeholder="Search by student name, class or session…"
+              placeholder="Search by student name, class, session, or leave type…"
               className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
           </div>
@@ -668,6 +721,7 @@ export default function LeaveManagementManager() {
                       <th className="px-4 py-3 text-left">#</th>
                       <th className="px-4 py-3 text-left">Student</th>
                       <th className="px-4 py-3 text-left">Class / Session</th>
+                      <th className="px-4 py-3 text-left">Leave Type</th>
                       <th className="px-4 py-3 text-left">Issue Date</th>
                       <th className="px-4 py-3 text-left">Proofs</th>
                       <th className="px-4 py-3 text-left">Status</th>
@@ -692,6 +746,12 @@ export default function LeaveManagementManager() {
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                           <p>{l.class_name}</p>
                           <p className="text-xs text-slate-400">{l.session} · {l.department_name}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {leaveTypeBadge(l.leave_type)}
+                          {l.leave_type === "partial" && (
+                            <p className="mt-1 text-xs text-slate-400">{l.partial_days_per_week} days/week</p>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                           {formatDateOnly(l.issue_date)}
@@ -777,6 +837,10 @@ export default function LeaveManagementManager() {
                   {/* view mode */}
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
+                      <p className="text-xs font-medium uppercase text-slate-400">Leave Type</p>
+                      <p className="mt-0.5">{leaveTypeBadge(selected2.leave_type)}</p>
+                    </div>
+                    <div>
                       <p className="text-xs font-medium uppercase text-slate-400">Issue Date</p>
                       <p className="mt-0.5 font-medium text-slate-800 dark:text-slate-100">
                         {formatDateOnly(selected2.issue_date)}
@@ -796,6 +860,14 @@ export default function LeaveManagementManager() {
                         )}
                       </p>
                     </div>
+                    {selected2.leave_type === "partial" && (
+                      <div>
+                        <p className="text-xs font-medium uppercase text-slate-400">Approved Days</p>
+                        <p className="mt-0.5 font-medium text-slate-800 dark:text-slate-100">
+                          {selected2.partial_days_per_week} days per week
+                        </p>
+                      </div>
+                    )}
                     {selected2.issued_by_name && (
                       <div>
                         <p className="text-xs font-medium uppercase text-slate-400">Issued By</p>
@@ -853,7 +925,9 @@ export default function LeaveManagementManager() {
                         </button>
                       ) : (
                         <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-sm dark:bg-red-500/10">
-                          <span className="text-red-600 dark:text-red-400">Restore student to active?</span>
+                          <span className="text-red-600 dark:text-red-400">
+                            {selected2.leave_type === "permanent" ? "Restore student to active?" : "Revoke partial leave?"}
+                          </span>
                           <button
                             onClick={handleRevoke}
                             disabled={revoking}

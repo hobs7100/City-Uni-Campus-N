@@ -52,7 +52,8 @@ export interface RunAutoStruckOffParams {
 }
 
 const MIN_ATTENDANCE_DAYS = 10;
-const STRUCK_OFF_THRESHOLD = 0.6; // < 60 % → struck off
+const REGULAR_STRUCK_OFF_THRESHOLD = 0.6;
+const PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD = 0.4;
 
 type AttendanceSource = "coordinator" | "teacher" | "none";
 
@@ -96,7 +97,8 @@ async function countTeacherClassDays(
 
 /**
  * Return candidates to be struck off from coordinator records.
- * A candidate is an active student whose presents/(presents+absents) < 50 %
+ * A candidate is an active student whose presents/(presents+absents) is below
+ * their applicable threshold (40 % with an active partial leave, otherwise 60 %)
  * over their evaluation window (all semester, or after reactivated_at if set),
  * provided their window has ≥ MIN_ATTENDANCE_DAYS days.
  */
@@ -110,9 +112,16 @@ async function findCandidatesFromCoordinator(
     window_days: number;
     presents: number;
     evaluable: number;
+     leave_type: "permanent" | "partial";
   }>(
     `SELECT
        st.id,
+       CASE WHEN EXISTS (
+         SELECT 1 FROM student_leaves sl
+         WHERE sl.student_id = st.id
+           AND sl.revoked_at IS NULL
+           AND sl.leave_type = 'partial'
+       ) THEN 'partial'::varchar ELSE 'permanent'::varchar END AS leave_type,
        -- window_days = distinct evaluable (present/absent) days for this student
        -- in their evaluation window.  Leave-only days are excluded so the threshold
        -- is never satisfied by leave records alone.
@@ -153,8 +162,13 @@ async function findCandidatesFromCoordinator(
            WHERE sar.status IN ('present','absent')
              AND (st.reactivated_at IS NULL OR sar.attendance_date > st.reactivated_at::date)
          ), 0)
-       ) < $4`,
-    [semesterId, studentIds, MIN_ATTENDANCE_DAYS, STRUCK_OFF_THRESHOLD]
+        ) < CASE WHEN EXISTS (
+          SELECT 1 FROM student_leaves sl
+          WHERE sl.student_id = st.id
+            AND sl.revoked_at IS NULL
+            AND sl.leave_type = 'partial'
+        ) THEN $4 ELSE $5 END`,
+     [semesterId, studentIds, MIN_ATTENDANCE_DAYS, PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD, REGULAR_STRUCK_OFF_THRESHOLD]
   );
   return res.rows;
 }
@@ -179,9 +193,16 @@ async function findCandidatesFromTeacher(
     window_days: number;
     presents: number;
     evaluable: number;
+     leave_type: "permanent" | "partial";
   }>(
     `SELECT
        st.id,
+       CASE WHEN EXISTS (
+         SELECT 1 FROM student_leaves sl
+         WHERE sl.student_id = st.id
+           AND sl.revoked_at IS NULL
+           AND sl.leave_type = 'partial'
+       ) THEN 'partial'::varchar ELSE 'permanent'::varchar END AS leave_type,
        -- window_days = distinct evaluable (present/absent) days for this student.
        -- Days where all course records are 'leave' do not count toward the threshold
        -- so a student cannot be struck off on a sample of leave-only records.
@@ -223,8 +244,13 @@ async function findCandidatesFromTeacher(
            WHERE sca.status IN ('present','absent')
              AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)
          ), 0)
-       ) < $4`,
-    [semesterId, studentIds, MIN_ATTENDANCE_DAYS, STRUCK_OFF_THRESHOLD]
+        ) < CASE WHEN EXISTS (
+          SELECT 1 FROM student_leaves sl
+          WHERE sl.student_id = st.id
+            AND sl.revoked_at IS NULL
+            AND sl.leave_type = 'partial'
+        ) THEN $4 ELSE $5 END`,
+     [semesterId, studentIds, MIN_ATTENDANCE_DAYS, PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD, REGULAR_STRUCK_OFF_THRESHOLD]
   );
   return res.rows;
 }
@@ -263,6 +289,7 @@ export async function runAutoStruckOff({
   for (const c of candidates) {
     const pct = c.evaluable > 0 ? (c.presents / c.evaluable) * 100 : 0;
     const attendancePct = Math.round(pct * 100) / 100;
+    const threshold = c.leave_type === "partial" ? 40 : 60;
 
     await client.query(
       `UPDATE students
@@ -286,7 +313,7 @@ export async function runAutoStruckOff({
         c.id,
         `Auto Struck Off — Attendance ${attendancePct.toFixed(2)}% ` +
           `(${c.presents} present / ${c.evaluable} evaluable over ${c.window_days} days) ` +
-          `[source: ${source}]`,
+          `[threshold: below ${threshold}%; leave type: ${c.leave_type}; source: ${source}]`,
         triggeredBy,
         semesterId,
         attendancePct,
