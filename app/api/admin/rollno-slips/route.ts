@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/requireRole";
 // GET /api/admin/rollno-slips
 // Returns all active students who have an active semester AND whose
 // overall coordinator/admin-marked attendance (student_attendance_records)
-// is below 75 %, together with their current override status.
+// is below their Roll Number Slip threshold, together with their override status.
 export async function GET() {
   const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
@@ -28,6 +28,8 @@ export async function GET() {
     notes:            string | null;
     allowed_by_name:  string | null;
     allowed_by_id:    string | null;
+    leave_type:       "partial" | null;
+    policy_threshold: string;
   }>(
     `SELECT
        s.id            AS student_id,
@@ -45,7 +47,10 @@ export async function GET() {
        rso.allowed_at::text,
        rso.notes,
        u.name          AS allowed_by_name,
-       u.id            AS allowed_by_id
+       u.id            AS allowed_by_id,
+       active_leave.leave_type,
+       CASE WHEN active_leave.leave_type = 'partial' THEN 40 ELSE 75 END::text
+         AS policy_threshold
      FROM   students s
      JOIN   classes cl     ON cl.id  = s.class_id
      JOIN   departments d  ON d.id   = s.department_id
@@ -54,11 +59,19 @@ export async function GET() {
        ON sar.student_id = s.id AND sar.semester_id = sem.id
      LEFT JOIN rollno_slip_overrides rso ON rso.student_id = s.id
      LEFT JOIN users u ON u.id = rso.allowed_by
+     LEFT JOIN LATERAL (
+       SELECT leave_type
+       FROM student_leaves
+       WHERE student_id = s.id AND revoked_at IS NULL AND leave_type = 'partial'
+       ORDER BY created_at DESC
+       LIMIT 1
+     ) active_leave ON true
      WHERE  s.deleted_at IS NULL AND s.status = 'active'
      GROUP  BY s.id, s.name, s.father_name, s.roll_no,
                cl.class_name, s.session, d.name,
                sem.id, sem.semester_number,
-               rso.id, rso.allowed_at, rso.notes, u.name, u.id
+                rso.id, rso.allowed_at, rso.notes, u.name, u.id,
+                active_leave.leave_type
      HAVING
        /* students with NO records count as 0 % — still include them */
        CASE
@@ -67,7 +80,7 @@ export async function GET() {
          ELSE
            (COUNT(sar.id) FILTER (WHERE sar.status = 'present')::float /
             NULLIF(COUNT(sar.id) FILTER (WHERE sar.status IN ('present','absent')), 0)
-           ) * 100 < 75
+            ) * 100 < CASE WHEN active_leave.leave_type = 'partial' THEN 40 ELSE 75 END
        END
      ORDER  BY d.name, cl.class_name, s.session, s.name`,
     []
@@ -90,6 +103,8 @@ export async function GET() {
       presents:        p,
       absents:         a,
       att_percentage:  pct,
+      leave_type:      r.leave_type,
+      policy_threshold: Number(r.policy_threshold),
       override:        r.override_id
         ? {
             id:           r.override_id,

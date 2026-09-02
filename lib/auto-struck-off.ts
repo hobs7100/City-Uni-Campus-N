@@ -53,7 +53,7 @@ export interface RunAutoStruckOffParams {
 
 const MIN_ATTENDANCE_DAYS = 10;
 const REGULAR_STRUCK_OFF_THRESHOLD = 0.6;
-const PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD = 0.4;
+const PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD = 0.3;
 
 type AttendanceSource = "coordinator" | "teacher" | "none";
 
@@ -98,7 +98,7 @@ async function countTeacherClassDays(
 /**
  * Return candidates to be struck off from coordinator records.
  * A candidate is an active student whose presents/(presents+absents) is below
- * their applicable threshold (40 % with an active partial leave, otherwise 60 %)
+ * their applicable threshold (30 % with an active partial leave, otherwise 60 %)
  * over their evaluation window (all semester, or after reactivated_at if set),
  * provided their window has ≥ MIN_ATTENDANCE_DAYS days.
  */
@@ -289,7 +289,7 @@ export async function runAutoStruckOff({
   for (const c of candidates) {
     const pct = c.evaluable > 0 ? (c.presents / c.evaluable) * 100 : 0;
     const attendancePct = Math.round(pct * 100) / 100;
-    const threshold = c.leave_type === "partial" ? 40 : 60;
+    const threshold = c.leave_type === "partial" ? 30 : 60;
 
     await client.query(
       `UPDATE students

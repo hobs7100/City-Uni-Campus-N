@@ -618,8 +618,8 @@ export default function StudentDashboardManager() {
   const unread = notifications.filter((n) => !n.is_read).length;
   const isPartialLeave = profile?.active_leave_type === "partial";
   const attendancePolicy = isPartialLeave
-    ? { required: 50, struckOffBelow: 40, warningCeiling: 49 }
-    : { required: 75, struckOffBelow: 60, warningCeiling: 74 };
+    ? { required: 40, struckOffBelow: 30, warningCeiling: 39, rollSlipRequired: 40 }
+    : { required: 75, struckOffBelow: 60, warningCeiling: 74, rollSlipRequired: 75 };
 
   // DIT overview chart: pivot results into { date, label, [seriesName]: pct }[]
   const ditChartData = useMemo(() => {
@@ -833,7 +833,7 @@ export default function StudentDashboardManager() {
                         {isBelowStrikeThreshold ? (
                           <>Your attendance is below the {attendancePolicy.struckOffBelow}% struck-off threshold. Automatic action applies after at least 10 marked working days.</>
                         ) : isPartialLeave ? (
-                          <>Your approved partial leave permits attendance on {profile.partial_days_per_week} days per week. Your attendance is below the required 50% minimum and is currently in the warning zone (40%–49%).</>
+                          <>Your approved partial leave permits attendance on {profile.partial_days_per_week} days per week. Your attendance is below the required 40% minimum and is currently in the warning zone (30%–39%).</>
                         ) : (
                           <>Your attendance is below the required 75% minimum. You are currently in the warning zone (60%–74%).</>
                         )}
@@ -1372,7 +1372,7 @@ export default function StudentDashboardManager() {
               {[
                 "Your enrollment status must be Active.",
                 "The Mid Exam Date Sheet for the current semester must have been published by Admin.",
-                "Your overall attendance must be ≥ 75%.",
+                `Your overall attendance must be ≥ ${attendancePolicy.rollSlipRequired}%.`,
                 "If attendance for any individual course is below 75%, that course will be marked \u201cNot Allowed for Mid Exam\u201d on the slip \u2014 but the slip will still be generated.",
               ].map((txt, i) => (
                 <li key={i} className="flex items-start gap-2">
@@ -1856,7 +1856,7 @@ export default function StudentDashboardManager() {
                     <p className="font-bold text-emerald-800 dark:text-emerald-300">Minimum Required: {attendancePolicy.required}%</p>
                     <p className="mt-0.5 text-emerald-700 dark:text-emerald-400">
                       {isPartialLeave ? (
-                        <>Under approved Partial Leave, maintain at least <strong>50% attendance</strong> to stay outside the warning zone. Examination and Roll Number Slip eligibility remains subject to the separate rule below.</>
+                        <>Under approved Partial Leave, maintain at least <strong>40% attendance</strong> to stay outside the warning zone and remain eligible for a Roll Number Slip.</>
                       ) : (
                         <>You must maintain at least <strong>75% attendance</strong> throughout the semester to remain eligible for examinations.</>
                       )}
@@ -1904,7 +1904,7 @@ export default function StudentDashboardManager() {
                   <div>
                     <p className="font-bold text-indigo-800 dark:text-indigo-300">Roll Number Slip Eligibility</p>
                     <p className="mt-0.5 text-indigo-700 dark:text-indigo-400">
-                      A Roll Number Slip is issued <strong>only to students with 75%+ attendance</strong> who have an active enrollment status. Struck-off students are ineligible until reinstated by the administration.
+                      A Roll Number Slip is issued only to students with <strong>{attendancePolicy.rollSlipRequired}%+ attendance</strong> who have an active enrollment status. Struck-off students are ineligible until reinstated by the administration.
                     </p>
                   </div>
                 </div>

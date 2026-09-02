@@ -48,6 +48,8 @@ interface ShortRow {
   absents: number;
   leaves: number;
   percentage: number | null;
+  leave_type: "permanent" | "partial";
+  policy_threshold: number;
 }
 
 interface ReportRow {
@@ -613,7 +615,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                 ) : shortRows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                      No students with attendance below 50% found for this semester.
+                      No students below their applicable struck-off threshold were found for this semester.
                     </td>
                   </tr>
                 ) : (

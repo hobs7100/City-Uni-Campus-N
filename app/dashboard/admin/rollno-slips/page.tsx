@@ -29,6 +29,8 @@ interface StudentRow {
   presents: number;
   absents: number;
   att_percentage: number;
+  leave_type: "partial" | null;
+  policy_threshold: number;
   override: Override | null;
 }
 
@@ -63,10 +65,10 @@ interface StudentHistory {
 }
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
-function AttBadge({ pct }: { pct: number | null }) {
+function AttBadge({ pct, threshold = 75 }: { pct: number | null; threshold?: number }) {
   if (pct === null) return <span className="text-slate-400 text-xs">No data</span>;
   const color =
-    pct >= 75 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+    pct >= threshold ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
     : pct >= 50 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
     :              "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400";
   return (
@@ -395,7 +397,7 @@ export default function RollnoSlipsPage() {
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Roll No. Slips</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Students blocked from printing due to low attendance (&lt;75%) — grant or revoke print overrides
+              Students blocked below their policy threshold (Regular 75% · Partial Leave 40%) — grant or revoke print overrides
             </p>
           </div>
         </div>
@@ -508,7 +510,7 @@ export default function RollnoSlipsPage() {
                     {/* Attendance % */}
                     <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center gap-0.5">
-                        <AttBadge pct={s.att_percentage} />
+                        <AttBadge pct={s.att_percentage} threshold={s.policy_threshold} />
                         <span className="text-[10px] text-slate-400">{s.presents}P / {s.absents}A</span>
                       </div>
                     </td>

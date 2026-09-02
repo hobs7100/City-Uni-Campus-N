@@ -2,7 +2,7 @@
  * GET /api/hod/warning-list
  * Returns active students in the HoD's departments whose current-semester
  * coordinator-marked attendance is in their applicable warning zone
- * (regular: 60 % ≤ pct < 75 %; active partial leave: 40 % ≤ pct < 50 %).
+ * (regular: 60 % ≤ pct < 75 %; active partial leave: 30 % ≤ pct < 40 %).
  * Also returns `days_in_warning`: the number of evaluable (present/absent)
  * school days since the student's attendance last fell below 75 %.
  *
@@ -86,7 +86,7 @@ export async function GET(_request: NextRequest) {
         -- Last date cumulative pct was still at or above the applicable policy boundary.
        SELECT student_id, MAX(attendance_date) AS last_ok_date
        FROM   running_pct
-        WHERE pct >= CASE WHEN leave_type = 'partial' THEN 50 ELSE 75 END
+         WHERE pct >= CASE WHEN leave_type = 'partial' THEN 40 ELSE 75 END
        GROUP  BY student_id
      ),
      current_totals AS (
@@ -111,13 +111,13 @@ export async function GET(_request: NextRequest) {
             ct.pct          AS percentage,
              COALESCE(wc.days_in_warning, 0)::int AS days_in_warning,
              ds.leave_type,
-             CASE WHEN ds.leave_type = 'partial' THEN 50 ELSE 75 END AS warning_below
+              CASE WHEN ds.leave_type = 'partial' THEN 40 ELSE 75 END AS warning_below
      FROM   dept_students  ds
      JOIN   current_totals ct  ON ct.student_id = ds.student_id
      LEFT   JOIN warning_counts wc ON wc.student_id = ds.student_id
      WHERE  ct.pct IS NOT NULL
-        AND ct.pct >= CASE WHEN ds.leave_type = 'partial' THEN 40 ELSE 60 END
-        AND ct.pct < CASE WHEN ds.leave_type = 'partial' THEN 50 ELSE 75 END
+         AND ct.pct >= CASE WHEN ds.leave_type = 'partial' THEN 30 ELSE 60 END
+         AND ct.pct < CASE WHEN ds.leave_type = 'partial' THEN 40 ELSE 75 END
      ORDER  BY wc.days_in_warning DESC NULLS LAST, ct.pct ASC`,
     [deptIds]
   );
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
               where sl.student_id = s.id
                 and sl.revoked_at is null
                 and sl.leave_type = 'partial'
-            ) then 50 else 75 end as warning_below
+             ) then 40 else 75 end as warning_below
      from students s
      join semesters sem on sem.class_id = s.class_id and sem.status = 'active'
      left join student_attendance_records sar
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
              where sl.student_id = s.id
                and sl.revoked_at is null
                and sl.leave_type = 'partial'
-           ) then 0.4 else 0.6 end
+            ) then 0.3 else 0.6 end
        and count(*) filter (where sar.status = 'present')::float /
            nullif(count(*) filter (where sar.status in ('present', 'absent')), 0)
            < case when exists (
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
              where sl.student_id = s.id
                and sl.revoked_at is null
                and sl.leave_type = 'partial'
-           ) then 0.5 else 0.75 end`,
+            ) then 0.4 else 0.75 end`,
     [parsed.data.student_id, deptIds]
   );
   if (stuCheck.length === 0) {

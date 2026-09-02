@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
     const l = Number(r.leaves);
     const total = p + a;
     const pct = total > 0 ? Math.round((p / total) * 100) : null;
-    const threshold = r.leave_type === "partial" ? 40 : 60;
+    const threshold = r.leave_type === "partial" ? 30 : 60;
     return {
       student_id: r.student_id,
       name: r.name,
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
                 where sl.student_id = st.id
                   and sl.revoked_at is null
                   and sl.leave_type = 'partial'
-              ) then 40 else 60 end as threshold
+              ) then 30 else 60 end as threshold
        from students st
        join semesters sem on sem.class_id = st.class_id and sem.status = 'active'
        left join student_attendance_records sar
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
                 where sl.student_id = st.id
                   and sl.revoked_at is null
                   and sl.leave_type = 'partial'
-              ) then 0.4 else 0.6 end`,
+              ) then 0.3 else 0.6 end`,
       [parsed.data.student_ids, session!.role === "hod" ? hodDepartmentIds : null]
     );
 

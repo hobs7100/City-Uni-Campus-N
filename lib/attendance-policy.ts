@@ -12,9 +12,13 @@ export const REGULAR_ATTENDANCE_POLICY: AttendancePolicy = {
 };
 
 export const PARTIAL_LEAVE_ATTENDANCE_POLICY: AttendancePolicy = {
-  struckOffBelow: 40,
-  warningBelow: 50,
+  struckOffBelow: 30,
+  warningBelow: 40,
 };
+
+export function getRollNumberSlipThreshold(leaveType: StudentLeaveType): number {
+  return leaveType === "partial" ? 40 : 75;
+}
 
 export function getAttendancePolicy(leaveType: StudentLeaveType): AttendancePolicy {
   return leaveType === "partial"

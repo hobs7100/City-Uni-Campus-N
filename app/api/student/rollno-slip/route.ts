@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getRollNumberSlipThreshold, type StudentLeaveType } from "@/lib/attendance-policy";
 
 export async function GET() {
   const { session, response } = await requireRole("student");
@@ -13,13 +14,22 @@ export async function GET() {
     id: string; name: string; father_name: string | null;
     class_id: string; class_name: string; session: string;
     status: string; department_name: string; profile_image_url: string | null;
+    active_leave_type: StudentLeaveType;
   }>(
     `select st.id, st.name, st.father_name, st.class_id, cl.class_name,
             st.session, st.status, d.name as department_name,
-            st.profile_image_url
+             st.profile_image_url,
+             active_leave.leave_type as active_leave_type
      from students st
      join classes cl on cl.id = st.class_id
      join departments d on d.id = st.department_id
+     left join lateral (
+       select leave_type
+       from student_leaves
+       where student_id = st.id and revoked_at is null
+       order by created_at desc
+       limit 1
+     ) active_leave on true
      where st.id = $1 and st.deleted_at is null`,
     [studentId]
   );
@@ -82,7 +92,7 @@ export async function GET() {
     });
   }
 
-  // ── Validation 3: overall attendance ≥ 75 % ─────────────────────────────────
+  // ── Validation 3: policy-aware overall attendance ───────────────────────────
   const overallAtt = await queryOne<{ presents: string; absents: string }>(
     `select
        count(case when status = 'present' then 1 end)::text as presents,
@@ -95,8 +105,9 @@ export async function GET() {
   const p = parseInt(overallAtt?.presents ?? "0", 10);
   const a = parseInt(overallAtt?.absents ?? "0", 10);
   const overallPct = p + a > 0 ? (p / (p + a)) * 100 : 0;
+  const rollNumberSlipThreshold = getRollNumberSlipThreshold(student.active_leave_type ?? null);
 
-  if (overallPct < 75) {
+  if (overallPct < rollNumberSlipThreshold) {
     // Check if admin has granted an override for this student
     const override = await queryOne<{ id: string }>(
       `SELECT id FROM rollno_slip_overrides WHERE student_id = $1`,
@@ -106,7 +117,7 @@ export async function GET() {
       return NextResponse.json({
         allowed: false,
         reason: "low_attendance",
-        message: `Your overall attendance is ${overallPct.toFixed(1)}%, which is below the required 75 %. You are not eligible to sit the Mid Term Examination.`,
+        message: `Your overall attendance is ${overallPct.toFixed(1)}%, which is below the required ${rollNumberSlipThreshold}%. You are not eligible to sit the Mid Term Examination.`,
       });
     }
     // Admin override granted — fall through and generate the slip
@@ -160,6 +171,7 @@ export async function GET() {
       term_type: semester.term_type,
     },
     overall_attendance: parseFloat(overallPct.toFixed(2)),
+    roll_number_slip_threshold: rollNumberSlipThreshold,
     rows,
   });
 }

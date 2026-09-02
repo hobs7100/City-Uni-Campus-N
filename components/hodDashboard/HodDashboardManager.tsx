@@ -759,7 +759,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
             <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-rose-50 px-4 py-3 dark:border-slate-800 dark:from-red-900/20 dark:to-rose-900/20">
               <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
                 <UserMinus size={15} className="text-red-500" />
-                Students with Attendance Below 60%
+                Students Below Their Struck-Off Threshold
                 <span className="ml-auto text-xs font-normal text-slate-500 dark:text-slate-400">
                   {shortRows.length} student{shortRows.length !== 1 ? "s" : ""}
                 </span>
@@ -785,7 +785,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                   ) : shortRows.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
-                        No students with attendance below 60% found.
+                        No students below their applicable struck-off threshold were found.
                       </td>
                     </tr>
                   ) : (
