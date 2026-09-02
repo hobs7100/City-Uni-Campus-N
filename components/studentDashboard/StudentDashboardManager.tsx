@@ -1758,7 +1758,7 @@ export default function StudentDashboardManager() {
               ) : details.length === 0 ? (
                 <p className="p-8 text-center text-sm text-slate-400">
                   No attendance records found for this course.<br />
-                  <span className="text-xs">Records appear only on days this course is scheduled in the timetable.</span>
+                  <span className="text-xs">Records appear after the teacher marks attendance for this course.</span>
                 </p>
               ) : (
                 <div className="overflow-x-auto">

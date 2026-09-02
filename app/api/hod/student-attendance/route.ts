@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
        left join student_course_attendance sca
          on sca.allocation_id = a.id and sca.student_id = $1
        where st.id = $1
-       group by sem.id, sem.semester_number, sem.term_type, sem.status, co.title, te.name
+       group by sem.id, sem.semester_number, sem.term_type, sem.status,
+                a.id, co.id, co.title, te.id, te.name
        order by sem.semester_number, co.title`,
       [studentId]
     );

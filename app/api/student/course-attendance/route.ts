@@ -31,48 +31,31 @@ export async function GET() {
   const result = [];
 
   for (const sem of semesters) {
-    /* course-wise counts: map daily attendance to courses via timetable day-of-week */
+    /* Course-wise counts use the teacher-marked source directly. This keeps the
+       student portal aligned with teacher and HoD reports instead of inferring
+       course attendance from class-level records and timetable weekdays. */
     const courseRows = await query<{
       course_id: string; course_title: string; course_code: string;
       teacher_name: string; presents: string; absents: string; leaves: string;
     }>(
-      `with tt as (
-         select id as timetable_id
-         from timetables
-         where class_id = $2 and semester_id = $1
-         limit 1
-       ),
-       course_days as (
-         select distinct
-           al.course_id,
-           co.title as course_title,
-           co.code  as course_code,
-           t.name   as teacher_name,
-           td.day_name
-         from tt
-         join timetable_cells tc on tc.timetable_id = tt.timetable_id
-                                 and tc.allocation_id is not null
-         join timetable_days td  on td.id = tc.day_id
-         join allocations al      on al.id = tc.allocation_id
-         join courses co           on co.id = al.course_id
-         join teachers t           on t.id  = al.teacher_id
-       ),
-       att as (
-         select attendance_date, status,
-                trim(to_char(attendance_date, 'Day')) as dow
-         from student_attendance_records
-         where student_id = $3 and semester_id = $1
-       )
-       select
-         cd.course_id, cd.course_title, cd.course_code, cd.teacher_name,
-         count(case when a.status = 'present' then 1 end)::text as presents,
-         count(case when a.status = 'absent'  then 1 end)::text as absents,
-         count(case when a.status = 'leave'   then 1 end)::text as leaves
-       from course_days cd
-       left join att a on a.dow = cd.day_name
-       group by cd.course_id, cd.course_title, cd.course_code, cd.teacher_name
-       order by cd.course_title`,
-      [sem.id, classId, studentId]
+      `select
+         al.course_id,
+         co.title as course_title,
+         co.code  as course_code,
+         t.name   as teacher_name,
+         count(*) filter (where sca.status = 'present')::text as presents,
+         count(*) filter (where sca.status = 'absent')::text  as absents,
+         count(*) filter (where sca.status = 'leave')::text   as leaves
+       from allocation_semesters als
+       join allocations al on al.id = als.allocation_id
+       join courses co on co.id = al.course_id
+       join teachers t on t.id = al.teacher_id
+       left join student_course_attendance sca
+         on sca.allocation_id = al.id and sca.student_id = $2
+       where als.semester_id = $1
+       group by al.id, al.course_id, co.title, co.code, t.id, t.name
+       order by co.title`,
+      [sem.id, studentId]
     );
 
     /* overall attendance for this semester */

@@ -8,3 +8,4 @@
 - [Bulk regex file edits](bulk-regex-file-edits.md) — never chain a generic whitespace-cleanup regex onto a targeted find/replace sweep across many files; verify with git diff / prettier before trusting bulk edits.
 - [SSR client component + Date() hydration mismatches](ssr-date-hydration.md) — server/client clock or locale differences break hydration when a client component renders raw dates/"today" on first render.
 - [Imported runtime alignment](imported-runtime-alignment.md) — verify generated Replit modules match the package engine before installing dependencies or validating the workflow.
+- [Shared allocation attendance scoping](shared-allocation-attendance-scoping.md) — allocation-semester links cross classes; attendance joins must anchor the semester to the student's class.

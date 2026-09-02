@@ -80,11 +80,12 @@ export async function GET(
        COUNT(sca.id) FILTER (WHERE sca.status = 'present')::text AS presents,
        COUNT(sca.id) FILTER (WHERE sca.status = 'absent')::text  AS absents
      FROM   student_course_attendance sca
+      JOIN   students st      ON st.id = sca.student_id
      JOIN   allocations al   ON al.id  = sca.allocation_id
      JOIN   courses c         ON c.id  = al.course_id
      JOIN   teachers te       ON te.id = al.teacher_id
      JOIN   allocation_semesters als ON als.allocation_id = al.id
-     JOIN   semesters sem     ON sem.id = als.semester_id
+      JOIN   semesters sem ON sem.id = als.semester_id AND sem.class_id = st.class_id
      WHERE  sca.student_id = $1
      GROUP  BY sem.id, sem.semester_number, c.id, c.code, c.title, te.name
      ORDER  BY sem.semester_number, c.code`,
