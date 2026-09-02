@@ -49,6 +49,7 @@ interface Semester {
   start_date: string;
   close_date: string | null;
   status: "active" | "mid_term" | "final_term" | "closed";
+  updated_at: string;
   courses: SemesterCourse[];
 }
 
@@ -56,6 +57,22 @@ const termOptions = [
   { value: "Fall", label: "Fall" },
   { value: "Spring", label: "Spring" },
 ];
+
+const semesterStatusSteps = [
+  { value: "active", label: "Active" },
+  { value: "mid_term", label: "Mid-Term" },
+  { value: "final_term", label: "Final-Term" },
+  { value: "closed", label: "Closed" },
+] as const;
+
+function formatSemesterDate(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-PK", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export default function SemestersPage() {
   const [tab, setTab] = useState<"start" | "update" | "close" | "history">("start");
@@ -175,14 +192,17 @@ export default function SemestersPage() {
   }));
   const selectedCoursesDetail = availableCourses.filter((c) => selectedCourseIds.includes(c.id));
 
-  // Classes that are active but have no running (non-closed) semester yet
-  const upcomingClasses = useMemo(() => {
-    const runningClassIds = new Set(
-      semesters.filter((s) => s.status !== "closed").map((s) => s.class_id)
-    );
-    return classes
-      .filter((c) => c.status === "active" && !runningClassIds.has(c.id))
-      .sort((a, b) => a.class_name.localeCompare(b.class_name));
+  // Show non-active semester records belonging to an active class. Closed
+  // classes must not appear here, even when they still have semester history.
+  const upcomingSemesters = useMemo(() => {
+    const activeClassIds = new Set(classes.filter((c) => c.status === "active").map((c) => c.id));
+    return semesters
+      .filter((semester) => semester.status !== "active" && activeClassIds.has(semester.class_id))
+      .sort((a, b) =>
+        a.class_name.localeCompare(b.class_name) ||
+        a.semester_number - b.semester_number ||
+        a.start_date.localeCompare(b.start_date),
+      );
   }, [classes, semesters]);
 
   const editCourseOptions = useMemo(() => {
@@ -774,41 +794,102 @@ export default function SemestersPage() {
               <div className="flex-1">
                 <h3 className="font-bold text-slate-800 dark:text-slate-100">Upcoming Semesters</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Active classes with no running semester — ready to start
+                  Non-active semester status timeline for active classes
                 </p>
               </div>
               <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-                {upcomingClasses.length} {upcomingClasses.length === 1 ? "class" : "classes"}
+                {upcomingSemesters.length} {upcomingSemesters.length === 1 ? "semester" : "semesters"}
               </span>
             </div>
-            {upcomingClasses.length === 0 ? (
+            {upcomingSemesters.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-5 py-14 text-center">
                 <span className="text-3xl">🎓</span>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">All caught up!</p>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No upcoming semester statuses found.</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Every active class already has a running semester.
+                  Closed classes are hidden from this list.
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
-                    <tr>
-                      <th className="px-5 py-3">#</th>
-                      <th className="px-5 py-3">Class Name</th>
-                      <th className="px-5 py-3">Session</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {upcomingClasses.map((c, i) => (
-                      <tr key={c.id} className="hover:bg-amber-50/30 dark:hover:bg-amber-900/10">
-                        <td className="px-5 py-3 text-slate-400">{i + 1}</td>
-                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{c.class_name}</td>
-                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{c.session}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-5 p-5">
+                {upcomingSemesters.map((semester) => {
+                  const currentStep = semesterStatusSteps.findIndex((step) => step.value === semester.status);
+                  const currentStatus = semesterStatusSteps[currentStep];
+                  const classInfo = classes.find((item) => item.id === semester.class_id);
+
+                  return (
+                    <div
+                      key={semester.id}
+                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-semibold text-slate-800 dark:text-slate-100">
+                            {classInfo?.class_name ?? semester.class_name}
+                            <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+                              {semester.session}
+                            </span>
+                          </h4>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Semester {semester.semester_number} · {semester.term_type}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs text-slate-500 dark:text-slate-400">
+                          <p>
+                            <span className="font-medium text-slate-600 dark:text-slate-300">Start date:</span>{" "}
+                            {formatSemesterDate(semester.start_date)}
+                          </p>
+                          <p className="mt-1">
+                            <span className="font-medium text-slate-600 dark:text-slate-300">Last status update:</span>{" "}
+                            {formatSemesterDate(semester.updated_at)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start">
+                        {semesterStatusSteps.map((step, index) => {
+                          const reached = currentStep >= index;
+                          const isCurrent = currentStatus?.value === step.value;
+
+                          return (
+                            <div key={step.value} className="flex min-w-0 flex-1 items-start">
+                              <div className="flex min-w-0 flex-1 flex-col items-center">
+                                <div
+                                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold transition ${
+                                    reached
+                                      ? "border-indigo-600 bg-indigo-600 text-white"
+                                      : "border-slate-300 bg-white text-slate-400 dark:border-slate-600 dark:bg-slate-900"
+                                  }`}
+                                >
+                                  {reached && index < currentStep ? <CheckCircle size={15} /> : index + 1}
+                                </div>
+                                <span
+                                  className={`mt-2 text-center text-[11px] font-semibold ${
+                                    isCurrent
+                                      ? "text-indigo-700 dark:text-indigo-300"
+                                      : reached
+                                        ? "text-slate-600 dark:text-slate-300"
+                                        : "text-slate-400 dark:text-slate-500"
+                                  }`}
+                                >
+                                  {step.label}
+                                </span>
+                              </div>
+                              {index < semesterStatusSteps.length - 1 && (
+                                <div
+                                  className={`mt-4 h-0.5 flex-1 ${
+                                    currentStep > index
+                                      ? "bg-indigo-600"
+                                      : "bg-slate-200 dark:bg-slate-700"
+                                  }`}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
