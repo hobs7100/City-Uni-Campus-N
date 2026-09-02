@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, RefreshCw, X } from "lucide-react";
+import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, RefreshCw, X, AlertTriangle } from "lucide-react";
 import OutlineUploadButton from "@/components/ui/OutlineUploadButton";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -58,13 +58,6 @@ const termOptions = [
   { value: "Spring", label: "Spring" },
 ];
 
-const semesterStatusSteps = [
-  { value: "active", label: "Active" },
-  { value: "mid_term", label: "Mid-Term" },
-  { value: "final_term", label: "Final-Term" },
-  { value: "closed", label: "Closed" },
-] as const;
-
 function formatSemesterDate(value: string | null | undefined) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-PK", {
@@ -90,6 +83,7 @@ export default function SemestersPage() {
   const [startDate, setStartDate] = useState("");
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
+  const [startModalOpen, setStartModalOpen] = useState(false);
 
   const [closeDepartmentId, setCloseDepartmentId] = useState("");
   const [closeClassId, setCloseClassId] = useState("");
@@ -192,17 +186,46 @@ export default function SemestersPage() {
   }));
   const selectedCoursesDetail = availableCourses.filter((c) => selectedCourseIds.includes(c.id));
 
-  // Show non-active semester records belonging to an active class. Closed
-  // classes must not appear here, even when they still have semester history.
-  const upcomingSemesters = useMemo(() => {
-    const activeClassIds = new Set(classes.filter((c) => c.status === "active").map((c) => c.id));
-    return semesters
-      .filter((semester) => semester.status !== "active" && activeClassIds.has(semester.class_id))
-      .sort((a, b) =>
-        a.class_name.localeCompare(b.class_name) ||
-        a.semester_number - b.semester_number ||
-        a.start_date.localeCompare(b.start_date),
-      );
+  const semesterTimelines = useMemo(() => {
+    return classes
+      .filter((classInfo) => classInfo.status === "active")
+      .map((classInfo) => {
+        const classSemesters = semesters
+          .filter((semester) => semester.class_id === classInfo.id)
+          .sort((a, b) => a.semester_number - b.semester_number);
+        const semesterByNumber = new Map(
+          classSemesters.map((semester) => [semester.semester_number, semester]),
+        );
+        const runningSemester = classSemesters.find((semester) => semester.status !== "closed");
+        const firstMissingNumber =
+          Array.from({ length: classInfo.total_semesters }, (_, index) => index + 1).find(
+            (number) => !semesterByNumber.has(number),
+          ) ?? classInfo.total_semesters + 1;
+
+        const steps = Array.from({ length: classInfo.total_semesters }, (_, index) => {
+          const number = index + 1;
+          const semester = semesterByNumber.get(number) ?? null;
+          const isNext = number === firstMissingNumber;
+          const isReady = isNext && !runningSemester;
+
+          return {
+            number,
+            semester,
+            state: semester
+              ? semester.status === "closed"
+                ? "completed"
+                : "current"
+              : isReady
+                ? "ready"
+                : isNext && runningSemester
+                  ? "blocked"
+                  : "locked",
+          } as const;
+        });
+
+        return { classInfo, steps, runningSemester };
+      })
+      .sort((a, b) => a.classInfo.class_name.localeCompare(b.classInfo.class_name));
   }, [classes, semesters]);
 
   const editCourseOptions = useMemo(() => {
@@ -247,6 +270,17 @@ export default function SemestersPage() {
     setHistoryTermType("");
   }
 
+  function openStartModal(targetClass: ClassOption, targetSemesterNumber: number) {
+    setDepartmentId(targetClass.department_id);
+    setSession(targetClass.session);
+    setClassId(targetClass.id);
+    setSemesterNumber(String(targetSemesterNumber));
+    setTermType("Fall");
+    setStartDate("");
+    setSelectedCourseIds([]);
+    setStartModalOpen(true);
+  }
+
   async function handleStart(e: React.FormEvent) {
     e.preventDefault();
     if (!classId || !semesterNumber || !startDate || selectedCourseIds.length === 0) {
@@ -273,6 +307,7 @@ export default function SemestersPage() {
         return;
       }
       toast.success("Semester started successfully.");
+      setStartModalOpen(false);
       setNewSemesterId(data.semester.id);
       setNewSemesterCourses(
         selectedCoursesDetail.map((c) => ({ id: c.id, code: c.code, title: c.title, outline_url: null }))
@@ -564,337 +599,165 @@ export default function SemestersPage() {
           <DataFetchLoader />
         </div>
       ) : tab === "start" ? (
-        newSemesterId ? (
-          <div className="max-w-2xl card-3d p-6 space-y-5">
-            <div className="flex items-center gap-3 rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
-              <CheckCircle size={20} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-              <div>
-                <p className="font-semibold text-emerald-800 dark:text-emerald-300">
-                  Semester started successfully!
-                </p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                  Optionally upload course outline files below, then click Done.
-                </p>
-              </div>
-            </div>
-            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                  <tr>
-                    <th className="px-3 py-2">Code</th>
-                    <th className="px-3 py-2">Title</th>
-                    <th className="px-3 py-2">Outline</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {newSemesterCourses.map((c) => (
-                    <tr key={c.id}>
-                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{c.code}</td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.title}</td>
-                      <td className="px-3 py-2">
-                        {c.outline_url ? (
-                          <a
-                            href={c.outline_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
-                          >
-                            <FileDown size={12} /> View
-                          </a>
-                        ) : (
-                          <OutlineUploadButton
-                            uploading={postStartUploading[c.id] ?? false}
-                            onFile={(f) => handlePostStartOutlineUpload(c.id, f)}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setNewSemesterId(null);
-                  setNewSemesterCourses([]);
-                  setPostStartUploading({});
-                }}
-                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
-          {/* ── Left column: Start Semester form ──────────────────────────── */}
-          <form onSubmit={handleStart} className="space-y-4 card-3d p-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Department
-              </label>
-              <SearchableSelect
-                options={departments}
-                value={departments.find((d) => d.value === departmentId) || null}
-                onChange={(opt) => {
-                  setDepartmentId(opt ? (opt as SelectOption).value : "");
-                  setSession("");
-                  setClassId("");
-                  setSelectedCourseIds([]);
-                }}
-                placeholder="Select..."
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Session
-              </label>
-              <SearchableSelect
-                options={sessionOptions}
-                value={sessionOptions.find((s) => s.value === session) || null}
-                onChange={(opt) => {
-                  setSession(opt ? (opt as SelectOption).value : "");
-                  setClassId("");
-                }}
-                placeholder="Select..."
-                isDisabled={!departmentId}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Class
-              </label>
-              <SearchableSelect
-                options={classOptions}
-                value={classOptions.find((c) => c.value === classId) || null}
-                onChange={(opt) => {
-                  setClassId(opt ? (opt as SelectOption).value : "");
-                  setSemesterNumber("");
-                }}
-                placeholder="Select..."
-                isDisabled={!session}
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Semester
-              </label>
-              <SearchableSelect
-                options={semesterNumberOptions}
-                value={semesterNumberOptions.find((s) => s.value === semesterNumber) || null}
-                onChange={(opt) => setSemesterNumber(opt ? (opt as SelectOption).value : "")}
-                placeholder="Select..."
-                isDisabled={!classId}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Term Type
-              </label>
-              <SearchableSelect
-                options={termOptions}
-                value={termOptions.find((t) => t.value === termType)}
-                onChange={(opt) =>
-                  setTermType((opt as { value: string }).value as "Fall" | "Spring")
-                }
-                isClearable={false}
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Start Date
-              </label>
-              <input
-                type="date"
-                required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Add Courses
-            </label>
-            <SearchableSelect
-              options={courseOptions}
-              value={null}
-              onChange={(opt) => {
-                if (opt && !selectedCourseIds.includes((opt as SelectOption).value)) {
-                  setSelectedCourseIds([...selectedCourseIds, (opt as SelectOption).value]);
-                }
-              }}
-              placeholder={
-                departmentId ? "Search by course name or code..." : "Select a department first"
-              }
-              isDisabled={!departmentId}
-            />
-          </div>
-          {selectedCoursesDetail.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                  <tr>
-                    <th className="px-3 py-2">Code</th>
-                    <th className="px-3 py-2">Title</th>
-                    <th className="px-3 py-2">Credit Hours</th>
-                    <th className="px-3 py-2 text-right">Remove</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {selectedCoursesDetail.map((c) => (
-                    <tr key={c.id}>
-                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
-                        {c.code}
-                      </td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.title}</td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
-                        {c.credit_hours}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedCourseIds(selectedCourseIds.filter((id) => id !== c.id))
-                          }
-                          className="text-red-500 hover:text-red-600"
-                        >
-                          <X size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={starting}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-            >
-              <Play size={16} /> {starting ? "Starting..." : "Start Semester"}
-            </button>
-          </div>
-          </form>
-
-          {/* ── Right column: Upcoming Semesters ──────────────────────────── */}
+        <div className="space-y-5">
           <div className="overflow-hidden rounded-xl card-3d">
-            <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-yellow-50 px-5 py-4 dark:border-slate-800 dark:from-amber-900/20 dark:to-yellow-900/20">
-              <Calendar size={17} className="text-amber-500" />
-              <div className="flex-1">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">Upcoming Semesters</h3>
+            <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 dark:border-slate-800 dark:from-blue-900/20 dark:to-indigo-900/20">
+              <Calendar size={18} className="text-blue-600 dark:text-blue-400" />
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">Semester Progress</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Non-active semester status timeline for active classes
+                  Select the pulsing blue step to create the next semester
                 </p>
               </div>
-              <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-                {upcomingSemesters.length} {upcomingSemesters.length === 1 ? "semester" : "semesters"}
-              </span>
+              <div className="flex items-center gap-3 text-[11px] font-semibold">
+                <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Ready to start
+                </span>
+                <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Waiting to close
+                </span>
+              </div>
             </div>
-            {upcomingSemesters.length === 0 ? (
+
+            {semesterTimelines.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-5 py-14 text-center">
                 <span className="text-3xl">🎓</span>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No upcoming semester statuses found.</p>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  No active classes found.
+                </p>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Closed classes are hidden from this list.
+                  Closed classes are hidden from semester progress.
                 </p>
               </div>
             ) : (
-              <div className="space-y-5 p-5">
-                {upcomingSemesters.map((semester) => {
-                  const currentStep = semesterStatusSteps.findIndex((step) => step.value === semester.status);
-                  const currentStatus = semesterStatusSteps[currentStep];
-                  const classInfo = classes.find((item) => item.id === semester.class_id);
-
-                  return (
-                    <div
-                      key={semester.id}
-                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
-                    >
-                      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <h4 className="font-semibold text-slate-800 dark:text-slate-100">
-                            {classInfo?.class_name ?? semester.class_name}
-                            <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
-                              {semester.session}
-                            </span>
-                          </h4>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            Semester {semester.semester_number} · {semester.term_type}
-                          </p>
-                        </div>
-                        <div className="text-right text-xs text-slate-500 dark:text-slate-400">
-                          <p>
-                            <span className="font-medium text-slate-600 dark:text-slate-300">Start date:</span>{" "}
-                            {formatSemesterDate(semester.start_date)}
-                          </p>
-                          <p className="mt-1">
-                            <span className="font-medium text-slate-600 dark:text-slate-300">Last status update:</span>{" "}
-                            {formatSemesterDate(semester.updated_at)}
-                          </p>
-                        </div>
+              <div className="space-y-4 p-5">
+                {semesterTimelines.map(({ classInfo, steps, runningSemester }) => (
+                  <div
+                    key={classInfo.id}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                  >
+                    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-semibold text-slate-800 dark:text-slate-100">
+                          {classInfo.class_name}
+                          <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+                            {classInfo.session}
+                          </span>
+                        </h4>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {classInfo.total_semesters} semester{classInfo.total_semesters === 1 ? "" : "s"} in program
+                        </p>
                       </div>
+                      {runningSemester && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                          <AlertTriangle size={13} />
+                          Close Semester {runningSemester.semester_number} to continue
+                        </span>
+                      )}
+                    </div>
 
-                      <div className="flex items-start">
-                        {semesterStatusSteps.map((step, index) => {
-                          const reached = currentStep >= index;
-                          const isCurrent = currentStatus?.value === step.value;
+                    <div className="overflow-x-auto pb-2">
+                      <div className="flex min-w-[640px] items-start">
+                        {steps.map((step, index) => {
+                          const record = step.semester;
+                          const isReady = step.state === "ready";
+                          const isBlocked = step.state === "blocked";
+                          const isCompleted = step.state === "completed";
+                          const isCurrent = step.state === "current";
+                          const connectorClass =
+                            isCompleted || (isCurrent && index < steps.length - 1)
+                              ? "bg-indigo-500"
+                              : "bg-slate-200 dark:bg-slate-700";
+                          const node = (
+                            <span
+                              className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 text-sm font-bold transition ${
+                                isCompleted
+                                  ? "border-emerald-500 bg-emerald-500 text-white"
+                                  : isCurrent
+                                    ? "border-indigo-500 bg-indigo-500 text-white"
+                                    : isReady
+                                      ? "border-blue-500 bg-blue-500 text-white shadow-lg shadow-blue-500/30"
+                                      : isBlocked
+                                        ? "border-red-500 bg-red-500 text-white shadow-lg shadow-red-500/25"
+                                        : "border-slate-300 bg-white text-slate-400 dark:border-slate-600 dark:bg-slate-900"
+                              }`}
+                            >
+                              {(isReady || isBlocked) && (
+                                <>
+                                  <span
+                                    className={`absolute inset-[-5px] rounded-full border ${
+                                      isReady ? "border-blue-400" : "border-red-400"
+                                    } animate-[semester-ripple_1.8s_ease-out_infinite]`}
+                                  />
+                                  <span
+                                    className={`absolute inset-[-5px] rounded-full border ${
+                                      isReady ? "border-blue-400" : "border-red-400"
+                                    } animate-[semester-ripple_1.8s_ease-out_900ms_infinite]`}
+                                  />
+                                </>
+                              )}
+                              {isCompleted ? <CheckCircle size={18} /> : step.number}
+                            </span>
+                          );
 
                           return (
-                            <div key={step.value} className="flex min-w-0 flex-1 items-start">
-                              <div className="flex min-w-0 flex-1 flex-col items-center">
-                                <div
-                                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold transition ${
-                                    reached
-                                      ? "border-indigo-600 bg-indigo-600 text-white"
-                                      : "border-slate-300 bg-white text-slate-400 dark:border-slate-600 dark:bg-slate-900"
-                                  }`}
-                                >
-                                  {reached && index < currentStep ? <CheckCircle size={15} /> : index + 1}
-                                </div>
+                            <div key={step.number} className="flex min-w-0 flex-1 items-start">
+                              <div className="flex min-w-[116px] flex-1 flex-col items-center">
+                                {isReady ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openStartModal(classInfo, step.number)}
+                                    aria-label={`Start semester ${step.number} for ${classInfo.class_name}`}
+                                    className="rounded-full focus:outline-none focus:ring-4 focus:ring-blue-500/20"
+                                  >
+                                    {node}
+                                  </button>
+                                ) : (
+                                  <span
+                                    title={isBlocked ? "Close the current semester before starting this one" : undefined}
+                                  >
+                                    {node}
+                                  </span>
+                                )}
                                 <span
-                                  className={`mt-2 text-center text-[11px] font-semibold ${
-                                    isCurrent
-                                      ? "text-indigo-700 dark:text-indigo-300"
-                                      : reached
-                                        ? "text-slate-600 dark:text-slate-300"
-                                        : "text-slate-400 dark:text-slate-500"
+                                  className={`mt-2 text-center text-[11px] font-bold ${
+                                    isReady
+                                      ? "text-blue-700 dark:text-blue-300"
+                                      : isBlocked
+                                        ? "text-red-700 dark:text-red-300"
+                                        : isCurrent
+                                          ? "text-indigo-700 dark:text-indigo-300"
+                                          : "text-slate-600 dark:text-slate-300"
                                   }`}
                                 >
-                                  {step.label}
+                                  Semester {step.number}
+                                </span>
+                                <span className="mt-1 min-h-8 text-center text-[10px] leading-4 text-slate-400 dark:text-slate-500">
+                                  {record
+                                    ? record.status === "closed"
+                                      ? `Closed ${formatSemesterDate(record.close_date)}`
+                                      : `${record.status === "mid_term" ? "Mid-Term" : record.status === "final_term" ? "Final-Term" : "Active"} · ${formatSemesterDate(record.start_date)}`
+                                    : isReady
+                                      ? "Ready to start"
+                                      : isBlocked
+                                        ? "Close current semester first"
+                                        : "Not available yet"}
                                 </span>
                               </div>
-                              {index < semesterStatusSteps.length - 1 && (
-                                <div
-                                  className={`mt-4 h-0.5 flex-1 ${
-                                    currentStep > index
-                                      ? "bg-indigo-600"
-                                      : "bg-slate-200 dark:bg-slate-700"
-                                  }`}
-                                />
+                              {index < steps.length - 1 && (
+                                <div className={`mt-[22px] h-0.5 flex-1 ${connectorClass}`} />
                               )}
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
-        )
       ) : tab === "update" ? (
         <div className="max-w-2xl space-y-5 card-3d p-6">
           <div className="grid grid-cols-2 gap-4">
@@ -1335,6 +1198,271 @@ export default function SemestersPage() {
         onConfirm={handleClose}
         onCancel={() => setConfirmClose(false)}
       />
+
+      <Modal
+        open={startModalOpen}
+        onClose={() => setStartModalOpen(false)}
+        title={
+          selectedClass && semesterNumber
+            ? `Start Semester ${semesterNumber} — ${selectedClass.class_name}`
+            : "Start Semester"
+        }
+        widthClass="max-w-2xl"
+      >
+        <form onSubmit={handleStart} className="space-y-5">
+          <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:bg-blue-500/10 dark:text-blue-200">
+            Complete the semester details and curriculum below. The new semester will start as Active.
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Department
+              </label>
+              <SearchableSelect
+                options={departments}
+                value={departments.find((d) => d.value === departmentId) || null}
+                onChange={(opt) => {
+                  setDepartmentId(opt ? (opt as SelectOption).value : "");
+                  setSession("");
+                  setClassId("");
+                  setSemesterNumber("");
+                  setSelectedCourseIds([]);
+                }}
+                placeholder="Select..."
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Session
+              </label>
+              <SearchableSelect
+                options={sessionOptions}
+                value={sessionOptions.find((s) => s.value === session) || null}
+                onChange={(opt) => {
+                  setSession(opt ? (opt as SelectOption).value : "");
+                  setClassId("");
+                  setSemesterNumber("");
+                  setSelectedCourseIds([]);
+                }}
+                placeholder="Select..."
+                isDisabled={!departmentId}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Class
+              </label>
+              <SearchableSelect
+                options={classOptions}
+                value={classOptions.find((c) => c.value === classId) || null}
+                onChange={(opt) => {
+                  setClassId(opt ? (opt as SelectOption).value : "");
+                  setSemesterNumber("");
+                  setSelectedCourseIds([]);
+                }}
+                placeholder="Select..."
+                isDisabled={!session}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Semester
+              </label>
+              <SearchableSelect
+                options={semesterNumberOptions}
+                value={semesterNumberOptions.find((s) => s.value === semesterNumber) || null}
+                onChange={(opt) => setSemesterNumber(opt ? (opt as SelectOption).value : "")}
+                placeholder="Select..."
+                isDisabled={!classId}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Term Type
+              </label>
+              <SearchableSelect
+                options={termOptions}
+                value={termOptions.find((t) => t.value === termType)}
+                onChange={(opt) =>
+                  setTermType((opt as { value: string }).value as "Fall" | "Spring")
+                }
+                isClearable={false}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Start Date
+              </label>
+              <input
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Add Courses
+            </label>
+            <SearchableSelect
+              options={courseOptions}
+              value={null}
+              onChange={(opt) => {
+                if (opt && !selectedCourseIds.includes((opt as SelectOption).value)) {
+                  setSelectedCourseIds([...selectedCourseIds, (opt as SelectOption).value]);
+                }
+              }}
+              placeholder={
+                departmentId ? "Search by course name or code..." : "Select a department first"
+              }
+              isDisabled={!departmentId}
+            />
+          </div>
+
+          {selectedCoursesDetail.length > 0 && (
+            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">Code</th>
+                    <th className="px-3 py-2">Title</th>
+                    <th className="px-3 py-2">Credit Hours</th>
+                    <th className="px-3 py-2 text-right">Remove</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {selectedCoursesDetail.map((course) => (
+                    <tr key={course.id}>
+                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                        {course.code}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{course.title}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                        {course.credit_hours}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedCourseIds(selectedCourseIds.filter((id) => id !== course.id))
+                          }
+                          className="text-red-500 hover:text-red-600"
+                          aria-label={`Remove ${course.code}`}
+                        >
+                          <X size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setStartModalOpen(false)}
+              className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={starting}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              <Play size={16} /> {starting ? "Starting..." : "Start Semester"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(newSemesterId)}
+        onClose={() => {
+          setNewSemesterId(null);
+          setNewSemesterCourses([]);
+          setPostStartUploading({});
+        }}
+        title="Semester started successfully"
+        widthClass="max-w-2xl"
+      >
+        <div className="space-y-5">
+          <div className="flex items-center gap-3 rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+            <CheckCircle size={20} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                Semester started successfully!
+              </p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                Optionally upload course outline files below, then click Done.
+              </p>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                <tr>
+                  <th className="px-3 py-2">Code</th>
+                  <th className="px-3 py-2">Title</th>
+                  <th className="px-3 py-2">Outline</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {newSemesterCourses.map((course) => (
+                  <tr key={course.id}>
+                    <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                      {course.code}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{course.title}</td>
+                    <td className="px-3 py-2">
+                      {course.outline_url ? (
+                        <a
+                          href={course.outline_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                        >
+                          <FileDown size={12} /> View
+                        </a>
+                      ) : (
+                        <OutlineUploadButton
+                          uploading={postStartUploading[course.id] ?? false}
+                          onFile={(file) => handlePostStartOutlineUpload(course.id, file)}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setNewSemesterId(null);
+                setNewSemesterCourses([]);
+                setPostStartUploading({});
+              }}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={editModalOpen}
