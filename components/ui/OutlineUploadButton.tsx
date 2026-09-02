@@ -9,6 +9,8 @@ interface OutlineUploadButtonProps {
   uploading: boolean;
   /** Called with the (possibly compressed) file ready to send to the server */
   onFile: (file: File) => void;
+  /** Accepted file types for the library picker. */
+  accept?: string;
 }
 
 /**
@@ -22,6 +24,7 @@ interface OutlineUploadButtonProps {
 export default function OutlineUploadButton({
   uploading,
   onFile,
+  accept = ".pdf,.doc,.docx,.ppt,.pptx,image/*",
 }: OutlineUploadButtonProps) {
   const libraryRef = useRef<HTMLInputElement>(null);
   const cameraRef  = useRef<HTMLInputElement>(null);
@@ -70,7 +73,7 @@ export default function OutlineUploadButton({
       <input
         ref={libraryRef}
         type="file"
-        accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
+        accept={accept}
         className="hidden"
         onChange={handleChange}
       />

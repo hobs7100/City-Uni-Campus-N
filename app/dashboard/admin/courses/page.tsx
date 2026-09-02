@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { FileDown, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { TableLoader } from "@/components/ui/Loaders";
+import OutlineUploadButton from "@/components/ui/OutlineUploadButton";
 
 interface Course {
   id: string;
@@ -17,6 +18,7 @@ interface Course {
   department_name: string;
   credit_hours: string;
   status: "active" | "blocked";
+  course_outline_url: string | null;
 }
 
 const statusOptions = [
@@ -44,6 +46,9 @@ export default function CoursesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  const [outlineFile, setOutlineFile] = useState<File | null>(null);
+  const [currentOutlineUrl, setCurrentOutlineUrl] = useState<string | null>(null);
+  const [outlineUploading, setOutlineUploading] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -85,6 +90,8 @@ export default function CoursesPage() {
   function openCreate() {
     setForm(emptyForm);
     setEditing(false);
+    setOutlineFile(null);
+    setCurrentOutlineUrl(null);
     setModalOpen(true);
   }
 
@@ -98,6 +105,8 @@ export default function CoursesPage() {
       status: item.status,
     });
     setEditing(true);
+    setOutlineFile(null);
+    setCurrentOutlineUrl(item.course_outline_url);
     setModalOpen(true);
   }
 
@@ -117,8 +126,31 @@ export default function CoursesPage() {
         toast.error(data.error || "Something went wrong.");
         return;
       }
+
+      const courseId = data.course?.id ?? form.id;
+      if (outlineFile && courseId) {
+        setOutlineUploading(true);
+        try {
+          const outlineForm = new FormData();
+          outlineForm.append("file", outlineFile);
+          const outlineRes = await fetch(`/api/admin/courses/${courseId}/outline`, {
+            method: "POST",
+            body: outlineForm,
+          });
+          const outlineData = await outlineRes.json();
+          if (!outlineRes.ok) {
+            toast.error(outlineData.error || "Course saved, but outline upload failed.");
+            return;
+          }
+          setCurrentOutlineUrl(outlineData.url);
+        } finally {
+          setOutlineUploading(false);
+        }
+      }
+
       toast.success(editing ? "Course updated." : "Course created.");
       setModalOpen(false);
+      setOutlineFile(null);
       load();
     } finally {
       setSaving(false);
@@ -179,16 +211,17 @@ export default function CoursesPage() {
               <th className="px-4 py-3">Title</th>
               <th className="px-4 py-3">Department</th>
               <th className="px-4 py-3">Credit Hours</th>
+              <th className="px-4 py-3">Outline</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <TableLoader colSpan={6} />
+              <TableLoader colSpan={7} />
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                   {search ? `No courses match "${search}".` : "No courses found."}
                 </td>
               </tr>
@@ -203,6 +236,22 @@ export default function CoursesPage() {
                     {c.department_name}
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{c.credit_hours}</td>
+                  <td className="px-4 py-3">
+                    {c.course_outline_url ? (
+                      <a
+                        href={c.course_outline_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                      >
+                        <FileDown size={13} /> View outline
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                        Not uploaded
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={c.status} />
                   </td>
@@ -302,6 +351,49 @@ export default function CoursesPage() {
               }
               isClearable={false}
             />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Course Outline
+              </label>
+              <span className="text-xs text-slate-400">PNG, JPG, or PDF</span>
+            </div>
+            <div className="rounded-lg border border-dashed border-slate-300 p-3 dark:border-slate-700">
+              {currentOutlineUrl && !outlineFile && (
+                <a
+                  href={currentOutlineUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mb-2 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  <FileDown size={13} /> View current outline
+                </a>
+              )}
+              <div className="flex flex-wrap items-center gap-3">
+                <OutlineUploadButton
+                  uploading={outlineUploading}
+                  accept=".png,.jpg,.jpeg,.pdf"
+                  onFile={setOutlineFile}
+                />
+                {outlineFile && (
+                  <span className="flex max-w-full items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                    <span className="max-w-[220px] truncate">{outlineFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setOutlineFile(null)}
+                      className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      aria-label="Remove selected outline"
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Select a new file to upload or replace the current outline.
+              </p>
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button

@@ -36,7 +36,7 @@ export async function GET(_request: NextRequest) {
             to_char(a.end_date,   'YYYY-MM-DD') as end_date,
             s.id as semester_id, s.semester_number, s.term_type, s.status as semester_status,
             cl.id as class_id, cl.class_name, cl.session,
-            sc.course_outline_url as outline_url,
+             coalesce(c.course_outline_url, sc.course_outline_url) as outline_url,
             exists (
               select 1 from results r
               where r.semester_id = als.semester_id and r.course_id = a.course_id

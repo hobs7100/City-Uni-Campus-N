@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { deleteRawFromCloudinary } from "@/lib/cloudinary";
 
 const schema = z.object({
   code: z.string().min(1).optional(),
@@ -61,11 +62,20 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   if (response) return response;
   const { id } = await params;
 
+  const course = await queryOne<{ course_outline_public_id: string | null }>(
+    `select course_outline_public_id from courses where id = $1`,
+    [id],
+  );
+  if (!course) return NextResponse.json({ error: "Course not found." }, { status: 404 });
+
   const used = await queryOne(`select id from semester_courses where course_id = $1 limit 1`, [id]);
   if (used) {
     return NextResponse.json({ error: "This course is used in a semester and cannot be deleted." }, { status: 409 });
   }
 
+  if (course.course_outline_public_id) {
+    await deleteRawFromCloudinary(course.course_outline_public_id).catch(() => {});
+  }
   await query(`delete from courses where id = $1`, [id]);
   return NextResponse.json({ success: true });
 }

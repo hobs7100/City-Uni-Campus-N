@@ -1202,13 +1202,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                                 href={c.outline_url}
                                 target="_blank"
                                 rel="noreferrer"
-                                download
                                 className="flex items-center gap-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
                               >
-                                <FileDown size={12} /> Download
+                                <FileDown size={12} /> View outline
                               </a>
                             ) : (
-                              <span className="text-xs text-slate-400">—</span>
+                              <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                                Not uploaded
+                              </span>
                             )}
                           </td>
                           <td className="px-4 py-3">
