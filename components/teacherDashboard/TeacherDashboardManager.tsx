@@ -1032,6 +1032,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const groupedActive     = useMemo(() => groupCourseRows(active),      [active]);
   const groupedTransferred = useMemo(() => groupCourseRows(transferred), [transferred]);
   const groupedInactive   = useMemo(() => groupCourseRows(inactive),    [inactive]);
+  const markCourseOptions = groupedActive;
+  const selectedMarkCourse =
+    markCourseOptions.find((c) => c.allocation_id === markAllocationId) ?? null;
 
   /** Non-lab courses only — for the Upload Result tab. */
   const resGroupedActive = useMemo(
@@ -1838,8 +1841,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 onChange={(e) => {
                   const allocId = e.target.value;
                   setMarkAllocationId(allocId);
-                  const course = active.find((c) => c.allocation_id === allocId);
-                  setMarkClassId(course ? course.class_id : "");
+                  const course = markCourseOptions.find((c) => c.allocation_id === allocId);
+                  setMarkClassId(course?.classes[0]?.class_id ?? "");
                   setMarkSlots([]);
                   setMarkSlot(null);
                   setRosterRows([]);
@@ -1847,9 +1850,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
                 <option value="">Select a course</option>
-                {active.map((c) => (
-                  <option key={`${c.allocation_id}-${c.class_name}`} value={c.allocation_id}>
-                    {c.course_title} — {c.class_name} ({c.session}){c.is_combined ? " [Combined]" : ""}
+                {markCourseOptions.map((c) => (
+                  <option key={c.allocation_id} value={c.allocation_id}>
+                    {c.is_combined
+                      ? `${c.course_title} [Combined]`
+                      : `${c.course_title} — ${c.classes[0]?.class_name ?? ""} (${c.classes[0]?.session ?? ""})`}
                   </option>
                 ))}
               </select>
@@ -1924,6 +1929,24 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   This course has multiple lectures today. Select a time slot above to load its roster.
                 </p>
               )}
+            </div>
+          )}
+
+          {selectedMarkCourse?.is_combined && (
+            <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                Combined classes
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedMarkCourse.classes.map((combinedClass) => (
+                  <span
+                    key={`${combinedClass.class_id}-${combinedClass.semester_id}`}
+                    className="rounded-full bg-white px-3 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 dark:bg-slate-900/50 dark:text-indigo-200 dark:ring-indigo-500/30"
+                  >
+                    {combinedClass.class_name} ({combinedClass.session})
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
