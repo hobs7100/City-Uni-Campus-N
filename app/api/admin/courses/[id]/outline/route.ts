@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
-import { deleteRawFromCloudinary, uploadRawToCloudinary } from "@/lib/cloudinary";
+import {
+  deleteCourseOutlineFromCloudinary,
+  uploadCourseOutlineToCloudinary,
+} from "@/lib/cloudinary";
 
 const allowedTypes = new Set(["image/png", "image/jpeg", "application/pdf"]);
 const allowedExtensions = new Set(["png", "jpg", "jpeg", "pdf"]);
 const maxFileSize = 10 * 1024 * 1024;
 
+function getExtension(fileName: string) {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
 async function isAllowedFile(file: File) {
-  const extension = file.name.split(".").pop()?.toLowerCase();
+  const extension = getExtension(file.name);
   const type = file.type.toLowerCase();
   const metadataIsValid =
     allowedTypes.has(type) &&
@@ -69,7 +76,11 @@ export async function POST(
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
-    const uploaded = await uploadRawToCloudinary(base64, "course-outlines");
+    const uploaded = await uploadCourseOutlineToCloudinary(
+      base64,
+      "course-outlines",
+      getExtension(file.name) as "png" | "jpg" | "jpeg" | "pdf",
+    );
 
     await query(
       `update courses
@@ -79,7 +90,7 @@ export async function POST(
     );
 
     if (course.course_outline_public_id) {
-      await deleteRawFromCloudinary(course.course_outline_public_id).catch(() => {});
+      await deleteCourseOutlineFromCloudinary(course.course_outline_public_id);
     }
 
     return NextResponse.json({ url: uploaded.url });
@@ -104,7 +115,7 @@ export async function DELETE(
   if (!course) return NextResponse.json({ error: "Course not found." }, { status: 404 });
 
   if (course.course_outline_public_id) {
-    await deleteRawFromCloudinary(course.course_outline_public_id).catch(() => {});
+    await deleteCourseOutlineFromCloudinary(course.course_outline_public_id);
   }
 
   await query(

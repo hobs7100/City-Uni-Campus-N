@@ -29,12 +29,32 @@ export async function uploadRawToCloudinary(
   return { url: result.secure_url, publicId: result.public_id };
 }
 
+export async function uploadCourseOutlineToCloudinary(
+  fileBase64: string,
+  folder: string,
+  format: "png" | "jpg" | "jpeg" | "pdf",
+): Promise<{ url: string; publicId: string }> {
+  const result = await cloudinary.uploader.upload(fileBase64, {
+    folder: `campus-management/${folder}`,
+    resource_type: "image",
+    format: format === "jpeg" ? "jpg" : format,
+  });
+  return { url: result.secure_url, publicId: result.public_id };
+}
+
 export async function deleteFromCloudinary(publicId: string) {
   await cloudinary.uploader.destroy(publicId);
 }
 
 export async function deleteRawFromCloudinary(publicId: string) {
   await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
+}
+
+export async function deleteCourseOutlineFromCloudinary(publicId: string) {
+  await Promise.allSettled([
+    cloudinary.uploader.destroy(publicId, { resource_type: "image" }),
+    cloudinary.uploader.destroy(publicId, { resource_type: "raw" }),
+  ]);
 }
 
 export default cloudinary;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
-import { deleteRawFromCloudinary } from "@/lib/cloudinary";
+import { deleteCourseOutlineFromCloudinary } from "@/lib/cloudinary";
 
 const schema = z.object({
   code: z.string().min(1).optional(),
@@ -74,7 +74,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   }
 
   if (course.course_outline_public_id) {
-    await deleteRawFromCloudinary(course.course_outline_public_id).catch(() => {});
+    await deleteCourseOutlineFromCloudinary(course.course_outline_public_id);
   }
   await query(`delete from courses where id = $1`, [id]);
   return NextResponse.json({ success: true });
