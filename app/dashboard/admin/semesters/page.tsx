@@ -193,6 +193,12 @@ export default function SemestersPage() {
         const classSemesters = semesters
           .filter((semester) => semester.class_id === classInfo.id)
           .sort((a, b) => a.semester_number - b.semester_number);
+        const hasActiveSemester = classSemesters.some((semester) => semester.status === "active");
+        const hasUpcomingSemesterRecord = classSemesters.some(
+          (semester) => semester.status !== "active",
+        );
+        if (hasActiveSemester || !hasUpcomingSemesterRecord) return null;
+
         const semesterByNumber = new Map(
           classSemesters.map((semester) => [semester.semester_number, semester]),
         );
@@ -225,6 +231,7 @@ export default function SemestersPage() {
 
         return { classInfo, steps, runningSemester };
       })
+      .filter((timeline): timeline is NonNullable<typeof timeline> => timeline !== null)
       .sort((a, b) => a.classInfo.class_name.localeCompare(b.classInfo.class_name));
   }, [classes, semesters]);
 
@@ -604,9 +611,9 @@ export default function SemestersPage() {
             <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 dark:border-slate-800 dark:from-blue-900/20 dark:to-indigo-900/20">
               <Calendar size={18} className="text-blue-600 dark:text-blue-400" />
               <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">Semester Progress</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">Upcoming Semesters</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Select the pulsing blue step to create the next semester
+                  Active classes with a completed or in-progress semester
                 </p>
               </div>
               <div className="flex items-center gap-3 text-[11px] font-semibold">
@@ -631,7 +638,7 @@ export default function SemestersPage() {
               </div>
             ) : (
               <div className="space-y-4 p-5">
-                {semesterTimelines.map(({ classInfo, steps, runningSemester }) => (
+                  {semesterTimelines.map(({ classInfo, steps, runningSemester }) => (
                   <div
                     key={classInfo.id}
                     className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
@@ -732,16 +739,35 @@ export default function SemestersPage() {
                                 >
                                   Semester {step.number}
                                 </span>
-                                <span className="mt-1 min-h-8 text-center text-[10px] leading-4 text-slate-400 dark:text-slate-500">
-                                  {record
-                                    ? record.status === "closed"
-                                      ? `Closed ${formatSemesterDate(record.close_date)}`
-                                      : `${record.status === "mid_term" ? "Mid-Term" : record.status === "final_term" ? "Final-Term" : "Active"} · ${formatSemesterDate(record.start_date)}`
-                                    : isReady
-                                      ? "Ready to start"
-                                      : isBlocked
-                                        ? "Close current semester first"
-                                        : "Not available yet"}
+                                <span className="mt-1 min-h-[76px] space-y-0.5 text-center text-[10px] leading-3 text-slate-400 dark:text-slate-500">
+                                  <span className="block">
+                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Status:</span>{" "}
+                                    {record
+                                      ? record.status === "mid_term"
+                                        ? "Mid-Term"
+                                        : record.status === "final_term"
+                                          ? "Final-Term"
+                                          : record.status === "closed"
+                                            ? "Closed"
+                                            : "Active"
+                                      : isReady
+                                        ? "Ready to start"
+                                        : isBlocked
+                                          ? "Waiting to close"
+                                          : "Not available"}
+                                  </span>
+                                  <span className="block">
+                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Start:</span>{" "}
+                                    {formatSemesterDate(record?.start_date)}
+                                  </span>
+                                  <span className="block">
+                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Closed:</span>{" "}
+                                    {formatSemesterDate(record?.close_date)}
+                                  </span>
+                                  <span className="block">
+                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Updated:</span>{" "}
+                                    {formatSemesterDate(record?.updated_at)}
+                                  </span>
                                 </span>
                               </div>
                               {index < steps.length - 1 && (
