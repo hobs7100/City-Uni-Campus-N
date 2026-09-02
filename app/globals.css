@@ -188,6 +188,14 @@ body {
   70%, 100% { transform: scale(1.55); opacity: 0; }
 }
 
+.semester-stepper-header {
+  background: var(--semester-card-bg);
+}
+
+.dark .semester-stepper-header {
+  background: var(--semester-card-dark-bg);
+}
+
 .animate-shimmer {
   background-image: linear-gradient(
     90deg,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import toast from "react-hot-toast";
 import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, RefreshCw, X, AlertTriangle } from "lucide-react";
 import OutlineUploadButton from "@/components/ui/OutlineUploadButton";
@@ -57,6 +57,49 @@ const termOptions = [
   { value: "Fall", label: "Fall" },
   { value: "Spring", label: "Spring" },
 ];
+
+const stepperSchemes = [
+  {
+    card: "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(238,242,255,0.92) 52%, rgba(250,245,255,0.98))",
+    darkCard: "linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,41,59,0.98) 52%, rgba(49,46,129,0.5))",
+    accent: "#4f46e5",
+    accentSoft: "#c7d2fe",
+    line: "linear-gradient(90deg, #38bdf8, #6366f1 52%, #a855f7)",
+    mutedLine: "linear-gradient(90deg, rgba(56,189,248,0.38), rgba(99,102,241,0.46), rgba(168,85,247,0.38))",
+  },
+  {
+    card: "linear-gradient(135deg, rgba(236,254,255,0.98), rgba(240,253,250,0.94) 52%, rgba(239,246,255,0.98))",
+    darkCard: "linear-gradient(135deg, rgba(8,47,73,0.98), rgba(15,46,54,0.98) 52%, rgba(30,64,175,0.45))",
+    accent: "#0891b2",
+    accentSoft: "#a5f3fc",
+    line: "linear-gradient(90deg, #06b6d4, #14b8a6 52%, #3b82f6)",
+    mutedLine: "linear-gradient(90deg, rgba(6,182,212,0.38), rgba(20,184,166,0.46), rgba(59,130,246,0.38))",
+  },
+  {
+    card: "linear-gradient(135deg, rgba(255,247,237,0.98), rgba(254,252,232,0.94) 52%, rgba(255,241,242,0.98))",
+    darkCard: "linear-gradient(135deg, rgba(67,20,7,0.98), rgba(66,32,6,0.98) 52%, rgba(127,29,29,0.45))",
+    accent: "#ea580c",
+    accentSoft: "#fed7aa",
+    line: "linear-gradient(90deg, #f97316, #eab308 52%, #ef4444)",
+    mutedLine: "linear-gradient(90deg, rgba(249,115,22,0.38), rgba(234,179,8,0.46), rgba(239,68,68,0.38))",
+  },
+  {
+    card: "linear-gradient(135deg, rgba(240,253,244,0.98), rgba(236,253,245,0.94) 52%, rgba(239,246,255,0.98))",
+    darkCard: "linear-gradient(135deg, rgba(5,46,22,0.98), rgba(6,52,38,0.98) 52%, rgba(30,64,175,0.45))",
+    accent: "#059669",
+    accentSoft: "#a7f3d0",
+    line: "linear-gradient(90deg, #22c55e, #14b8a6 52%, #3b82f6)",
+    mutedLine: "linear-gradient(90deg, rgba(34,197,94,0.38), rgba(20,184,166,0.46), rgba(59,130,246,0.38))",
+  },
+  {
+    card: "linear-gradient(135deg, rgba(253,244,255,0.98), rgba(250,245,255,0.94) 52%, rgba(252,231,243,0.98))",
+    darkCard: "linear-gradient(135deg, rgba(59,7,100,0.98), rgba(49,15,75,0.98) 52%, rgba(131,24,67,0.45))",
+    accent: "#9333ea",
+    accentSoft: "#e9d5ff",
+    line: "linear-gradient(90deg, #a855f7, #ec4899 52%, #f43f5e)",
+    mutedLine: "linear-gradient(90deg, rgba(168,85,247,0.38), rgba(236,72,153,0.46), rgba(244,63,94,0.38))",
+  },
+] as const;
 
 function formatSemesterDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -639,12 +682,24 @@ export default function SemestersPage() {
               </div>
             ) : (
               <div className="space-y-4 p-5">
-                  {semesterTimelines.map(({ classInfo, steps, runningSemester }) => (
+                  {semesterTimelines.map(({ classInfo, steps, runningSemester }, classIndex) => {
+                   const scheme = stepperSchemes[classIndex % stepperSchemes.length];
+                   return (
                   <div
                     key={classInfo.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                     className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                     style={{
+                       borderTopColor: scheme.accentSoft,
+                       boxShadow: `0 12px 28px -20px ${scheme.accent}`,
+                     }}
                   >
-                    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                     <div
+                       className="semester-stepper-header flex flex-wrap items-start justify-between gap-3 border-b border-white/60 px-4 py-4 dark:border-white/10"
+                       style={{
+                         "--semester-card-bg": scheme.card,
+                         "--semester-card-dark-bg": scheme.darkCard,
+                       } as CSSProperties}
+                     >
                       <div>
                         <h4 className="font-semibold text-slate-800 dark:text-slate-100">
                           {classInfo.class_name}
@@ -664,33 +719,45 @@ export default function SemestersPage() {
                       )}
                     </div>
 
-                    <div className="overflow-x-auto pb-2">
-                      <div className="flex min-w-[640px] items-start">
+                     <div className="overflow-x-auto bg-white/70 px-4 pb-4 pt-5 dark:bg-slate-900/70">
+                       <div className="flex min-w-max items-start">
                         {steps.map((step, index) => {
                           const record = step.semester;
                           const isReady = step.state === "ready";
                           const isBlocked = step.state === "blocked";
                           const isCompleted = step.state === "completed";
                           const isCurrent = step.state === "current";
-                          const connectorClass =
-                            isCompleted || (isCurrent && index < steps.length - 1)
-                              ? "bg-indigo-500"
-                              : "bg-slate-200 dark:bg-slate-700";
+                           const hasRecord = Boolean(record);
+                           const connectorStyle = {
+                             background: hasRecord ? scheme.line : scheme.mutedLine,
+                             boxShadow: hasRecord
+                               ? `inset 0 1px 1px rgba(255,255,255,0.55), 0 3px 6px -3px ${scheme.accent}`
+                               : "inset 0 1px 1px rgba(255,255,255,0.45), 0 2px 4px -3px rgba(100,116,139,0.8)",
+                           };
                           const node = (
                             <span
-                              className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 text-sm font-bold transition ${
+                               className={`relative flex h-12 w-12 items-center justify-center rounded-[15px] border-2 text-sm font-bold shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),0_6px_10px_-6px_rgba(15,23,42,0.7)] transition ${
                                 isCompleted
                                   ? "border-emerald-500 bg-emerald-500 text-white"
                                   : isCurrent
-                                    ? "border-indigo-500 bg-indigo-500 text-white"
+                                     ? "text-white"
                                     : isReady
                                       ? "border-blue-500 bg-blue-500 text-white shadow-lg shadow-blue-500/30"
                                       : isBlocked
                                         ? "border-red-500 bg-red-500 text-white shadow-lg shadow-red-500/25"
                                         : "border-slate-300 bg-white text-slate-400 dark:border-slate-600 dark:bg-slate-900"
                               }`}
+                              style={
+                                 isCurrent
+                                   ? {
+                                       borderColor: scheme.accent,
+                                       background: `linear-gradient(145deg, ${scheme.accentSoft}, ${scheme.accent})`,
+                                       boxShadow: `inset 0 1px 1px rgba(255,255,255,0.55), 0 8px 14px -7px ${scheme.accent}`,
+                                     }
+                                   : undefined
+                               }
                             >
-                              {(isReady || isBlocked) && (
+                               {(isReady || isBlocked) && (
                                 <>
                                   <span
                                     className={`absolute inset-[-5px] rounded-full border ${
@@ -709,8 +776,8 @@ export default function SemestersPage() {
                           );
 
                           return (
-                            <div key={step.number} className="flex min-w-0 flex-1 items-start">
-                              <div className="flex min-w-[116px] flex-1 flex-col items-center">
+                             <div key={step.number} className="flex w-[166px] shrink-0 items-start">
+                               <div className="flex w-[116px] shrink-0 flex-col items-center">
                                 {isReady ? (
                                   <button
                                     type="button"
@@ -772,7 +839,11 @@ export default function SemestersPage() {
                                 </span>
                               </div>
                               {index < steps.length - 1 && (
-                                <div className={`mt-[22px] h-0.5 flex-1 ${connectorClass}`} />
+                                 <div
+                                   aria-hidden="true"
+                                   className="mt-[21px] h-2 w-[50px] shrink-0 rounded-full"
+                                   style={connectorStyle}
+                                 />
                               )}
                             </div>
                           );
@@ -780,7 +851,8 @@ export default function SemestersPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                   );
+                 })}
               </div>
             )}
           </div>
