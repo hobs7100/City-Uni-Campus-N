@@ -39,6 +39,8 @@ import {
 import { formatDateOnly } from "@/lib/format";
 import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 import RichTextViewer from "@/components/ui/RichTextViewer";
+import { AttendanceHistoryTable } from "@/components/studentAttendance/AttendanceHistory";
+import type { StudentAttendanceHistoryRecord } from "@/lib/student-attendance-history";
 
 /* ─── interfaces ─────────────────────────────────────────── */
 interface Profile {
@@ -181,7 +183,7 @@ export default function StudentDashboardManager() {
   const [attSummary, setAttSummary] = useState<{
     presents: number; absents: number; leaves: number; percentage: number; flag: string;
   } | null>(null);
-  const [attRecords, setAttRecords] = useState<{ attendance_date: string; status: string; reason: string | null }[]>([]);
+  const [attRecords, setAttRecords] = useState<StudentAttendanceHistoryRecord[]>([]);
   const [simpleAttLoading, setSimpleAttLoading] = useState(false);
 
   /* mid exam date sheet */
@@ -1574,26 +1576,7 @@ export default function StudentDashboardManager() {
 
               {attRecords.length > 0 && (
                 <div className="card-3d overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-sm">
-                      <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 dark:bg-slate-800/40 dark:text-slate-400">
-                        <tr>
-                          <th className="px-4 py-3">Date</th>
-                          <th className="px-4 py-3">Status</th>
-                          <th className="px-4 py-3">Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {attRecords.map((r, i) => (
-                          <tr key={i}>
-                            <td className="px-4 py-2.5">{formatDateOnly(r.attendance_date)}</td>
-                            <td className={`px-4 py-2.5 font-medium capitalize ${statusCls[r.status] ?? ""}`}>{r.status}</td>
-                            <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{r.reason || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <AttendanceHistoryTable records={attRecords} />
                 </div>
               )}
             </div>

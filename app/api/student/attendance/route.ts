@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query, queryOne } from "@/lib/db";
+import { queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
+import { getStudentAttendanceHistory } from "@/lib/student-attendance-history";
 
 export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("student");
@@ -31,22 +32,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ semester: null, summary: null, records: [], leave_type: leaveType, policy });
   }
 
-  const conditions: string[] = [`student_id = $1`, `semester_id = $2`];
-  const values: unknown[] = [session!.userId, (semester as { id: string }).id];
-  let i = 3;
-  if (from) { conditions.push(`attendance_date >= $${i++}`); values.push(from); }
-  if (to) { conditions.push(`attendance_date <= $${i++}`); values.push(to); }
-
-  const records = await query(
-    `select attendance_date, status, reason, call_remarks from student_attendance_records
-     where ${conditions.join(" and ")}
-     order by attendance_date desc`,
-    values
+  const records = await getStudentAttendanceHistory(
+    session!.userId,
+    (semester as { id: string }).id,
+    leaveType,
+    { from, to },
   );
 
-  const presents = records.filter((r) => (r as { status: string }).status === "present").length;
-  const absents = records.filter((r) => (r as { status: string }).status === "absent").length;
-  const leaves = records.filter((r) => (r as { status: string }).status === "leave").length;
+  const presents = records.filter((r) => r.attendance_status === "present").length;
+  const absents = records.filter((r) => r.attendance_status === "absent").length;
+  const leaves = records.filter((r) => r.attendance_status === "leave").length;
   const percentage = presents + absents > 0 ? (presents / (presents + absents)) * 100 : 0;
   const flag = getAttendanceFlag(percentage, leaveType);
 

@@ -6,6 +6,10 @@ import { FileDown, Save } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader } from "@/components/ui/Loaders";
+import {
+  AttendanceHistoryModal,
+  ViewAttendanceHistoryButton,
+} from "@/components/studentAttendance/AttendanceHistory";
 
 interface ClassOption {
   id: string;
@@ -101,6 +105,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
   const [reportTo, setReportTo] = useState("");
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState<ReportRow | null>(null);
 
   const [shortDepartmentId, setShortDepartmentId] = useState("");
   const [shortClassId, setShortClassId] = useState("");
@@ -752,21 +757,22 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                   <th className="px-4 py-3">Absents</th>
                   <th className="px-4 py-3">Leaves</th>
                   <th className="px-4 py-3">Percentage</th>
+                  <th className="px-4 py-3">Details</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {reportLoading ? (
-                  <TableLoader colSpan={7} />
+                  <TableLoader colSpan={8} />
                 ) : !reportSemesterId ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                       Select a semester to load the report.
                     </td>
                   </tr>
                 ) : reportRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                       No students found.
                     </td>
                   </tr>
@@ -794,6 +800,9 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                       <td className="px-4 py-3">{r.leaves}</td>
                       <td className="px-4 py-3">
                         {r.percentage !== null ? `${r.percentage}%` : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <ViewAttendanceHistoryButton onClick={() => setHistoryTarget(r)} />
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -867,6 +876,16 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
             </table>
           </div>
         </div>
+      )}
+      {historyTarget && reportSemesterId && (
+        <AttendanceHistoryModal
+          studentId={historyTarget.student_id}
+          semesterId={reportSemesterId}
+          studentName={historyTarget.name}
+          from={reportFrom}
+          to={reportTo}
+          onClose={() => setHistoryTarget(null)}
+        />
       )}
     </div>
   );

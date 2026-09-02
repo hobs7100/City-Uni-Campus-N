@@ -5,6 +5,10 @@ import { ClipboardCheck, User } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { DataFetchLoader } from "@/components/ui/Loaders";
 import type { SingleValue } from "react-select";
+import {
+  AttendanceHistoryModal,
+  ViewAttendanceHistoryButton,
+} from "@/components/studentAttendance/AttendanceHistory";
 
 export interface StudentAttendanceStudent {
   id: string;
@@ -61,6 +65,7 @@ export default function StudentAttendanceLookup({
   const [semesters, setSemesters] = useState<SemesterAttendance[]>([]);
   const [loading, setLoading] = useState(false);
   const [studentInfo, setStudentInfo] = useState<StudentAttendanceStudent | null>(null);
+  const [historySemester, setHistorySemester] = useState<SemesterAttendance | null>(null);
 
   const studentOptions = useMemo(
     () =>
@@ -162,12 +167,13 @@ export default function StudentAttendanceLookup({
                       <th className="px-4 py-2 text-center">Absent</th>
                       <th className="px-4 py-2 text-center">Leave</th>
                       <th className="px-4 py-2 text-center">%</th>
+                      <th className="px-4 py-2 text-center">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {semester.courses.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-4 text-center text-xs text-slate-400">
+                        <td colSpan={7} className="px-4 py-4 text-center text-xs text-slate-400">
                           No course-wise attendance marked by teachers for this semester.
                         </td>
                       </tr>
@@ -180,6 +186,7 @@ export default function StudentAttendanceLookup({
                           <td className="px-4 py-2.5 text-center font-semibold text-red-500">{course.absents}</td>
                           <td className="px-4 py-2.5 text-center font-semibold text-amber-500">{course.leaves}</td>
                           <td className="px-4 py-2.5 text-center">{percentageBadge(course.percentage)}</td>
+                          <td className="px-4 py-2.5" />
                         </tr>
                       ))
                     )}
@@ -191,6 +198,9 @@ export default function StudentAttendanceLookup({
                       <td className="px-4 py-2.5 text-center font-bold text-red-500">{overall.absents}</td>
                       <td className="px-4 py-2.5 text-center font-bold text-amber-500">{overall.leaves}</td>
                       <td className="px-4 py-2.5 text-center">{percentageBadge(overallPercentage)}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <ViewAttendanceHistoryButton onClick={() => setHistorySemester(semester)} />
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -198,6 +208,14 @@ export default function StudentAttendanceLookup({
             </div>
           );
         })
+      )}
+      {historySemester && studentInfo && (
+        <AttendanceHistoryModal
+          studentId={studentInfo.id}
+          semesterId={historySemester.semester_id}
+          studentName={`${studentInfo.name} — Semester ${historySemester.semester_number}`}
+          onClose={() => setHistorySemester(null)}
+        />
       )}
     </div>
   );
