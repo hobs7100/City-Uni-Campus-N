@@ -203,15 +203,16 @@ export default function SemestersPage() {
           classSemesters.map((semester) => [semester.semester_number, semester]),
         );
         const runningSemester = classSemesters.find((semester) => semester.status !== "closed");
-        const firstMissingNumber =
-          Array.from({ length: classInfo.total_semesters }, (_, index) => index + 1).find(
-            (number) => !semesterByNumber.has(number),
-          ) ?? classInfo.total_semesters + 1;
+        const nextSemesterNumber =
+          (classSemesters.reduce(
+            (highest, semester) => Math.max(highest, semester.semester_number),
+            0,
+          ) || 0) + 1;
 
         const steps = Array.from({ length: classInfo.total_semesters }, (_, index) => {
           const number = index + 1;
           const semester = semesterByNumber.get(number) ?? null;
-          const isNext = number === firstMissingNumber;
+          const isNext = number === nextSemesterNumber;
           const isReady = isNext && !runningSemester;
 
           return {

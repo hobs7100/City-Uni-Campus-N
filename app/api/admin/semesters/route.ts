@@ -67,6 +67,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This class already has a running semester. Close it before starting a new one." }, { status: 409 });
   }
 
+  const latestSemester = await queryOne<{ latest_semester_number: number | null }>(
+    `select max(semester_number)::int as latest_semester_number
+     from semesters
+     where class_id = $1`,
+    [d.class_id]
+  );
+  const expectedSemesterNumber = (latestSemester?.latest_semester_number ?? 0) + 1;
+  if (d.semester_number !== expectedSemesterNumber) {
+    return NextResponse.json(
+      { error: `The next semester for this class must be Semester ${expectedSemesterNumber}.` },
+      { status: 400 }
+    );
+  }
+
   const classRow = await queryOne<{ total_semesters: number }>(
     `select total_semesters from classes where id = $1`,
     [d.class_id]
