@@ -62,6 +62,21 @@ export async function PATCH(
       { status: 400 }
     );
   }
+  const completedCourse = await queryOne(
+    `select 1
+     from semester_courses sc
+     join allocation_semesters als on als.semester_id = sc.semester_id and als.course_id = sc.course_id
+     where als.semester_id = $1
+       and als.allocation_id = $2
+       and sc.syllabus_completed_at is not null`,
+    [timetable.semester_id, allocation_id]
+  );
+  if (completedCourse) {
+    return NextResponse.json(
+      { error: "This course's syllabus is complete and can no longer be scheduled." },
+      { status: 409 }
+    );
+  }
 
   const day = await queryOne<{ day_name: string }>(`select day_name from timetable_days where id = $1`, [cell.day_id]);
   const period = await queryOne<{ start_time: string; end_time: string }>(
@@ -85,6 +100,14 @@ export async function PATCH(
        and td.day_name = $4
        and tp.start_time < $5
        and tp.end_time > $6
+        and not exists (
+          select 1 from allocation_semesters placed_als
+          join semester_courses sc on sc.semester_id = placed_als.semester_id
+                                  and sc.course_id = placed_als.course_id
+          where placed_als.allocation_id = tc.allocation_id
+            and placed_als.semester_id = tt.semester_id
+            and sc.syllabus_completed_at is not null
+        )
        -- Allow same-title courses even with different codes (combined-class scenario)
        and (
          select lower(c.title)
@@ -141,6 +164,14 @@ export async function PATCH(
           and (tp.start_time != $5 or tp.end_time != $6)
           and tp.start_time < $6
           and tp.end_time   > $5
+           and not exists (
+             select 1 from allocation_semesters placed_als
+             join semester_courses sc on sc.semester_id = placed_als.semester_id
+                                     and sc.course_id = placed_als.course_id
+             where placed_als.allocation_id = tc.allocation_id
+               and placed_als.semester_id = tt.semester_id
+               and sc.syllabus_completed_at is not null
+           )
        limit 1`,
       [allocation_id, cellId, id, day.day_name, period.start_time, period.end_time]
     );
@@ -162,9 +193,18 @@ export async function PATCH(
          count(case when td.day_name = $3 then 1 end)::text as day_match_count
        from timetable_cells tc
        join timetable_days td on td.id = tc.day_id
+        join timetables tt on tt.id = tc.timetable_id
        where tc.allocation_id = $1
          and tc.timetable_id != $2
-         and tc.id != $4`,
+          and tc.id != $4
+          and not exists (
+            select 1 from allocation_semesters placed_als
+            join semester_courses sc on sc.semester_id = placed_als.semester_id
+                                    and sc.course_id = placed_als.course_id
+            where placed_als.allocation_id = tc.allocation_id
+              and placed_als.semester_id = tt.semester_id
+              and sc.syllabus_completed_at is not null
+          )`,
       [allocation_id, id, day.day_name, cellId]
     );
 
@@ -174,7 +214,16 @@ export async function PATCH(
         `select distinct td.day_name
          from timetable_cells tc
          join timetable_days td on td.id = tc.day_id
+         join timetables tt on tt.id = tc.timetable_id
          where tc.allocation_id = $1 and tc.timetable_id != $2
+           and not exists (
+             select 1 from allocation_semesters placed_als
+             join semester_courses sc on sc.semester_id = placed_als.semester_id
+                                     and sc.course_id = placed_als.course_id
+             where placed_als.allocation_id = tc.allocation_id
+               and placed_als.semester_id = tt.semester_id
+               and sc.syllabus_completed_at is not null
+           )
          order by td.day_name`,
         [allocation_id, id]
       );

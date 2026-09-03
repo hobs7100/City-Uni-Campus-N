@@ -35,19 +35,52 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Completion is per class-semester-course. A combined allocation remains
+  // available when at least one of its active class legs is unfinished.
+  const incompleteLeg = await queryOne<{ id: string }>(
+    `select s.id
+     from allocation_semesters als
+     join semesters s on s.id = als.semester_id
+     join allocations a on a.id = als.allocation_id
+     left join semester_courses sc
+       on sc.semester_id = s.id and sc.course_id = a.course_id
+     where als.allocation_id = $1
+       and s.status = 'active'
+       and sc.syllabus_completed_at is null
+     limit 1`,
+    [allocationId]
+  );
+  if (!incompleteLeg) {
+    return NextResponse.json(
+      { error: "Syllabus is complete for this course. Attendance can no longer be marked." },
+      { status: 403 }
+    );
+  }
+
   // Convert the ISO date to a weekday name (e.g. "Monday") matching timetable_days.day_name
   const dayName = new Date(date + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long",
   });
 
-  // Fetch distinct slots from all timetables where this allocation appears on this weekday
+  // A combined allocation may appear in different class timetables. Return only
+  // slots backed by at least one unfinished class-semester-course leg.
   const slots = await query<{ start_time: string; end_time: string }>(
     `select distinct tp.start_time, tp.end_time
      from timetable_cells tc
      join timetable_days    td on td.id = tc.day_id
      join timetable_periods tp on tp.id = tc.period_id
+     join timetables tt on tt.id = tc.timetable_id
+     join semesters s on s.id = tt.semester_id
+     join allocation_semesters als
+       on als.allocation_id = tc.allocation_id
+      and als.semester_id = tt.semester_id
+     join semester_courses sc
+       on sc.semester_id = tt.semester_id
+      and sc.course_id = als.course_id
      where tc.allocation_id = $1
        and td.day_name       = $2
+       and s.status = 'active'
+       and sc.syllabus_completed_at is null
      order by tp.start_time`,
     [allocationId, dayName]
   );

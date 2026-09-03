@@ -4,6 +4,14 @@ import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import { runAutoStruckOff } from "@/lib/auto-struck-off";
 
+function dayNameFor(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("teacher");
   if (response) return response;
@@ -27,17 +35,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Allocation not found or not yours." }, { status: 403 });
   }
 
-  const semRows = await query<{ class_id: string; status: string }>(
-    `select s.class_id, s.status
+  const hasRequestedSlot = Boolean(startTime && endTime);
+  const semRows = await query<{ class_id: string; status: string; syllabus_completed_at: string | null }>(
+    `select distinct s.class_id, s.status, sc.syllabus_completed_at
      from allocation_semesters als
      join semesters s on s.id = als.semester_id
-     where als.allocation_id = $1`,
-    [allocationId]
+     join allocations a on a.id = als.allocation_id
+     left join semester_courses sc
+       on sc.semester_id = s.id and sc.course_id = a.course_id
+      where als.allocation_id = $1
+        ${hasRequestedSlot ? `
+        and exists (
+          select 1
+          from timetable_cells tc
+          join timetables tt on tt.id = tc.timetable_id
+          join timetable_days td on td.id = tc.day_id
+          join timetable_periods tp on tp.id = tc.period_id
+          where tc.allocation_id = als.allocation_id
+            and tt.semester_id = als.semester_id
+            and td.day_name = $2
+            and tp.start_time = $3
+            and tp.end_time = $4
+        )` : ""}`,
+    hasRequestedSlot
+      ? [allocationId, dayNameFor(date), startTime, endTime]
+      : [allocationId]
   );
 
-  const activeSems = semRows.filter((r) => r.status === "active");
+  // A combined allocation may have one completed class-semester-course leg
+  // and another still in progress. Only the unfinished legs remain markable.
+  const activeSems = semRows.filter(
+    (r) => r.status === "active" && r.syllabus_completed_at === null
+  );
   if (activeSems.length === 0) {
-    return NextResponse.json({ error: "No active semester found for this allocation." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Syllabus is complete for this course. Attendance can no longer be marked." },
+      { status: 403 }
+    );
   }
 
   const classIds = activeSems.map((r) => r.class_id);
@@ -168,19 +202,55 @@ export async function POST(request: NextRequest) {
 
   // Fetch all active semesters (and their class_ids) for this allocation.
   // Combined allocations span multiple classes/semesters.
+  const hasSlot  = !!(d.start_time && d.end_time);
   const activeSemsWithClass = await query<{ id: string; class_id: string }>(
-    `select s.id, s.class_id from semesters s
+    `select distinct s.id, s.class_id from semesters s
      join allocation_semesters als on als.semester_id = s.id
-     where als.allocation_id = $1 and s.status = 'active'`,
-    [d.allocation_id]
+     join allocations a on a.id = als.allocation_id
+     left join semester_courses sc
+       on sc.semester_id = s.id and sc.course_id = a.course_id
+     where als.allocation_id = $1
+       and s.status = 'active'
+        and sc.syllabus_completed_at is null
+        ${hasSlot ? `
+        and exists (
+          select 1
+          from timetable_cells tc
+          join timetables tt on tt.id = tc.timetable_id
+          join timetable_days td on td.id = tc.day_id
+          join timetable_periods tp on tp.id = tc.period_id
+          where tc.allocation_id = als.allocation_id
+            and tt.semester_id = als.semester_id
+            and td.day_name = $2
+            and tp.start_time = $3
+            and tp.end_time = $4
+        )` : ""}`,
+    hasSlot
+      ? [d.allocation_id, dayNameFor(d.attendance_date), d.start_time, d.end_time]
+      : [d.allocation_id]
   );
   if (!activeSemsWithClass.length) {
-    return NextResponse.json({ error: "No active semester for this allocation." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Syllabus is complete for this course. Attendance can no longer be marked." },
+      { status: 403 }
+    );
   }
-  const activeSemId = activeSemsWithClass[0].id;
   const classIds    = activeSemsWithClass.map((r) => r.class_id);
 
-  const hasSlot  = !!(d.start_time && d.end_time);
+  // Do not permit a caller to submit rows from a completed (or unrelated)
+  // class leg of a combined allocation.
+  const eligibleStudents = await query<{ id: string }>(
+    `select id from students
+     where id = any($1::uuid[]) and class_id = any($2::uuid[]) and deleted_at is null`,
+    [d.rows.map((row) => row.student_id), classIds]
+  );
+  if (eligibleStudents.length !== new Set(d.rows.map((row) => row.student_id)).size) {
+    return NextResponse.json(
+      { error: "One or more students do not belong to an active, incomplete course class." },
+      { status: 403 }
+    );
+  }
+
   const startVal = hasSlot ? d.start_time : null;
   const endVal   = hasSlot ? d.end_time   : null;
 

@@ -14,6 +14,14 @@ const schema = z.object({
   remarks: z.string().optional().nullable(),
 });
 
+function dayNameFor(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+}
+
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRole("admin", "coordinator");
   if (response) return response;
@@ -27,6 +35,32 @@ export async function POST(request: NextRequest) {
 
   const allocation = await queryOne(`select id from allocations where id = $1`, [d.allocation_id]);
   if (!allocation) return NextResponse.json({ error: "Allocation not found." }, { status: 404 });
+
+  // A combined allocation remains actionable while any scheduled class-course
+  // leg at this time is incomplete. Completed legs must not receive new records.
+  const slotCompletion = await queryOne<{ has_completed_leg: boolean; has_incomplete_leg: boolean }>(
+    `select
+       bool_or(sc.syllabus_completed_at is not null) as has_completed_leg,
+       bool_or(sc.syllabus_completed_at is null) as has_incomplete_leg
+     from timetable_cells tc
+     join timetable_days td on td.id = tc.day_id
+     join timetable_periods tp on tp.id = tc.period_id
+     join timetables tt on tt.id = tc.timetable_id
+     join allocations a on a.id = tc.allocation_id
+     join allocation_semesters als on als.allocation_id = tc.allocation_id and als.semester_id = tt.semester_id
+     join semester_courses sc on sc.semester_id = tt.semester_id and sc.course_id = als.course_id
+     where tc.allocation_id = $1
+       and td.day_name = $2
+       and tp.start_time = $3
+       and tp.end_time = $4`,
+    [d.allocation_id, dayNameFor(d.attendance_date), d.start_time, d.end_time]
+  );
+  if (slotCompletion?.has_completed_leg && !slotCompletion.has_incomplete_leg) {
+    return NextResponse.json(
+      { error: "Attendance cannot be marked because this course's syllabus is complete." },
+      { status: 409 }
+    );
+  }
 
   const record = await queryOne<{ id: string; inserted: boolean }>(
     `insert into attendance_records (allocation_id, attendance_date, start_time, end_time, lecture_count, late_minutes, status, remarks, marked_by)

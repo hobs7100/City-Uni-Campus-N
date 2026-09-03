@@ -21,6 +21,7 @@ export async function GET() {
     session: string | null;
     semester_id: string | null;
     result_uploaded: boolean;
+    syllabus_completed_at: string | null;
   }>(
     `select
        t.id            as teacher_id,
@@ -38,15 +39,17 @@ export async function GET() {
        s.id            as semester_id,
        exists (
          select 1 from results r
-         where r.semester_id = s.id and r.course_id = c.id
+          where r.semester_id = s.id and r.course_id = als.course_id
        ) as result_uploaded
+       ,sc.syllabus_completed_at::text as syllabus_completed_at
      from teachers t
      join departments d on d.id = t.department_id
      left join allocations a on a.teacher_id = t.id
      left join allocation_semesters als on als.allocation_id = a.id
      left join semesters s on s.id = als.semester_id and s.status = 'active'
-     left join courses c on c.id = a.course_id
+      left join courses c on c.id = als.course_id
      left join classes cl on cl.id = s.class_id
+      left join semester_courses sc on sc.semester_id = s.id and sc.course_id = als.course_id
      where t.deleted_at is null
        and t.status = 'active'
        and d.hod_id = $1

@@ -50,6 +50,8 @@ interface CourseRow {
   outline_url?: string | null;
   delivered_lectures?: number;
   result_uploaded: boolean;
+  syllabus_completed_at: string | null;
+  syllabus_completed_by: string | null;
 }
 
 interface GroupedCourseRow {
@@ -72,6 +74,7 @@ interface GroupedCourseRow {
   delivered_lectures: number;
   payment_status?: "paid" | "pending" | "n/a";
   result_uploaded_count: number;
+  syllabus_completed_at: string | null;
 }
 
 interface ResRosterRow {
@@ -312,10 +315,11 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   );
 
   const [active, setActive] = useState<CourseRow[]>([]);
+  const [completed, setCompleted] = useState<CourseRow[]>([]);
   const [transferred, setTransferred] = useState<CourseRow[]>([]);
   const [inactive, setInactive] = useState<CourseRow[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
-  const [coursesSubTab, setCoursesSubTab] = useState<"active" | "transferred" | "inactive">("active");
+  const [coursesSubTab, setCoursesSubTab] = useState<"active" | "completed" | "transferred" | "inactive">("active");
 
   const [timetables, setTimetables] = useState<TimetableSummary[]>([]);
   const [selectedTimetableId, setSelectedTimetableId] = useState("");
@@ -531,6 +535,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const data = await res.json();
       if (res.ok) {
         setActive(data.active ?? []);
+        setCompleted(data.completed ?? []);
         setTransferred(data.transferred ?? []);
         setInactive(data.inactive ?? []);
       }
@@ -977,21 +982,21 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
   const reportCourseOptions = useMemo(() => {
     const seen = new Set<string>();
-    return [...active, ...transferred, ...inactive].filter((c) => {
+    return [...active, ...completed, ...transferred, ...inactive].filter((c) => {
       if (seen.has(c.course_id)) return false;
       seen.add(c.course_id);
       return true;
     });
-  }, [active, transferred, inactive]);
+  }, [active, completed, transferred, inactive]);
 
   const reportClassOptions = useMemo(() => {
     const seen = new Set<string>();
-    return [...active, ...transferred, ...inactive].filter((c) => {
+    return [...active, ...completed, ...transferred, ...inactive].filter((c) => {
       if (seen.has(c.class_id)) return false;
       seen.add(c.class_id);
       return true;
     });
-  }, [active, transferred, inactive]);
+  }, [active, completed, transferred, inactive]);
 
   function groupCourseRows(rows: CourseRow[]): GroupedCourseRow[] {
     const map = new Map<string, GroupedCourseRow>();
@@ -1016,6 +1021,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           delivered_lectures: c.delivered_lectures ?? 0,
           payment_status: c.payment_status,
           result_uploaded_count: c.result_uploaded ? 1 : 0,
+          syllabus_completed_at: c.syllabus_completed_at,
           classes: [{ class_id: c.class_id, class_name: c.class_name, session: c.session, semester_id: c.semester_id }],
         });
       } else {
@@ -1030,6 +1036,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   }
 
   const groupedActive     = useMemo(() => groupCourseRows(active),      [active]);
+  const groupedCompleted  = useMemo(() => groupCourseRows(completed),   [completed]);
   const groupedTransferred = useMemo(() => groupCourseRows(transferred), [transferred]);
   const groupedInactive   = useMemo(() => groupCourseRows(inactive),    [inactive]);
   const markCourseOptions = groupedActive;
@@ -1113,7 +1120,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         <div className="space-y-4">
           {/* Sub-tab switcher */}
           <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
-            {(["active", "transferred", "inactive"] as const).map((st) => (
+            {(["active", "completed", "transferred", "inactive"] as const).map((st) => (
               <button
                 key={st}
                 onClick={() => setCoursesSubTab(st)}
@@ -1125,6 +1132,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               >
                 {st === "active"
                   ? `Active (${groupedActive.length})`
+                  : st === "completed"
+                  ? `Syllabus Complete (${groupedCompleted.length})`
                   : st === "transferred"
                   ? `Transferred (${groupedTransferred.length})`
                   : `Inactive (${groupedInactive.length})`}
@@ -1136,6 +1145,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           {(() => {
             const rows = coursesSubTab === "active"
               ? groupedActive
+              : coursesSubTab === "completed"
+              ? groupedCompleted
               : coursesSubTab === "transferred"
               ? groupedTransferred
               : groupedInactive;
@@ -1179,6 +1190,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                               {c.course_code}{c.is_combined && " · Combined"}
                             </div>
+                            {c.syllabus_completed_at && (
+                              <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                <CheckCircle2 size={11} />
+                                Syllabus Complete · {formatDateOnly(c.syllabus_completed_at)}
+                              </div>
+                            )}
                             {c.lecture_seq_offset > 0 && (
                               <div className="text-[10px] text-indigo-500">
                                 starts at lecture #{c.lecture_seq_offset + 1}

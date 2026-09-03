@@ -35,6 +35,8 @@ interface SemesterCourse {
   credit_hours: string;
   outline_url: string | null;
   outline_public_id: string | null;
+  syllabus_completed_at: string | null;
+  syllabus_completed_by: string | null;
 }
 
 interface Semester {
@@ -97,6 +99,8 @@ export default function SemestersPage() {
   const [addingCourse, setAddingCourse] = useState(false);
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
   const [outlineUploading, setOutlineUploading] = useState<Record<string, boolean>>({});
+  const [syllabusTarget, setSyllabusTarget] = useState<SemesterCourse | null>(null);
+  const [syllabusUpdatingId, setSyllabusUpdatingId] = useState<string | null>(null);
   const [newSemesterId, setNewSemesterId] = useState<string | null>(null);
   const [newSemesterCourses, setNewSemesterCourses] = useState<
     { id: string; code: string; title: string; outline_url: string | null }[]
@@ -507,6 +511,36 @@ export default function SemestersPage() {
         : null
     );
     toast.success("Outline removed.");
+  }
+
+  async function handleMarkSyllabusComplete() {
+    if (!editSemester || !syllabusTarget) return;
+    setSyllabusUpdatingId(syllabusTarget.id);
+    try {
+      const res = await fetch(
+        `/api/admin/semesters/${editSemester.id}/courses/${syllabusTarget.id}/syllabus-completion`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to mark the syllabus complete.");
+        return;
+      }
+      toast.success("Syllabus marked complete.");
+      setSyllabusTarget(null);
+      await refreshEditSemester(editSemester.id);
+    } finally {
+      setSyllabusUpdatingId(null);
+    }
+  }
+
+  function completionDate(value: string) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Karachi",
+    }).format(new Date(value));
   }
 
   return (
@@ -1346,6 +1380,7 @@ export default function SemestersPage() {
                           <th className="px-3 py-2">Title</th>
                           <th className="px-3 py-2">Cr.</th>
                           <th className="px-3 py-2">Outline</th>
+                          <th className="px-3 py-2">Syllabus</th>
                           <th className="px-3 py-2 text-right">Remove</th>
                         </tr>
                       </thead>
@@ -1386,6 +1421,23 @@ export default function SemestersPage() {
                                   uploading={outlineUploading[c.id] ?? false}
                                   onFile={(f) => handleOutlineUpload(c.id, f)}
                                 />
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              {c.syllabus_completed_at ? (
+                                <span className="inline-flex flex-col rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                  <span>Syllabus Complete</span>
+                                  <span className="font-normal">{completionDate(c.syllabus_completed_at)}</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={syllabusUpdatingId === c.id}
+                                  onClick={() => setSyllabusTarget(c)}
+                                  className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                >
+                                  Mark Complete
+                                </button>
                               )}
                             </td>
                             <td className="px-3 py-2 text-right">
@@ -1436,6 +1488,23 @@ export default function SemestersPage() {
                           </button>
                         </div>
                         <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">
+                          <div className="mb-2">
+                            {c.syllabus_completed_at ? (
+                              <span className="inline-flex flex-col rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                <span>Syllabus Complete</span>
+                                <span className="font-normal">{completionDate(c.syllabus_completed_at)}</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={syllabusUpdatingId === c.id}
+                                onClick={() => setSyllabusTarget(c)}
+                                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                Mark Syllabus Complete
+                              </button>
+                            )}
+                          </div>
                           {c.outline_url ? (
                             <div className="flex items-center gap-2">
                               <a
@@ -1461,6 +1530,7 @@ export default function SemestersPage() {
                               onFile={(f) => handleOutlineUpload(c.id, f)}
                             />
                           )}
+
                         </div>
                       </div>
                     ))}
@@ -1474,6 +1544,15 @@ export default function SemestersPage() {
           </div>
         )}
       </Modal>
+      <ConfirmDialog
+        open={Boolean(syllabusTarget)}
+        title="Mark Syllabus Complete"
+        message={`Mark ${syllabusTarget?.code ?? "this course"} as syllabus complete? It will stop appearing for new attendance, release the teacher's timetable clashes, and remove its credit hours from assigned workload. Existing timetable and attendance history will remain available.`}
+        confirmLabel="Mark Complete"
+        loading={Boolean(syllabusTarget && syllabusUpdatingId === syllabusTarget.id)}
+        onConfirm={handleMarkSyllabusComplete}
+        onCancel={() => setSyllabusTarget(null)}
+      />
     </div>
   );
 }

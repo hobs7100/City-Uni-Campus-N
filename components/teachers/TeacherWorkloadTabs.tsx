@@ -21,6 +21,7 @@ interface RawRow {
   session: string | null;
   semester_id: string | null;
   result_uploaded: boolean;
+  syllabus_completed_at: string | null;
 }
 
 interface CourseEntry {
@@ -34,6 +35,8 @@ interface CourseEntry {
   sessions: string[];
   /** false if any class still has no result uploaded */
   result_uploaded: boolean;
+  /** Each class-course leg, including its independent completion state. */
+  class_legs: { class_name: string; session: string | null; syllabus_completed_at: string | null }[];
 }
 
 interface TeacherGroup {
@@ -82,6 +85,11 @@ function groupRows(rows: RawRow[]): TeacherGroup[] {
         }
         // result_uploaded = false if ANY class is still pending
         if (!r.result_uploaded) existing.result_uploaded = false;
+        existing.class_legs.push({
+          class_name: r.class_name,
+          session: r.session,
+          syllabus_completed_at: r.syllabus_completed_at,
+        });
       } else {
         group.courses.push({
           allocation_id: r.allocation_id,
@@ -91,17 +99,23 @@ function groupRows(rows: RawRow[]): TeacherGroup[] {
           class_names: [r.class_name],
           sessions: r.session ? [r.session] : [],
           result_uploaded: r.result_uploaded,
+          class_legs: [{
+            class_name: r.class_name,
+            session: r.session,
+            syllabus_completed_at: r.syllabus_completed_at,
+          }],
         });
       }
     }
   }
 
-  // Compute workload_assigned: one credit_hours per allocation_id (combined counts once).
+   // Completed class-course legs contribute no workload. A combined allocation
+   // still counts once while at least one of its legs remains incomplete.
   // Then sort each teacher's courses by first class name.
   for (const group of map.values()) {
     let total = 0;
     for (const c of group.courses) {
-      total += c.credit_hours;
+       if (c.class_legs.some((leg) => !leg.syllabus_completed_at)) total += c.credit_hours;
     }
     group.workload_assigned = total;
 
@@ -149,6 +163,26 @@ function ResultBadge({ uploaded }: { uploaded: boolean }) {
   ) : (
     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
       Pending
+    </span>
+  );
+}
+
+function SyllabusStatus({ course }: { course: CourseEntry }) {
+  const completedLegs = course.class_legs.filter((leg) => leg.syllabus_completed_at);
+  if (completedLegs.length === 0) {
+    return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">In progress</span>;
+  }
+  const dates = [...new Set(completedLegs.map((leg) =>
+    new Date(leg.syllabus_completed_at!).toLocaleDateString()
+  ))];
+  const allCompleted = completedLegs.length === course.class_legs.length;
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+      allCompleted
+        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+        : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+    }`}>
+      {allCompleted ? "Syllabus Complete" : `${completedLegs.length}/${course.class_legs.length} Complete`} · {dates.join(", ")}
     </span>
   );
 }
@@ -222,6 +256,7 @@ function TeacherCard({ group }: { group: TeacherGroup }) {
                     <th className="px-4 py-2 text-left">Session</th>
                     <th className="px-4 py-2 text-center">Credit Hours</th>
                     <th className="px-4 py-2 text-center">Result Status</th>
+                    <th className="px-4 py-2 text-center">Syllabus Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -260,6 +295,9 @@ function TeacherCard({ group }: { group: TeacherGroup }) {
                         </td>
                         <td className="px-4 py-2.5 text-center">
                           <ResultBadge uploaded={c.result_uploaded} />
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <SyllabusStatus course={c} />
                         </td>
                       </tr>
                     );

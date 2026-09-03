@@ -21,6 +21,7 @@ interface CellRow {
   teacher_name: string | null;
   is_combined: boolean | null;
   combined_with: { class_name: string; session: string }[] | null;
+  syllabus_completed_at: string | null;
 }
 
 export interface PrintableTimetableData {
@@ -44,6 +45,10 @@ function formatTime(t: string) {
   const period = h >= 12 ? "PM" : "AM";
   const hour = h % 12 === 0 ? 12 : h % 12;
   return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function formatCompletionDate(value: string) {
+  return new Date(value).toLocaleDateString();
 }
 
 export default function PrintableTimetable({
@@ -99,6 +104,11 @@ export default function PrintableTimetable({
                           <div className="text-[11px] font-medium text-slate-700">
                             {cell.teacher_name}
                           </div>
+                          {cell.syllabus_completed_at && (
+                            <div className="mt-1 text-[10px] font-semibold text-emerald-800">
+                              Syllabus Complete · {formatCompletionDate(cell.syllabus_completed_at)}
+                            </div>
+                          )}
                           {cell.is_combined &&
                             cell.combined_with &&
                             cell.combined_with.length > 0 && (

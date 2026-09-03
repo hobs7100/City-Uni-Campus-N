@@ -132,6 +132,25 @@ export async function POST(
                               and tc2.allocation_id = $1
      where a.teacher_id = $2
        and a.id != $1
+        and not exists (
+          select 1 from allocation_semesters conflict_als
+          join semester_courses sc on sc.semester_id = conflict_als.semester_id
+                                  and sc.course_id = conflict_als.course_id
+          where conflict_als.allocation_id = a.id
+            and conflict_als.semester_id = tt.semester_id
+            and sc.syllabus_completed_at is not null
+        )
+        and not exists (
+          select 1
+          from timetables source_tt
+          join allocations source_a on source_a.id = tc2.allocation_id
+          join allocation_semesters source_als on source_als.allocation_id = source_a.id
+                                              and source_als.semester_id = source_tt.semester_id
+          join semester_courses sc on sc.semester_id = source_als.semester_id
+                                and sc.course_id = source_als.course_id
+          where source_tt.id = tc2.timetable_id
+            and sc.syllabus_completed_at is not null
+        )
      limit 1`,
     [id, d.new_teacher_id],
   );

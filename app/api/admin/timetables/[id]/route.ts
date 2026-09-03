@@ -34,9 +34,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     [id]
   );
   const cells = await query(
-    `select tc.id, tc.day_id, tc.period_id, tc.allocation_id,
+     `select tc.id, tc.day_id, tc.period_id, tc.allocation_id,
             c.code as course_code, c.title as course_title,
             t.name as teacher_name, a.is_combined,
+             sc.syllabus_completed_at,
+             sc.syllabus_completed_by,
             coalesce(
               (select json_agg(json_build_object('class_name', cl2.class_name, 'session', cl2.session) order by cl2.class_name)
                from allocation_semesters als2
@@ -49,6 +51,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
      left join allocations a on a.id = tc.allocation_id
      left join courses c on c.id = a.course_id
      left join teachers t on t.id = a.teacher_id
+      join timetables tt on tt.id = tc.timetable_id
+      left join allocation_semesters cell_als on cell_als.allocation_id = tc.allocation_id
+                                                and cell_als.semester_id = tt.semester_id
+      left join semester_courses sc on sc.semester_id = tt.semester_id and sc.course_id = cell_als.course_id
      where tc.timetable_id = $1`,
     [id, (timetable as { class_id: string }).class_id]
   );

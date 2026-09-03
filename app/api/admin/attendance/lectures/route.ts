@@ -39,7 +39,12 @@ export async function GET(request: NextRequest) {
                from classes cl2 where cl2.id in (
                  select distinct tt2.class_id from timetable_cells tc2
                  join timetables tt2 on tt2.id = tc2.timetable_id
-                 where tc2.allocation_id = al.id
+                  join allocation_semesters als2 on als2.allocation_id = tc2.allocation_id
+                                                and als2.semester_id = tt2.semester_id
+                  join semester_courses sc2 on sc2.semester_id = tt2.semester_id
+                                             and sc2.course_id = als2.course_id
+                  where tc2.allocation_id = al.id
+                    and sc2.syllabus_completed_at is null
                )),
               '[]'
             ) as classes,
@@ -55,6 +60,16 @@ export async function GET(request: NextRequest) {
      left join attendance_records ar on ar.allocation_id = al.id and ar.attendance_date = $${dateParamIndex}
        and ar.start_time = tp.start_time and ar.end_time = tp.end_time
      where td.day_name = $1
+        and exists (
+          select 1 from timetables cell_tt
+          join allocation_semesters active_als on active_als.allocation_id = tc.allocation_id
+                                               and active_als.semester_id = cell_tt.semester_id
+          join semester_courses sc on sc.semester_id = cell_tt.semester_id
+                                  and sc.course_id = active_als.course_id
+          where sc.semester_id = cell_tt.semester_id
+            and cell_tt.id = tc.timetable_id
+            and sc.syllabus_completed_at is null
+        )
        ${departmentId ? `and exists (
          select 1 from timetable_cells tc3
          join timetables tt3 on tt3.id = tc3.timetable_id
