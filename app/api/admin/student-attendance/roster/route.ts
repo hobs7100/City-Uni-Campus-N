@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
   }
 
   const client = await pool.connect();
+  let savedCount = 0;
   try {
     await client.query("begin");
     for (const row of d.rows) {
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
         // Preserve an already-marked status in this semester. If the unique
         // student/date row belongs to an old semester, move it to the selected
         // active semester and save the coordinator's current status.
-        await client.query(
+        const result = await client.query(
           `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
            values ($1,$2,$3,$4,$5,$6,$7)
            on conflict (student_id, attendance_date)
@@ -145,32 +146,29 @@ export async function POST(request: NextRequest) {
                  then excluded.marked_by
                else student_attendance_records.marked_by
              end,
-             updated_at = now()`,
+             updated_at = now()
+           returning id`,
           [row.student_id, d.semester_id, d.attendance_date, row.status, row.reason || null, row.call_remarks || null, userId]
         );
+        savedCount += result.rowCount ?? 0;
       } else {
         // Admins can update existing records
-        await client.query(
+        const result = await client.query(
           `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
            values ($1,$2,$3,$4,$5,$6,$7)
            on conflict (student_id, attendance_date)
            do update set semester_id = excluded.semester_id, status = excluded.status, reason = excluded.reason,
-                          call_remarks = excluded.call_remarks, marked_by = excluded.marked_by, updated_at = now()`,
+                          call_remarks = excluded.call_remarks, marked_by = excluded.marked_by, updated_at = now()
+           returning id`,
           [row.student_id, d.semester_id, d.attendance_date, row.status, row.reason || null, row.call_remarks || null, userId]
         );
+        savedCount += result.rowCount ?? 0;
       }
     }
-
-    // ── Auto struck-off (coordinator path only, inside transaction) ──────────
-    // Uses the centralized service so coordinator and teacher share identical logic.
-    if (isCoordinator) {
-      await runAutoStruckOff({
-        studentIds: d.rows.map((r) => r.student_id),
-        semesterId: d.semester_id,
-        classIds: [classId],
-        triggeredBy: "COORDINATOR",
-        client,
-      });
+    if (savedCount !== d.rows.length) {
+      throw new Error(
+        `Attendance save was incomplete: ${savedCount} of ${d.rows.length} rows were returned.`,
+      );
     }
 
     await client.query("commit");
@@ -181,5 +179,27 @@ export async function POST(request: NextRequest) {
     client.release();
   }
 
-  return NextResponse.json({ success: true });
+  // Attendance must remain saved even if the follow-up standing evaluation
+  // encounters a separate data problem.
+  if (isCoordinator) {
+    const strikeClient = await pool.connect();
+    try {
+      await strikeClient.query("begin");
+      await runAutoStruckOff({
+        studentIds,
+        semesterId: d.semester_id,
+        classIds: [classId],
+        triggeredBy: "COORDINATOR",
+        client: strikeClient,
+      });
+      await strikeClient.query("commit");
+    } catch (error) {
+      await strikeClient.query("rollback");
+      console.error("Attendance saved, but auto-struck-off evaluation failed:", error);
+    } finally {
+      strikeClient.release();
+    }
+  }
+
+  return NextResponse.json({ success: true, saved_count: savedCount });
 }

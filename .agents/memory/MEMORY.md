@@ -11,4 +11,5 @@
 - [Shared allocation attendance scoping](shared-allocation-attendance-scoping.md) — allocation-semester links cross classes; attendance joins must anchor the semester to the student's class.
 - [Coordinator attendance semester conflicts](coordinator-attendance-semester-conflicts.md) — same-day uniqueness crosses class moves; reads must scope semester and conflicts must conditionally adopt the selected active semester.
 - [Teacher attendance billing lock](teacher-attendance-billing-lock.md) — enforce the billed-record edit lock inside the attendance upsert; only report success when the database returns the saved row.
+- [Attendance standing evaluation is post-commit](attendance-standing-postcommit.md) — commit attendance before automatic strike-off evaluation so a secondary policy failure cannot erase valid marks.
 - [Portal permissions are restrictive overlays](portal-permission-overlay.md) — role/module locks narrow existing access; they never grant new routes, Admin always bypasses, and unset rows preserve prior behavior.

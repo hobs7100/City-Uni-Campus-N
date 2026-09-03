@@ -169,16 +169,20 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     setLoading(true);
     try {
       const params = new URLSearchParams({ class_id: classId, date });
-      const res = await fetch(`/api/admin/student-attendance/roster?${params.toString()}`);
-      const data = await res.json();
+      const res = await fetch(`/api/admin/student-attendance/roster?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(data.error || "Could not load roster.");
+        toast.error(data?.error || "Could not load roster.");
         setRows([]);
         setSemesterInfo(null);
         return;
       }
       setSemesterInfo(data.semester);
-      setRows(data.rows);
+      const loadedRows = (data.rows ?? []) as RosterRow[];
+      setRows(loadedRows);
+      return loadedRows;
     } finally {
       setLoading(false);
     }
@@ -210,13 +214,27 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
           })),
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(data.error || "Something went wrong.");
+        toast.error(data?.error || "Student attendance could not be saved.");
+        return;
+      }
+      if (data?.saved_count !== rows.length) {
+        toast.error(
+          `The database confirmed ${data?.saved_count ?? 0} of ${rows.length} attendance rows.`,
+        );
+        return;
+      }
+      const refreshedRows = await loadRoster();
+      if (!refreshedRows || refreshedRows.some((row) => !row.already_marked)) {
+        toast.error("Attendance was saved but could not be verified in the roster.");
         return;
       }
       toast.success("Attendance saved.");
-      await loadRoster();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Student attendance could not be saved.",
+      );
     } finally {
       setSaving(false);
     }
