@@ -216,6 +216,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
         return;
       }
       toast.success("Attendance saved.");
+      await loadRoster();
     } finally {
       setSaving(false);
     }

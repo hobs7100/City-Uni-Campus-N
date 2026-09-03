@@ -33,11 +33,13 @@ export async function GET(request: NextRequest) {
             (r.status is not null) as already_marked
      from students st
      left join student_attendance_records r
-       on r.student_id = st.id and r.attendance_date = $1
+       on r.student_id = st.id
+      and r.attendance_date = $1
+      and r.semester_id = $3
      where st.class_id = $2 and st.deleted_at is null
        and st.status in ('active', 'struck_off', 'permanent_leave')
      order by (st.roll_no is null), st.roll_no, st.name`,
-    [date, classId]
+    [date, classId, semester.id]
   );
 
   const rows = students.map((st) => {
@@ -96,18 +98,54 @@ export async function POST(request: NextRequest) {
   const isCoordinator = session?.role === "coordinator";
 
   const classId = (semester as { class_id: string }).class_id;
+  const studentIds = Array.from(new Set(d.rows.map((row) => row.student_id)));
+  const validStudents = await query<{ id: string }>(
+    `select id
+     from students
+     where id = any($1::uuid[])
+       and class_id = $2
+       and deleted_at is null
+       and status in ('active', 'struck_off', 'permanent_leave')`,
+    [studentIds, classId],
+  );
+  if (validStudents.length !== studentIds.length) {
+    return NextResponse.json(
+      { error: "One or more students do not belong to the selected class." },
+      { status: 400 },
+    );
+  }
 
   const client = await pool.connect();
   try {
     await client.query("begin");
     for (const row of d.rows) {
       if (isCoordinator) {
-        // Coordinators cannot change the status once marked, but can always update reason/call_remarks
+        // Preserve an already-marked status in this semester. If the unique
+        // student/date row belongs to an old semester, move it to the selected
+        // active semester and save the coordinator's current status.
         await client.query(
           `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
            values ($1,$2,$3,$4,$5,$6,$7)
            on conflict (student_id, attendance_date)
-           do update set reason = excluded.reason, call_remarks = excluded.call_remarks, updated_at = now()`,
+           do update set
+             semester_id = case
+               when student_attendance_records.semester_id <> excluded.semester_id
+                 then excluded.semester_id
+               else student_attendance_records.semester_id
+             end,
+             status = case
+               when student_attendance_records.semester_id <> excluded.semester_id
+                 then excluded.status
+               else student_attendance_records.status
+             end,
+             reason = excluded.reason,
+             call_remarks = excluded.call_remarks,
+             marked_by = case
+               when student_attendance_records.semester_id <> excluded.semester_id
+                 then excluded.marked_by
+               else student_attendance_records.marked_by
+             end,
+             updated_at = now()`,
           [row.student_id, d.semester_id, d.attendance_date, row.status, row.reason || null, row.call_remarks || null, userId]
         );
       } else {
