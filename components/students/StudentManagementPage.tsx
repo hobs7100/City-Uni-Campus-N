@@ -11,6 +11,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import { TableLoader } from "@/components/ui/Loaders";
 import { usePortalAccess } from "@/lib/usePortalAccess";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 
 interface Student {
   id: string;
@@ -239,6 +240,11 @@ export default function StudentManagementPage({ role }: Props) {
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = "";
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`Profile images must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+      return;
+    }
     setUploading(true);
     try {
       const reader = new FileReader();

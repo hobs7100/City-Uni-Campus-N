@@ -2,7 +2,9 @@
 
 import { useRef } from "react";
 import { Camera, Upload } from "lucide-react";
+import toast from "react-hot-toast";
 import { compressImage } from "@/lib/compress-image";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 
 interface OutlineUploadButtonProps {
   /** Show a spinner/disabled state while the parent is uploading */
@@ -34,6 +36,10 @@ export default function OutlineUploadButton({
     e.target.value = ""; // reset so the same file can be re-selected
     if (!raw) return;
     const file = await compressImage(raw, 100);
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`Course outline files must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+      return;
+    }
     onFile(file);
   }
 

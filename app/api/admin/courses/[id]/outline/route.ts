@@ -5,10 +5,11 @@ import {
   deleteCourseOutlineFromCloudinary,
   uploadCourseOutlineToCloudinary,
 } from "@/lib/cloudinary";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 
 const allowedTypes = new Set(["image/png", "image/jpeg", "application/pdf"]);
 const allowedExtensions = new Set(["png", "jpg", "jpeg", "pdf"]);
-const maxFileSize = 10 * 1024 * 1024;
+const maxFileSize = MAX_UPLOAD_BYTES;
 
 function getExtension(fileName: string) {
   return fileName.split(".").pop()?.toLowerCase() ?? "";
@@ -68,7 +69,7 @@ export async function POST(
   }
   if (!(await isAllowedFile(file))) {
     return NextResponse.json(
-      { error: "Only PNG, JPG, and PDF files up to 10 MB are allowed." },
+      { error: `Only PNG, JPG, and PDF files up to ${MAX_UPLOAD_SIZE_LABEL} are allowed.` },
       { status: 400 },
     );
   }

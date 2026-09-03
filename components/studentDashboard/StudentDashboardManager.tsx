@@ -25,6 +25,7 @@ import {
   User,
   X,
 } from "lucide-react";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 import {
   LineChart,
   Line,
@@ -437,6 +438,11 @@ export default function StudentDashboardManager() {
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`Profile images must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+      e.target.value = "";
+      return;
+    }
     setUploadingPhoto(true);
     try {
       const reader = new FileReader();

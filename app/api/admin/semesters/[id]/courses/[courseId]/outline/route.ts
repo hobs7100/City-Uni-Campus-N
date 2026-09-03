@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 import { uploadRawToCloudinary, deleteRawFromCloudinary } from "@/lib/cloudinary";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 
 export async function POST(
   request: NextRequest,
@@ -27,6 +28,12 @@ export async function POST(
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided." }, { status: 400 });
+  if (file.size === 0 || file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: `Course outline files must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.` },
+      { status: 413 },
+    );
+  }
 
   // Delete old outline if exists
   if (sc.course_outline_public_id) {

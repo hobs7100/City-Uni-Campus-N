@@ -9,6 +9,7 @@ import {
 import toast from "react-hot-toast";
 import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 import { formatDateOnly } from "@/lib/format";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 
 /* ── types ───────────────────────────────────────────────────────────────── */
 interface StudentResult {
@@ -240,7 +241,15 @@ export default function LeaveManagementManager() {
   function handleProofSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     const remaining = 3 - proofFiles.length;
-    const toAdd = files.slice(0, remaining);
+    const toAdd = files
+      .filter((file) => {
+        if (file.size > MAX_UPLOAD_BYTES) {
+          toast.error(`${file.name} is too large. Files must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+          return false;
+        }
+        return true;
+      })
+      .slice(0, remaining);
     toAdd.forEach((f) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -320,7 +329,15 @@ export default function LeaveManagementManager() {
   function handleEditProofSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     const remaining = 3 - editProofPrev.length;
-    const toAdd = files.slice(0, remaining);
+    const toAdd = files
+      .filter((file) => {
+        if (file.size > MAX_UPLOAD_BYTES) {
+          toast.error(`${file.name} is too large. Files must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+          return false;
+        }
+        return true;
+      })
+      .slice(0, remaining);
     toAdd.forEach((f) => {
       const reader = new FileReader();
       reader.onload = () => {
