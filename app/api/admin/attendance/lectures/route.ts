@@ -69,5 +69,8 @@ export async function GET(request: NextRequest) {
     return ra.start_time.localeCompare(rb.start_time) || ra.course_code.localeCompare(rb.course_code);
   });
 
-  return NextResponse.json({ date, day_name: dayName, lectures });
+  return NextResponse.json(
+    { date, day_name: dayName, lectures },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

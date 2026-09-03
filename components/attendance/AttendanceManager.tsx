@@ -143,9 +143,16 @@ export default function AttendanceManager() {
     try {
       const params = new URLSearchParams({ date });
       if (departmentId) params.set("department_id", departmentId);
-      const res = await fetch(`/api/admin/attendance/lectures?${params.toString()}`);
+      const res = await fetch(`/api/admin/attendance/lectures?${params.toString()}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
-      if (res.ok) setLectures(data.lectures);
+      if (!res.ok) {
+        throw new Error(data.error || "Could not load teacher attendance.");
+      }
+      const loadedLectures = data.lectures ?? [];
+      setLectures(loadedLectures);
+      return loadedLectures as Lecture[];
     } finally {
       setLoading(false);
     }
@@ -182,14 +189,33 @@ export default function AttendanceManager() {
           remarks: remarks || null,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(data.error || "Something went wrong.");
+        toast.error(data?.error || "Teacher attendance could not be saved.");
+        return;
+      }
+      if (!data?.attendance?.id) {
+        toast.error("The database did not confirm the attendance save.");
+        return;
+      }
+      const savedAttendanceId = data.attendance.id as string;
+      const refreshedLectures = await loadLectures();
+      const savedLecture = refreshedLectures.find(
+        (lecture) =>
+          lecture.allocation_id === markTarget.allocation_id &&
+          lecture.start_time === markTarget.start_time &&
+          lecture.end_time === markTarget.end_time,
+      );
+      if (savedLecture?.attendance_id !== savedAttendanceId) {
+        toast.error("Attendance was saved but could not be verified in the roster.");
         return;
       }
       toast.success("Attendance saved.");
       setMarkTarget(null);
-      loadLectures();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Teacher attendance could not be saved.",
+      );
     } finally {
       setSaving(false);
     }
