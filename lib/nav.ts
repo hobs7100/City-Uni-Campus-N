@@ -36,6 +36,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   admin: [
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Campus Report", href: "/dashboard/admin/campus-report", icon: "FileSearch" },
+    { label: "Overall Classes Summary", href: "/dashboard/admin/overall-classes-summary", icon: "School" },
     { label: "Users", href: "/dashboard/admin/users", icon: "Users" },
     { label: "Portal Management", href: "/dashboard/admin/portal-management", icon: "ShieldCheck" },
     { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
