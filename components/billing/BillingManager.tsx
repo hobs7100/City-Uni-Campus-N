@@ -102,11 +102,18 @@ interface PermanentPreviewItem {
   course_id: string;
   course_code: string;
   course_title: string;
+  credit_hours: string;
+  allocated_at: string;
   classes: string[];
   total_lectures: string;
   transfer_group_id: string | null;
   transfer_part: number;
   transfer_total_parts: number;
+}
+
+interface PermanentWorkloadSummary {
+  total_assigned_credit_hours: string;
+  workload_credit_hours_committed: string;
 }
 
 function todayStr() {
@@ -351,6 +358,7 @@ export default function BillingManager() {
   const [permFrom, setPermFrom] = useState(todayStr());
   const [permTo, setPermTo] = useState(todayStr());
   const [permItems, setPermItems] = useState<PermanentPreviewItem[]>([]);
+  const [permSummary, setPermSummary] = useState<PermanentWorkloadSummary | null>(null);
   const [permOverrides, setPermOverrides] = useState<
     Record<string, { allocation_type: string; rate: string }>
   >({});
@@ -642,11 +650,13 @@ export default function BillingManager() {
     setPermDepartmentId(v);
     setPermTeacherId("");
     setPermItems([]);
+    setPermSummary(null);
   }
 
   const loadPermPreview = useCallback(async () => {
     if (!permTeacherId) {
       setPermItems([]);
+      setPermSummary(null);
       return;
     }
     setPermLoading(true);
@@ -656,6 +666,7 @@ export default function BillingManager() {
       const data = await res.json();
       if (res.ok) {
         setPermItems(data.items);
+        setPermSummary(data.summary);
         const overrides: Record<string, { allocation_type: string; rate: string }> = {};
         for (const it of data.items as PermanentPreviewItem[]) {
           overrides[it.allocation_id] = {
@@ -695,6 +706,15 @@ export default function BillingManager() {
       return sum + amount;
     }, 0);
   }, [permItems, permOverrides]);
+
+  const permWorkloadStatus = useMemo(() => {
+    if (!permSummary) return null;
+    const assigned = Number(permSummary.total_assigned_credit_hours);
+    const committed = Number(permSummary.workload_credit_hours_committed);
+    if (assigned > committed) return "Overload";
+    if (assigned < committed) return "Underload";
+    return "Balanced";
+  }, [permSummary]);
 
   async function handleGeneratePermanent() {
     if (!permTeacherId || permItems.length === 0) {
@@ -1471,12 +1491,50 @@ export default function BillingManager() {
             </div>
           </div>
 
+          {permTeacherId && permSummary && (
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="card-3d p-4">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                  Total Credit Hours Assigned
+                </div>
+                <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                  {Number(permSummary.total_assigned_credit_hours).toLocaleString()}
+                </div>
+              </div>
+              <div className="card-3d p-4">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                  Workload Credit Hours Committed
+                </div>
+                <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                  {Number(permSummary.workload_credit_hours_committed).toLocaleString()}
+                </div>
+              </div>
+              <div className="card-3d p-4">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                  Workload Status
+                </div>
+                <div
+                  className={`mt-1 text-2xl font-bold ${
+                    permWorkloadStatus === "Overload"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : permWorkloadStatus === "Underload"
+                        ? "text-rose-600 dark:text-rose-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  {permWorkloadStatus}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-hidden card-3d card-hover">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Course</th>
                   <th className="px-4 py-3">Class(es)</th>
+                   <th className="px-4 py-3">Credit Hours</th>
                   <th className="px-4 py-3">Lectures</th>
                   <th className="px-4 py-3">Bill As</th>
                   <th className="px-4 py-3">Rate</th>
@@ -1485,10 +1543,10 @@ export default function BillingManager() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {permLoading ? (
-                  <TableLoader colSpan={6} />
+                  <TableLoader colSpan={7} />
                 ) : !permTeacherId ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                       {permDepartmentId
                         ? "Select a teacher to preview billable lectures."
                         : "Select a department, then a teacher, to preview billable lectures."}
@@ -1496,7 +1554,7 @@ export default function BillingManager() {
                   </tr>
                 ) : permItems.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                       No unbilled lectures found for this period.
                     </td>
                   </tr>
@@ -1526,6 +1584,9 @@ export default function BillingManager() {
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                           {it.classes.join(",")}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {Number(it.credit_hours).toLocaleString()}
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                           {it.total_lectures}
