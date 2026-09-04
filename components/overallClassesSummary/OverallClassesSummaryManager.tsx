@@ -14,6 +14,8 @@ interface SummaryRow {
   start_date: string;
   mid_term_status: "conducted" | "pending";
   mid_term_date: string | null;
+  re_mid_term_status: "conducted" | "pending";
+  re_mid_term_date: string | null;
 }
 
 export default function OverallClassesSummaryManager() {
@@ -124,8 +126,10 @@ export default function OverallClassesSummaryManager() {
                         <th className="px-5 py-3">Class</th>
                         <th className="px-5 py-3">Semester</th>
                         <th className="px-5 py-3">Start Date</th>
-                        <th className="px-5 py-3">Mid-Term Status</th>
-                        <th className="px-5 py-3">Conducted Date</th>
+                        <th className="px-5 py-3">Mid Exam Status</th>
+                        <th className="px-5 py-3">Mid Exam Date</th>
+                        <th className="px-5 py-3">Re-Mid Exam Status</th>
+                        <th className="px-5 py-3">Re-Mid Exam Date</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -156,7 +160,21 @@ export default function OverallClassesSummaryManager() {
                             )}
                           </td>
                           <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-300">
-                            {row.mid_term_date ? formatDateOnly(row.mid_term_date) : "—"}
+                            {row.mid_term_date ?? "—"}
+                          </td>
+                          <td className="px-5 py-3">
+                            {row.re_mid_term_status === "conducted" ? (
+                              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                                Conducted
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-300">
+                            {row.re_mid_term_date ?? "—"}
                           </td>
                         </tr>
                       ))}
