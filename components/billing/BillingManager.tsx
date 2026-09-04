@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Banknote, CheckCircle2, FileDown, Trash2, Wallet } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
@@ -318,10 +318,20 @@ export default function BillingManager() {
   } | null>(null);
 
   const [visDepartmentId, setVisDepartmentId] = useState("");
+  const [visitingSubTab, setVisitingSubTab] = useState<"semester" | "custom">("semester");
   const [visItems, setVisItems] = useState<VisitingPreviewItem[]>([]);
   const [visLoading, setVisLoading] = useState(false);
   const [visSelected, setVisSelected] = useState<Set<string>>(new Set());
   const [visGenerating, setVisGenerating] = useState(false);
+  const [customVisDepartmentId, setCustomVisDepartmentId] = useState("");
+  const [customVisTeacherId, setCustomVisTeacherId] = useState("");
+  const [customVisFrom, setCustomVisFrom] = useState(todayStr());
+  const [customVisTo, setCustomVisTo] = useState(todayStr());
+  const [customVisItems, setCustomVisItems] = useState<VisitingPreviewItem[]>([]);
+  const [customVisLoading, setCustomVisLoading] = useState(false);
+  const [customVisGenerating, setCustomVisGenerating] = useState(false);
+  const [customVisPreviewKey, setCustomVisPreviewKey] = useState("");
+  const customVisRequestId = useRef(0);
 
   const [permDepartmentId, setPermDepartmentId] = useState("");
   const [permTeacherId, setPermTeacherId] = useState("");
@@ -431,6 +441,18 @@ export default function BillingManager() {
     [teachers, departments, permDepartmentId],
   );
 
+  const customVisTeacherOptions = useMemo(
+    () =>
+      teachers
+        .filter(
+          (teacher) =>
+            teacher.type === "visiting" &&
+            (!customVisDepartmentId || teacher.department_id === customVisDepartmentId),
+        )
+        .map((teacher) => ({ value: teacher.id, label: teacher.name })),
+    [teachers, customVisDepartmentId],
+  );
+
   const loadVisPreview = useCallback(async () => {
     setVisLoading(true);
     try {
@@ -448,8 +470,8 @@ export default function BillingManager() {
   }, [visDepartmentId]);
 
   useEffect(() => {
-    if (tab === "visiting") loadVisPreview();
-  }, [tab, loadVisPreview]);
+    if (tab === "visiting" && visitingSubTab === "semester") loadVisPreview();
+  }, [tab, visitingSubTab, loadVisPreview]);
 
   function toggleVisSelected(id: string) {
     setVisSelected((prev) => {
@@ -495,6 +517,112 @@ export default function BillingManager() {
       setTab("find");
     } finally {
       setVisGenerating(false);
+    }
+  }
+
+  function handleCustomVisDepartmentChange(value: string) {
+    customVisRequestId.current += 1;
+    setCustomVisDepartmentId(value);
+    setCustomVisTeacherId("");
+    setCustomVisItems([]);
+    setCustomVisPreviewKey("");
+  }
+
+  const loadCustomVisPreview = useCallback(async () => {
+    const previewKey = `${customVisTeacherId}:${customVisFrom}:${customVisTo}`;
+    if (
+      !customVisTeacherId ||
+      !customVisFrom ||
+      !customVisTo ||
+      customVisFrom > customVisTo ||
+      customVisFrom.slice(0, 7) !== customVisTo.slice(0, 7)
+    ) {
+      setCustomVisItems([]);
+      setCustomVisPreviewKey("");
+      return;
+    }
+    const requestId = ++customVisRequestId.current;
+    setCustomVisItems([]);
+    setCustomVisPreviewKey("");
+    setCustomVisLoading(true);
+    try {
+      const params = new URLSearchParams({
+        teacher_id: customVisTeacherId,
+        from: customVisFrom,
+        to: customVisTo,
+      });
+      const res = await fetch(`/api/admin/bills/visiting/custom/preview?${params.toString()}`);
+      const data = await res.json();
+      if (requestId !== customVisRequestId.current) return;
+      if (!res.ok) {
+        setCustomVisItems([]);
+        toast.error(data.error || "Unable to preview custom bill.");
+        return;
+      }
+      setCustomVisItems(data.items ?? []);
+      setCustomVisPreviewKey(previewKey);
+    } finally {
+      if (requestId === customVisRequestId.current) setCustomVisLoading(false);
+    }
+  }, [customVisTeacherId, customVisFrom, customVisTo]);
+
+  useEffect(() => {
+    if (tab === "visiting" && visitingSubTab === "custom") loadCustomVisPreview();
+  }, [tab, visitingSubTab, loadCustomVisPreview]);
+
+  const customVisTotal = useMemo(
+    () => customVisItems.reduce((sum, item) => sum + Number(item.amount), 0),
+    [customVisItems],
+  );
+  const currentCustomVisPreviewKey = `${customVisTeacherId}:${customVisFrom}:${customVisTo}`;
+
+  async function handleGenerateCustomVisiting() {
+    if (
+      !customVisTeacherId ||
+      customVisItems.length === 0 ||
+      customVisPreviewKey !== currentCustomVisPreviewKey
+    ) {
+      toast.error("Select a visiting teacher with billable lectures.");
+      return;
+    }
+    if (customVisFrom > customVisTo) {
+      toast.error("From date cannot be after To date.");
+      return;
+    }
+
+    setCustomVisGenerating(true);
+    try {
+      const res = await fetch("/api/admin/bills/visiting/custom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacher_id: customVisTeacherId,
+          period_from: customVisFrom,
+          period_to: customVisTo,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Unable to generate custom bill.");
+        return;
+      }
+
+      const generatedBill = data.bill as {
+        bill_number: string;
+        items: VisitingBillPrintItem[];
+      };
+      toast.success("Custom visiting-faculty bill generated.");
+      setSelectedBill(null);
+      setCombinedVisitingBill({
+        items: generatedBill.items,
+        billNumbersLabel: generatedBill.bill_number,
+        dateLabel: `${formatDateOnly(customVisFrom)} to ${formatDateOnly(customVisTo)}`,
+      });
+      setCustomVisItems([]);
+      setTimeout(() => window.print(), 150);
+      setTab("find");
+    } finally {
+      setCustomVisGenerating(false);
     }
   }
 
@@ -976,105 +1104,283 @@ export default function BillingManager() {
 
       {tab === "visiting" && (
         <div className="print:hidden">
-          <div className="mb-4 flex flex-col gap-3 card-3d p-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="w-full sm:max-w-xs">
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
-                Department
-              </label>
-              <SearchableSelect
-                options={departments}
-                value={departments.find((d) => d.value === visDepartmentId) || null}
-                onChange={(opt) => setVisDepartmentId(opt ? (opt as SelectOption).value : "")}
-                placeholder="All departments"
-              />
-            </div>
-            <button
-              onClick={handleGenerateVisiting}
-              disabled={visGenerating || visSelected.size === 0}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-            >
-              {visGenerating && <ButtonLoader />}
-              <Banknote size={16} /> Generate {visSelected.size > 0 ? `(${visSelected.size})` : ""}{" "}
-              Bill(s)
-            </button>
+          <div className="mb-4 flex w-fit gap-1 rounded-lg border border-slate-300 p-1 dark:border-slate-700">
+            {([
+              { key: "semester", label: "Semester Bills" },
+              { key: "custom", label: "Custom Bills" },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setVisitingSubTab(key)}
+                className={`rounded-md px-4 py-2 text-sm font-semibold ${
+                  visitingSubTab === key
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-            Only unbilled attendance from closed semesters for visiting faculty is shown here. Fixed
-            allocations bill the flat rate; others bill rate × total lectures.
-          </p>
+          {visitingSubTab === "semester" ? (
+            <>
+              <div className="mb-4 flex flex-col gap-3 card-3d p-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="w-full sm:max-w-xs">
+                  <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                    Department
+                  </label>
+                  <SearchableSelect
+                    options={departments}
+                    value={departments.find((d) => d.value === visDepartmentId) || null}
+                    onChange={(opt) => setVisDepartmentId(opt ? (opt as SelectOption).value : "")}
+                    placeholder="All departments"
+                  />
+                </div>
+                <button
+                  onClick={handleGenerateVisiting}
+                  disabled={visGenerating || visSelected.size === 0}
+                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {visGenerating && <ButtonLoader />}
+                  <Banknote size={16} /> Generate {visSelected.size > 0 ? `(${visSelected.size})` : ""}{" "}
+                  Bill(s)
+                </button>
+              </div>
 
-          <div className="overflow-hidden card-3d card-hover">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                <tr>
-                  <th className="px-4 py-3"></th>
-                  <th className="px-4 py-3">Teacher</th>
-                  <th className="px-4 py-3">Course</th>
-                  <th className="px-4 py-3">Class(es)</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Lectures</th>
-                  <th className="px-4 py-3">Rate</th>
-                  <th className="px-4 py-3">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {visLoading ? (
-                  <TableLoader colSpan={8} />
-                ) : visItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
-                      No unbilled lectures found.
-                    </td>
-                  </tr>
-                ) : (
-                  visItems.map((it) => (
-                    <tr
-                      key={it.allocation_id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40"
-                    >
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={visSelected.has(it.allocation_id)}
-                          onChange={() => toggleVisSelected(it.allocation_id)}
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {it.teacher_name}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800 dark:text-slate-100">
-                          {it.course_code}
-                          <TransferChainBadge
-                            transfer_group_id={it.transfer_group_id}
-                            transfer_part={it.transfer_part}
-                            transfer_total_parts={it.transfer_total_parts}
-                          />
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          {it.course_title}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {it.classes.join(",")}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {allocTypeLabel[it.allocation_type]}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                        {it.total_lectures}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{it.rate}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
-                        {it.amount.toLocaleString()}
-                      </td>
+              <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                Only unbilled attendance from closed semesters for visiting faculty is shown here.
+                Fixed allocations bill the flat rate; others bill rate × total lectures.
+              </p>
+
+              <div className="overflow-hidden card-3d card-hover">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3"></th>
+                      <th className="px-4 py-3">Teacher</th>
+                      <th className="px-4 py-3">Course</th>
+                      <th className="px-4 py-3">Class(es)</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Lectures</th>
+                      <th className="px-4 py-3">Rate</th>
+                      <th className="px-4 py-3">Amount</th>
                     </tr>
-                  ))
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {visLoading ? (
+                      <TableLoader colSpan={8} />
+                    ) : visItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                          No unbilled lectures found.
+                        </td>
+                      </tr>
+                    ) : (
+                      visItems.map((it) => (
+                        <tr
+                          key={it.allocation_id}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                        >
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={visSelected.has(it.allocation_id)}
+                              onChange={() => toggleVisSelected(it.allocation_id)}
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {it.teacher_name}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              {it.course_code}
+                              <TransferChainBadge
+                                transfer_group_id={it.transfer_group_id}
+                                transfer_part={it.transfer_part}
+                                transfer_total_parts={it.transfer_total_parts}
+                              />
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {it.course_title}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {it.classes.join(",")}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {allocTypeLabel[it.allocation_type]}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {it.total_lectures}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{it.rate}</td>
+                          <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                            {it.amount.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-4 grid grid-cols-1 gap-3 card-3d p-4 sm:grid-cols-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                    Department
+                  </label>
+                  <SearchableSelect
+                    options={departments}
+                    value={departments.find((d) => d.value === customVisDepartmentId) || null}
+                    onChange={(opt) =>
+                      handleCustomVisDepartmentChange(opt ? (opt as SelectOption).value : "")
+                    }
+                    placeholder="Select department"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                    Visiting Teacher
+                  </label>
+                  <SearchableSelect
+                    options={customVisTeacherOptions}
+                    value={customVisTeacherOptions.find((t) => t.value === customVisTeacherId) || null}
+                    onChange={(opt) => {
+                      customVisRequestId.current += 1;
+                      setCustomVisTeacherId(opt ? (opt as SelectOption).value : "");
+                      setCustomVisItems([]);
+                      setCustomVisPreviewKey("");
+                    }}
+                    placeholder="Select teacher"
+                    isDisabled={!customVisDepartmentId}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={customVisFrom}
+                    max={customVisTo}
+                    onChange={(event) => {
+                      customVisRequestId.current += 1;
+                      setCustomVisFrom(event.target.value);
+                      setCustomVisItems([]);
+                      setCustomVisPreviewKey("");
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
+                    To
+                  </label>
+                  <input
+                    type="date"
+                    value={customVisTo}
+                    min={customVisFrom}
+                    onChange={(event) => {
+                      customVisRequestId.current += 1;
+                      setCustomVisTo(event.target.value);
+                      setCustomVisItems([]);
+                      setCustomVisPreviewKey("");
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                Choose dates within one calendar month. Only unbilled attendance inside the selected
+                range is included, and each fixed allocation can be charged only once per month.
+              </div>
+
+              <div className="overflow-hidden card-3d card-hover">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Course</th>
+                      <th className="px-4 py-3">Class(es)</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Lectures</th>
+                      <th className="px-4 py-3">Rate</th>
+                      <th className="px-4 py-3">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {customVisLoading ? (
+                      <TableLoader colSpan={6} />
+                    ) : !customVisTeacherId ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                          Select a department and visiting teacher to preview a custom bill.
+                        </td>
+                      </tr>
+                    ) : customVisItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                          No unbilled lectures found for this teacher in the selected period.
+                        </td>
+                      </tr>
+                    ) : (
+                      customVisItems.map((item) => (
+                        <tr key={item.allocation_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-slate-800 dark:text-slate-100">
+                              {item.course_code}
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {item.course_title}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {item.classes.join(",")}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {allocTypeLabel[item.allocation_type]}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {item.total_lectures}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {item.rate}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                            {Number(item.amount).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+                {customVisItems.length > 0 && (
+                  <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 dark:border-slate-800">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Total: PKR {customVisTotal.toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleGenerateCustomVisiting}
+                      disabled={
+                        customVisGenerating ||
+                        customVisLoading ||
+                        customVisPreviewKey !== currentCustomVisPreviewKey
+                      }
+                      className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                    >
+                      {customVisGenerating && <ButtonLoader />}
+                      <Wallet size={16} /> Generate Custom Bill
+                    </button>
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 

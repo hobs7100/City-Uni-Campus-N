@@ -4,7 +4,10 @@ import { getClient } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
 const schema = z.object({
-  allocation_ids: z.array(z.string().uuid()).min(1),
+  allocation_ids: z.array(z.string().uuid()).min(1).refine(
+    (ids) => new Set(ids).size === ids.length,
+    "Duplicate allocations are not allowed.",
+  ),
 });
 
 export async function POST(request: NextRequest) {
@@ -35,6 +38,7 @@ export async function POST(request: NextRequest) {
     teacherName: string;
     departmentId: string;
     departmentName: string;
+    attendanceIds: string[];
   };
 
   const client = await getClient();
@@ -43,6 +47,16 @@ export async function POST(request: NextRequest) {
     await client.query("begin");
 
     const prepared: PreparedItem[] = [];
+    const teacherLocks = await client.query<{ teacher_id: string }>(
+      `select distinct teacher_id
+       from allocations
+       where id = any($1::uuid[])
+       order by teacher_id`,
+      [parsed.data.allocation_ids],
+    );
+    for (const row of teacherLocks.rows) {
+      await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [row.teacher_id]);
+    }
 
     for (const allocationId of parsed.data.allocation_ids) {
       const allocRes = await client.query(
@@ -51,11 +65,25 @@ export async function POST(request: NextRequest) {
          from allocations al
          join teachers te on te.id = al.teacher_id
          join departments d on d.id = te.department_id
-         where al.id = $1`,
+         where al.id = $1
+           and (
+             al.allocation_type <> 'fixed'
+             or not exists (
+               select 1
+               from bill_items existing_item
+               where existing_item.allocation_id = al.id
+                 and existing_item.allocation_type = 'fixed'
+                 and existing_item.billing_period_month = date_trunc('month', current_date)::date
+             )
+           )`,
         [allocationId]
       );
       const alloc = allocRes.rows[0];
-      if (!alloc) throw new Error(`Allocation ${allocationId} not found.`);
+      if (!alloc) {
+        throw new Error(
+          "This fixed allocation has already been billed for the current month, or is unavailable.",
+        );
+      }
       if (alloc.type !== "visiting") throw new Error("Only visiting-faculty allocations can be billed here.");
 
       const closedSemRes = await client.query(
@@ -70,13 +98,19 @@ export async function POST(request: NextRequest) {
       }
       const semester = closedSemRes.rows[0];
 
-      const attendanceRes = await client.query(
-        `select coalesce(sum(lecture_count), 0) as total_lectures, count(*) as cnt
-         from attendance_records where allocation_id = $1 and bill_item_id is null`,
+      const attendanceRes = await client.query<{ id: string; lecture_count: string }>(
+        `select id, lecture_count
+         from attendance_records
+         where allocation_id = $1 and bill_item_id is null
+         order by attendance_date, start_time
+         for update`,
         [allocationId]
       );
-      const totalLectures = Number(attendanceRes.rows[0].total_lectures);
-      if (Number(attendanceRes.rows[0].cnt) === 0 || totalLectures <= 0) {
+      const totalLectures = attendanceRes.rows.reduce(
+        (sum, row) => sum + Number(row.lecture_count),
+        0,
+      );
+      if (attendanceRes.rows.length === 0 || totalLectures <= 0) {
         throw new Error("No unbilled attendance found for this allocation.");
       }
 
@@ -109,6 +143,7 @@ export async function POST(request: NextRequest) {
         teacherName: alloc.teacher_name,
         departmentId: alloc.department_id,
         departmentName: alloc.department_name,
+        attendanceIds: attendanceRes.rows.map((row) => row.id),
       });
     }
 
@@ -142,17 +177,26 @@ export async function POST(request: NextRequest) {
       const outItems: unknown[] = [];
       for (const it of items) {
         const itemRes = await client.query(
-          `insert into bill_items (bill_id, allocation_id, course_id, class_id, semester_id, allocation_type, total_lectures, rate, amount)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          `insert into bill_items
+             (bill_id, allocation_id, course_id, class_id, semester_id,
+              allocation_type, total_lectures, rate, amount, billing_period_month)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                   case when $6 = 'fixed' then date_trunc('month', current_date)::date else null end)
            returning *`,
           [bill.id, it.allocationId, it.courseId, it.classId, it.semesterId, it.allocationType, it.totalLectures, it.rate, it.amount]
         );
         const item = itemRes.rows[0];
 
-        await client.query(
-          `update attendance_records set bill_item_id = $1 where allocation_id = $2 and bill_item_id is null`,
-          [item.id, it.allocationId]
+        const claimed = await client.query(
+          `update attendance_records
+           set bill_item_id = $1
+           where id = any($2::uuid[]) and bill_item_id is null
+           returning id`,
+          [item.id, it.attendanceIds]
         );
+        if (claimed.rowCount !== it.attendanceIds.length) {
+          throw new Error("Some attendance was already billed. Refresh and try again.");
+        }
 
         const attendanceRowsRes = await client.query(
           `select attendance_date, lecture_count, late_minutes, status

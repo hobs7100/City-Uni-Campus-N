@@ -40,6 +40,16 @@ export async function GET(request: NextRequest) {
      join classes cl on cl.id = s.class_id
      left join chain_info ci on ci.id = al.id
      where ${conditions.join(" and ")}
+       and (
+         al.allocation_type <> 'fixed'
+         or not exists (
+           select 1
+           from bill_items existing_item
+           where existing_item.allocation_id = al.id
+             and existing_item.allocation_type = 'fixed'
+             and existing_item.billing_period_month = date_trunc('month', current_date)::date
+         )
+       )
      group by al.id, al.allocation_type, al.rate, al.transfer_group_id,
               ci.transfer_part, ci.transfer_total_parts,
               c.id, c.code, c.title, te.id, te.name, te.department_id

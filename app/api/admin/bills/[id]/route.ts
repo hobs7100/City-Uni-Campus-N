@@ -20,8 +20,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
   }
 
-  const existing = await queryOne(`select id from bills where id = $1`, [id]);
-  if (!existing) return NextResponse.json({ error: "Bill not found." }, { status: 404 });
+  if (parsed.data.status !== "paid") {
+    return NextResponse.json(
+      { error: "Paid bills cannot be reopened. This prevents duplicate payments." },
+      { status: 409 },
+    );
+  }
 
   const { status, payment_mode, cheque_number } = parsed.data;
 
@@ -33,10 +37,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const bill = await queryOne<{ teacher_id: string; bill_number: string; status: string }>(
     `update bills
      set status = $1, paid_at = $2, payment_mode = $3, cheque_number = $4, updated_at = now()
-     where id = $5
+     where id = $5 and status = 'unpaid'
      returning *`,
     [status, paidAt, pMode, chequeNum, id]
   );
+  if (!bill) {
+    const exists = await queryOne(`select id from bills where id = $1`, [id]);
+    return NextResponse.json(
+      { error: exists ? "This bill has already been paid." : "Bill not found." },
+      { status: exists ? 409 : 404 },
+    );
+  }
 
   if (bill && status === "paid") {
     await query(
@@ -53,9 +64,16 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   if (response) return response;
   const { id } = await params;
 
-  const existing = await queryOne(`select id from bills where id = $1`, [id]);
-  if (!existing) return NextResponse.json({ error: "Bill not found." }, { status: 404 });
-
-  await query(`delete from bills where id = $1`, [id]);
+  const deleted = await queryOne(
+    `delete from bills where id = $1 and status = 'unpaid' returning id`,
+    [id],
+  );
+  if (!deleted) {
+    const exists = await queryOne(`select id from bills where id = $1`, [id]);
+    return NextResponse.json(
+      { error: exists ? "Paid bills cannot be deleted." : "Bill not found." },
+      { status: exists ? 409 : 404 },
+    );
+  }
   return NextResponse.json({ success: true });
 }

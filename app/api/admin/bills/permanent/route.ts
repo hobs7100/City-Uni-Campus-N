@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
   const client = await getClient();
   try {
     await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [d.teacher_id]);
 
     const teacherRes = await client.query(
       `select id, department_id, type from teachers where id = $1`,
@@ -40,7 +41,17 @@ export async function POST(request: NextRequest) {
     if (!teacher) throw new Error("Teacher not found.");
     if (teacher.type !== "permanent") throw new Error("Only permanent-faculty teachers can be billed here.");
 
-    const createdItems: unknown[] = [];
+    const createdItems: Array<{
+      allocation_id: string;
+      course_id: string;
+      class_id: string | null;
+      semester_id: string | null;
+      allocation_type: "workload" | "extra" | "fixed";
+      total_lectures: number;
+      rate: number;
+      amount: number;
+      attendance_ids: string[];
+    }> = [];
     let totalAmount = 0;
 
     for (const it of d.items) {
@@ -57,14 +68,21 @@ export async function POST(request: NextRequest) {
       if (!alloc) throw new Error(`Allocation ${it.allocation_id} not found.`);
       if (alloc.teacher_id !== d.teacher_id) throw new Error("Allocation does not belong to the selected teacher.");
 
-      const attendanceRes = await client.query(
-        `select coalesce(sum(lecture_count), 0) as total_lectures, count(*) as cnt
+      const attendanceRes = await client.query<{ id: string; lecture_count: string }>(
+        `select id, lecture_count
          from attendance_records
-         where allocation_id = $1 and bill_item_id is null and attendance_date between $2 and $3`,
+         where allocation_id = $1
+           and bill_item_id is null
+           and attendance_date between $2 and $3
+         order by attendance_date, start_time
+         for update`,
         [it.allocation_id, d.period_from, d.period_to]
       );
-      const totalLectures = Number(attendanceRes.rows[0].total_lectures);
-      if (Number(attendanceRes.rows[0].cnt) === 0 || totalLectures <= 0) {
+      const totalLectures = attendanceRes.rows.reduce(
+        (sum, row) => sum + Number(row.lecture_count),
+        0,
+      );
+      if (attendanceRes.rows.length === 0 || totalLectures <= 0) {
         throw new Error("No unbilled attendance found for one of the selected allocations in this period.");
       }
 
@@ -86,6 +104,7 @@ export async function POST(request: NextRequest) {
         total_lectures: totalLectures,
         rate: it.rate,
         amount,
+        attendance_ids: attendanceRes.rows.map((row) => row.id),
       });
     }
 
@@ -103,7 +122,7 @@ export async function POST(request: NextRequest) {
     const bill = billRes.rows[0];
 
     const insertedItems: unknown[] = [];
-    for (const ci of createdItems as Array<{ allocation_id: string; course_id: string; class_id: string | null; semester_id: string | null; allocation_type: string; total_lectures: number; rate: number; amount: number }>) {
+    for (const ci of createdItems) {
       const itemRes = await client.query(
         `insert into bill_items (bill_id, allocation_id, course_id, class_id, semester_id, allocation_type, total_lectures, rate, amount)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -112,11 +131,15 @@ export async function POST(request: NextRequest) {
       );
       const item = itemRes.rows[0];
       insertedItems.push(item);
-      await client.query(
+      const claimed = await client.query(
         `update attendance_records set bill_item_id = $1
-         where allocation_id = $2 and bill_item_id is null and attendance_date between $3 and $4`,
-        [item.id, ci.allocation_id, d.period_from, d.period_to]
+         where id = any($2::uuid[]) and bill_item_id is null
+         returning id`,
+        [item.id, ci.attendance_ids]
       );
+      if (claimed.rowCount !== ci.attendance_ids.length) {
+        throw new Error("Some attendance was already billed. Refresh and try again.");
+      }
     }
 
     await client.query("commit");
