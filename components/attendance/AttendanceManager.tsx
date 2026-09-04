@@ -164,7 +164,7 @@ export default function AttendanceManager() {
 
   function openMark(l: Lecture) {
     setMarkTarget(l);
-    setLectureCount(l.lecture_count ?? "1");
+    setLectureCount(l.status && l.status !== "ok" ? "0" : (l.lecture_count ?? "1"));
     setLateMinutes(String(l.late_minutes ?? 0));
     setStatus((l.status as "ok" | "fixture" | "absent" | "mid_term" | "all_absent" | "final_term") ?? "ok");
     setRemarks(l.remarks ?? "");
@@ -183,7 +183,7 @@ export default function AttendanceManager() {
           attendance_date: date,
           start_time: markTarget.start_time,
           end_time: markTarget.end_time,
-          lecture_count: Number(lectureCount),
+          lecture_count: status === "ok" ? Number(lectureCount) : 0,
           late_minutes: Number(lateMinutes),
           status,
           remarks: remarks || null,
@@ -677,7 +677,14 @@ export default function AttendanceManager() {
                       name="mark-status"
                       value={value}
                       checked={status === value}
-                      onChange={() => setStatus(value)}
+                      onChange={() => {
+                        setStatus(value);
+                        if (value === "ok") {
+                          if (status !== "ok") setLectureCount("1");
+                        } else {
+                          setLectureCount("0");
+                        }
+                      }}
                       className="accent-indigo-600"
                     />
                     <span className={`text-sm font-medium ${color}`}>{label}</span>
@@ -701,26 +708,28 @@ export default function AttendanceManager() {
             </div>
 
             {/* 3. Lecture Count */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Lecture Count
-              </label>
-              <div className="flex flex-wrap gap-3">
-                {([["1", "Full (1)"], ["0.5", "Half (0.5)"], ["0", "None (0)"]] as const).map(([val, label]) => (
-                  <label key={val} className="flex cursor-pointer items-center gap-1.5">
-                    <input
-                      type="radio"
-                      name="mark-lecture-count"
-                      value={val}
-                      checked={lectureCount === val}
-                      onChange={() => setLectureCount(val)}
-                      className="accent-indigo-600"
-                    />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
-                  </label>
-                ))}
+            {status === "ok" && (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Lecture Count
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {([["1", "Full (1)"], ["0.5", "Half (0.5)"], ["0", "None (0)"]] as const).map(([val, label]) => (
+                    <label key={val} className="flex cursor-pointer items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name="mark-lecture-count"
+                        value={val}
+                        checked={lectureCount === val}
+                        onChange={() => setLectureCount(val)}
+                        className="accent-indigo-600"
+                      />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* 4. Remarks */}
             <div>

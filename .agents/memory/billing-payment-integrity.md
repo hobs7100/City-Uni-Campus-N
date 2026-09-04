@@ -20,3 +20,9 @@ PostgreSQL `BEFORE` row triggers that guard attendance must return `NEW` for all
 **Why:** A paid-claim guard once used a shared final `RETURN OLD`; new teacher attendance appeared to conflict with billing because PostgreSQL cancelled the insert and the upsert returned no row.
 
 **How to apply:** Keep paid-parent checks separate from pass-through return semantics, and regression-test new unbilled inserts, unbilled updates, paid updates, and unpaid deletion whenever these triggers change.
+
+Only teacher attendance with status `ok` represents delivered, billable lectures. Every non-present status must carry zero lecture count; enforce this in the form, API canonicalization, and a database check.
+
+**Why:** Allowing absent, fixture, or exam statuses to retain the form's default count inflated unbilled faculty totals.
+
+**How to apply:** Hide lecture-count controls for non-present statuses, force zero server-side, and normalize only unbilled historical records so paid billing history remains immutable.

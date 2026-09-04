@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
   }
   const d = parsed.data;
+  const lectureCount = d.status === "ok" ? d.lecture_count : 0;
 
   const allocation = await queryOne(`select id from allocations where id = $1`, [d.allocation_id]);
   if (!allocation) return NextResponse.json({ error: "Allocation not found." }, { status: 404 });
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
                    status = excluded.status, remarks = excluded.remarks, marked_by = excluded.marked_by, updated_at = now()
       where attendance_records.bill_item_id is null
      returning *, (xmax = 0) as inserted`,
-    [d.allocation_id, d.attendance_date, d.start_time, d.end_time, d.lecture_count, d.late_minutes, d.status, d.remarks ?? null, session?.userId ?? null]
+    [d.allocation_id, d.attendance_date, d.start_time, d.end_time, lectureCount, d.late_minutes, d.status, d.remarks ?? null, session?.userId ?? null]
   );
   if (!record) {
     return NextResponse.json(
