@@ -21,13 +21,6 @@ export async function GET(request: NextRequest) {
   if (from > to) {
     return NextResponse.json({ error: "From date cannot be after To date." }, { status: 400 });
   }
-  if (from.slice(0, 7) !== to.slice(0, 7)) {
-    return NextResponse.json(
-      { error: "Custom visiting bills must stay within one calendar month." },
-      { status: 400 },
-    );
-  }
-
   const teacher = await queryOne<{ id: string }>(
     `select id from teachers where id = $1 and type = 'visiting' and deleted_at is null`,
     [teacherId],
@@ -45,46 +38,64 @@ export async function GET(request: NextRequest) {
     course_title: string;
     classes: string[];
     total_lectures: string;
+    billing_period_month: string | null;
   }>(
-    `select al.id as allocation_id,
+    `with attendance_totals as (
+       select ar.allocation_id,
+              case
+                when al.allocation_type = 'fixed'
+                  then date_trunc('month', ar.attendance_date)::date
+                else null
+              end as billing_period_month,
+              sum(ar.lecture_count)::text as total_lectures
+       from attendance_records ar
+       join allocations al on al.id = ar.allocation_id
+       where al.teacher_id = $1
+         and ar.bill_item_id is null
+         and ar.attendance_date between $2 and $3
+         and (
+           al.allocation_type <> 'fixed'
+           or not exists (
+             select 1
+             from bill_items existing_item
+             where existing_item.allocation_id = al.id
+               and existing_item.allocation_type = 'fixed'
+               and existing_item.billing_period_month =
+                   date_trunc('month', ar.attendance_date)::date
+           )
+         )
+       group by ar.allocation_id,
+                case
+                  when al.allocation_type = 'fixed'
+                    then date_trunc('month', ar.attendance_date)::date
+                  else null
+                end
+       having sum(ar.lecture_count) > 0
+     )
+     select al.id as allocation_id,
             al.allocation_type,
             al.rate::text,
             c.id as course_id,
             c.code as course_code,
             c.title as course_title,
-            array_agg(distinct cl.class_name || ' (' || cl.session || ') - Sem ' || s.semester_number) as classes,
-            (
-              select coalesce(sum(ar.lecture_count), 0)::text
-              from attendance_records ar
-              where ar.allocation_id = al.id
-                and ar.bill_item_id is null
-                and ar.attendance_date between $2 and $3
-            ) as total_lectures
+            coalesce(class_info.classes, array[]::text[]) as classes,
+            totals.total_lectures,
+            totals.billing_period_month::text
      from allocations al
+     join attendance_totals totals on totals.allocation_id = al.id
      join courses c on c.id = al.course_id
-     join allocation_semesters als on als.allocation_id = al.id
-     join semesters s on s.id = als.semester_id
-     join classes cl on cl.id = s.class_id
+     cross join lateral (
+       select array_agg(
+                distinct cl.class_name || ' (' || cl.session || ') - Sem ' || s.semester_number
+                order by cl.class_name || ' (' || cl.session || ') - Sem ' || s.semester_number
+              ) as classes
+       from allocation_semesters als
+       join semesters s on s.id = als.semester_id
+       join classes cl on cl.id = s.class_id
+       where als.allocation_id = al.id
+     ) class_info
      where al.teacher_id = $1
-       and (
-         al.allocation_type <> 'fixed'
-         or not exists (
-           select 1
-           from bill_items existing_item
-           where existing_item.allocation_id = al.id
-             and existing_item.allocation_type = 'fixed'
-             and existing_item.billing_period_month = date_trunc('month', $2::date)::date
-         )
-       )
-     group by al.id, al.allocation_type, al.rate, c.id, c.code, c.title
-     having (
-       select coalesce(sum(ar.lecture_count), 0)
-       from attendance_records ar
-       where ar.allocation_id = al.id
-         and ar.bill_item_id is null
-         and ar.attendance_date between $2 and $3
-     ) > 0
-     order by c.code, c.title`,
+     order by c.code, c.title, totals.billing_period_month nulls first`,
     [teacherId, from, to],
   );
 

@@ -22,6 +22,32 @@ export async function GET(request: NextRequest) {
               count(*)     over (partition by transfer_group_id)                                 as transfer_total_parts
        from allocations
        where transfer_group_id is not null
+     ), attendance_totals as (
+       select ar.allocation_id,
+              sum(ar.lecture_count) as total_lectures,
+              count(
+                distinct case
+                  when al.allocation_type = 'fixed'
+                    then date_trunc('month', ar.attendance_date)::date
+                  else null
+                end
+              )::int as fixed_month_count
+       from attendance_records ar
+       join allocations al on al.id = ar.allocation_id
+       where ar.bill_item_id is null
+         and (
+           al.allocation_type <> 'fixed'
+           or not exists (
+             select 1
+             from bill_items existing_item
+             where existing_item.allocation_id = al.id
+               and existing_item.allocation_type = 'fixed'
+               and existing_item.billing_period_month =
+                   date_trunc('month', ar.attendance_date)::date
+           )
+         )
+       group by ar.allocation_id
+       having sum(ar.lecture_count) > 0
      )
      select al.id as allocation_id, al.allocation_type, al.rate,
             al.transfer_group_id,
@@ -31,8 +57,10 @@ export async function GET(request: NextRequest) {
             te.id as teacher_id, te.name as teacher_name,
             te.department_id,
             array_agg(distinct cl.class_name || ' (' || cl.session || ') - Sem ' || s.semester_number) as classes,
-            coalesce((select sum(ar.lecture_count) from attendance_records ar where ar.allocation_id = al.id and ar.bill_item_id is null), 0) as total_lectures
+             totals.total_lectures,
+             totals.fixed_month_count
      from allocations al
+     join attendance_totals totals on totals.allocation_id = al.id
      join teachers te on te.id = al.teacher_id
      join courses c on c.id = al.course_id
      join allocation_semesters als on als.allocation_id = al.id
@@ -40,29 +68,25 @@ export async function GET(request: NextRequest) {
      join classes cl on cl.id = s.class_id
      left join chain_info ci on ci.id = al.id
      where ${conditions.join(" and ")}
-       and (
-         al.allocation_type <> 'fixed'
-         or not exists (
-           select 1
-           from bill_items existing_item
-           where existing_item.allocation_id = al.id
-             and existing_item.allocation_type = 'fixed'
-             and existing_item.billing_period_month = date_trunc('month', current_date)::date
-         )
-       )
      group by al.id, al.allocation_type, al.rate, al.transfer_group_id,
               ci.transfer_part, ci.transfer_total_parts,
-              c.id, c.code, c.title, te.id, te.name, te.department_id
-     having coalesce((select sum(ar.lecture_count) from attendance_records ar where ar.allocation_id = al.id and ar.bill_item_id is null), 0) > 0
+               c.id, c.code, c.title, te.id, te.name, te.department_id,
+               totals.total_lectures, totals.fixed_month_count
      order by te.name, c.code, ci.transfer_part`,
     values
   );
 
   const items = rows.map((r) => {
-    const row = r as Record<string, unknown> & { allocation_type: string; rate: string; total_lectures: string };
+    const row = r as Record<string, unknown> & {
+      allocation_type: string;
+      rate: string;
+      total_lectures: string;
+      fixed_month_count: number;
+    };
     const rate = Number(row.rate);
     const lectures = Number(row.total_lectures);
-    const amount = row.allocation_type === "fixed" ? rate : rate * lectures;
+    const amount =
+      row.allocation_type === "fixed" ? rate * row.fixed_month_count : rate * lectures;
     return { ...row, amount };
   });
 

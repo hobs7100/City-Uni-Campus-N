@@ -10,18 +10,35 @@ const schema = z.object({
 }).refine((value) => value.period_from <= value.period_to, {
   message: "From date cannot be after To date.",
   path: ["period_to"],
-}).refine(
-  (value) => value.period_from.slice(0, 7) === value.period_to.slice(0, 7),
-  {
-    message: "Custom visiting bills must stay within one calendar month.",
-    path: ["period_to"],
-  },
-);
+});
 
 type LockedAttendance = {
   id: string;
   allocation_id: string;
   lecture_count: string;
+  attendance_date: string;
+};
+
+type ResolvedAllocation = {
+  allocation_id: string;
+  allocation_type: string;
+  rate: string;
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  class_id: string;
+  class_name: string;
+  session: string;
+  semester_id: string;
+  semester_number: number;
+};
+
+type PreparedItem = Omit<ResolvedAllocation, "rate"> & {
+  attendance: LockedAttendance[];
+  billingPeriodMonth: string | null;
+  totalLectures: number;
+  rate: number;
+  amount: number;
 };
 
 export async function POST(request: NextRequest) {
@@ -59,7 +76,7 @@ export async function POST(request: NextRequest) {
     if (!teacher) throw new Error("Visiting teacher not found.");
 
     const attendanceRes = await client.query<LockedAttendance>(
-      `select ar.id, ar.allocation_id, ar.lecture_count
+      `select ar.id, ar.allocation_id, ar.lecture_count, ar.attendance_date::text
        from attendance_records ar
        join allocations al on al.id = ar.allocation_id
        where al.teacher_id = $1
@@ -72,7 +89,8 @@ export async function POST(request: NextRequest) {
              from bill_items existing_item
              where existing_item.allocation_id = al.id
                and existing_item.allocation_type = 'fixed'
-               and existing_item.billing_period_month = date_trunc('month', $2::date)::date
+                and existing_item.billing_period_month =
+                    date_trunc('month', ar.attendance_date)::date
            )
          )
        order by ar.allocation_id, ar.attendance_date, ar.start_time
@@ -91,19 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     const allocationIds = Array.from(attendanceByAllocation.keys());
-    const allocationRes = await client.query<{
-      allocation_id: string;
-      allocation_type: string;
-      rate: string;
-      course_id: string;
-      course_code: string;
-      course_title: string;
-      class_id: string;
-      class_name: string;
-      session: string;
-      semester_id: string;
-      semester_number: number;
-    }>(
+    const allocationRes = await client.query<ResolvedAllocation>(
       `select distinct on (al.id)
               al.id as allocation_id,
               al.allocation_type,
@@ -121,40 +127,52 @@ export async function POST(request: NextRequest) {
        join allocation_semesters als on als.allocation_id = al.id
        join semesters s on s.id = als.semester_id
        join classes cl on cl.id = s.class_id
-       where al.id = any($1::uuid[]) and al.teacher_id = $2
-         and (
-           al.allocation_type <> 'fixed'
-           or not exists (
-             select 1
-             from bill_items existing_item
-             where existing_item.allocation_id = al.id
-               and existing_item.allocation_type = 'fixed'
-               and existing_item.billing_period_month = date_trunc('month', $3::date)::date
-           )
-         )
+        where al.id = any($1::uuid[]) and al.teacher_id = $2
        order by al.id,
                 case when s.status = 'active' then 0 else 1 end,
                 s.start_date desc`,
-      [allocationIds, d.teacher_id, d.period_from],
+      [allocationIds, d.teacher_id],
     );
     if (allocationRes.rows.length !== allocationIds.length) {
       throw new Error("One or more billable allocations could not be resolved.");
     }
 
-    const prepared = allocationRes.rows.map((allocation) => {
+    const prepared = allocationRes.rows.flatMap<PreparedItem>((allocation) => {
       const attendance = attendanceByAllocation.get(allocation.allocation_id) ?? [];
-      const totalLectures = attendance.reduce(
-        (sum, row) => sum + Number(row.lecture_count),
-        0,
-      );
       const rate = Number(allocation.rate);
-      return {
+      if (allocation.allocation_type !== "fixed") {
+        const totalLectures = attendance.reduce(
+          (sum, row) => sum + Number(row.lecture_count),
+          0,
+        );
+        return [{
+          ...allocation,
+          attendance,
+          billingPeriodMonth: null,
+          totalLectures,
+          rate,
+          amount: rate * totalLectures,
+        }];
+      }
+
+      const attendanceByMonth = new Map<string, LockedAttendance[]>();
+      for (const row of attendance) {
+        const month = `${row.attendance_date.slice(0, 7)}-01`;
+        const monthlyRows = attendanceByMonth.get(month) ?? [];
+        monthlyRows.push(row);
+        attendanceByMonth.set(month, monthlyRows);
+      }
+      return Array.from(attendanceByMonth.entries()).map(([month, monthlyAttendance]) => ({
         ...allocation,
-        attendance,
-        totalLectures,
+        attendance: monthlyAttendance,
+        billingPeriodMonth: month,
+        totalLectures: monthlyAttendance.reduce(
+          (sum, row) => sum + Number(row.lecture_count),
+          0,
+        ),
         rate,
-        amount: allocation.allocation_type === "fixed" ? rate : rate * totalLectures,
-      };
+        amount: rate,
+      }));
     }).filter((item) => item.totalLectures > 0);
     if (prepared.length === 0) {
       throw new Error("No billable lectures were found in the selected period.");
@@ -191,8 +209,7 @@ export async function POST(request: NextRequest) {
         `insert into bill_items
            (bill_id, allocation_id, course_id, class_id, semester_id,
             allocation_type, total_lectures, rate, amount, billing_period_month)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,
-                 case when $6 = 'fixed' then date_trunc('month', $10::date)::date else null end)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          returning *`,
         [
           bill.id,
@@ -204,7 +221,7 @@ export async function POST(request: NextRequest) {
           item.totalLectures,
           item.rate,
           item.amount,
-          d.period_from,
+          item.billingPeriodMonth,
         ],
       );
       const billItem = itemRes.rows[0];

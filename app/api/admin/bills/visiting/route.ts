@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     departmentId: string;
     departmentName: string;
     attendanceIds: string[];
+    billingPeriodMonth: string | null;
   };
 
   const client = await getClient();
@@ -65,23 +66,13 @@ export async function POST(request: NextRequest) {
          from allocations al
          join teachers te on te.id = al.teacher_id
          join departments d on d.id = te.department_id
-         where al.id = $1
-           and (
-             al.allocation_type <> 'fixed'
-             or not exists (
-               select 1
-               from bill_items existing_item
-               where existing_item.allocation_id = al.id
-                 and existing_item.allocation_type = 'fixed'
-                 and existing_item.billing_period_month = date_trunc('month', current_date)::date
-             )
-           )`,
+          where al.id = $1`,
         [allocationId]
       );
       const alloc = allocRes.rows[0];
       if (!alloc) {
         throw new Error(
-          "This fixed allocation has already been billed for the current month, or is unavailable.",
+          "This allocation is unavailable.",
         );
       }
       if (alloc.type !== "visiting") throw new Error("Only visiting-faculty allocations can be billed here.");
@@ -98,13 +89,28 @@ export async function POST(request: NextRequest) {
       }
       const semester = closedSemRes.rows[0];
 
-      const attendanceRes = await client.query<{ id: string; lecture_count: string }>(
-        `select id, lecture_count
-         from attendance_records
-         where allocation_id = $1 and bill_item_id is null
+      const attendanceRes = await client.query<{
+        id: string;
+        lecture_count: string;
+        attendance_date: string;
+      }>(
+        `select ar.id, ar.lecture_count, ar.attendance_date::text
+         from attendance_records ar
+         where ar.allocation_id = $1 and ar.bill_item_id is null
+           and (
+             $2::text <> 'fixed'
+             or not exists (
+               select 1
+               from bill_items existing_item
+               where existing_item.allocation_id = ar.allocation_id
+                 and existing_item.allocation_type = 'fixed'
+                 and existing_item.billing_period_month =
+                     date_trunc('month', ar.attendance_date)::date
+             )
+           )
          order by attendance_date, start_time
-         for update`,
-        [allocationId]
+         for update of ar`,
+        [allocationId, alloc.allocation_type]
       );
       const totalLectures = attendanceRes.rows.reduce(
         (sum, row) => sum + Number(row.lecture_count),
@@ -115,8 +121,6 @@ export async function POST(request: NextRequest) {
       }
 
       const rate = Number(alloc.rate);
-      const amount = alloc.allocation_type === "fixed" ? rate : rate * totalLectures;
-
       const detailsRes = await client.query(
         `select c.code as course_code, c.title as course_title, cl.class_name, cl.session
          from courses c, classes cl
@@ -125,16 +129,14 @@ export async function POST(request: NextRequest) {
       );
       const details = detailsRes.rows[0];
 
-      prepared.push({
+      const baseItem = {
         allocationId,
         courseId: alloc.course_id,
         classId: semester.class_id,
         semesterId: semester.semester_id,
         semesterNumber: semester.semester_number,
         allocationType: alloc.allocation_type,
-        totalLectures,
         rate,
-        amount,
         courseCode: details.course_code,
         courseTitle: details.course_title,
         className: details.class_name,
@@ -143,8 +145,38 @@ export async function POST(request: NextRequest) {
         teacherName: alloc.teacher_name,
         departmentId: alloc.department_id,
         departmentName: alloc.department_name,
-        attendanceIds: attendanceRes.rows.map((row) => row.id),
-      });
+      };
+      if (alloc.allocation_type !== "fixed") {
+        prepared.push({
+          ...baseItem,
+          totalLectures,
+          amount: rate * totalLectures,
+          attendanceIds: attendanceRes.rows.map((row) => row.id),
+          billingPeriodMonth: null,
+        });
+      } else {
+        const attendanceByMonth = new Map<string, typeof attendanceRes.rows>();
+        for (const row of attendanceRes.rows) {
+          const month = `${row.attendance_date.slice(0, 7)}-01`;
+          const monthlyRows = attendanceByMonth.get(month) ?? [];
+          monthlyRows.push(row);
+          attendanceByMonth.set(month, monthlyRows);
+        }
+        for (const [month, monthlyRows] of attendanceByMonth) {
+          const monthlyLectures = monthlyRows.reduce(
+            (sum, row) => sum + Number(row.lecture_count),
+            0,
+          );
+          if (monthlyLectures <= 0) continue;
+          prepared.push({
+            ...baseItem,
+            totalLectures: monthlyLectures,
+            amount: rate,
+            attendanceIds: monthlyRows.map((row) => row.id),
+            billingPeriodMonth: month,
+          });
+        }
+      }
     }
 
     // Group into one bill per teacher, so a batch selection for a single
@@ -180,10 +212,20 @@ export async function POST(request: NextRequest) {
           `insert into bill_items
              (bill_id, allocation_id, course_id, class_id, semester_id,
               allocation_type, total_lectures, rate, amount, billing_period_month)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-                   case when $6 = 'fixed' then date_trunc('month', current_date)::date else null end)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            returning *`,
-          [bill.id, it.allocationId, it.courseId, it.classId, it.semesterId, it.allocationType, it.totalLectures, it.rate, it.amount]
+          [
+            bill.id,
+            it.allocationId,
+            it.courseId,
+            it.classId,
+            it.semesterId,
+            it.allocationType,
+            it.totalLectures,
+            it.rate,
+            it.amount,
+            it.billingPeriodMonth,
+          ]
         );
         const item = itemRes.rows[0];
 

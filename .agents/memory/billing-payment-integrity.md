@@ -9,6 +9,8 @@ Once a bill is paid, the bill, its line items, and the attendance-to-line-item c
 
 Visiting fixed-rate allocations represent one flat entitlement per calendar month. Every fixed visiting line item needs a normalized month key, with a database uniqueness rule covering allocation plus month. Preview and every generator must apply the same eligibility rule.
 
+A visiting bill may span multiple calendar months while remaining one parent bill. Variable-rate attendance aggregates across the selected range; fixed-rate attendance becomes one line item per allocation and attendance month. Semester and custom generators must use this same attendance-month key rather than the bill-generation month.
+
 **Why:** Concurrent generators can both observe unclaimed attendance, and child deletion or claim reassignment can make already-paid attendance billable again. Fixed-rate date slices can also produce multiple flat charges without reusing an attendance row.
 
 **How to apply:** Any new billing route must use the shared teacher lock discipline, exact claim verification, monthly fixed entitlement where applicable, and database guards across bills, bill items, and attendance claims. Unpaid bill deletion may release claims; paid records may not.

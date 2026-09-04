@@ -87,6 +87,7 @@ interface VisitingPreviewItem {
   classes: string[];
   total_lectures: string;
   amount: number;
+  billing_period_month?: string | null;
   transfer_group_id: string | null;
   transfer_part: number;
   transfer_total_parts: number;
@@ -534,8 +535,7 @@ export default function BillingManager() {
       !customVisTeacherId ||
       !customVisFrom ||
       !customVisTo ||
-      customVisFrom > customVisTo ||
-      customVisFrom.slice(0, 7) !== customVisTo.slice(0, 7)
+      customVisFrom > customVisTo
     ) {
       setCustomVisItems([]);
       setCustomVisPreviewKey("");
@@ -1296,8 +1296,9 @@ export default function BillingManager() {
               </div>
 
               <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                Choose dates within one calendar month. Only unbilled attendance inside the selected
-                range is included, and each fixed allocation can be charged only once per month.
+                Only unbilled attendance inside the selected range is included. A range may span
+                multiple months; fixed allocations are charged once for each eligible month and
+                cannot be charged twice for the same month.
               </div>
 
               <div className="overflow-hidden card-3d card-hover">
@@ -1307,6 +1308,7 @@ export default function BillingManager() {
                       <th className="px-4 py-3">Course</th>
                       <th className="px-4 py-3">Class(es)</th>
                       <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Billing Period</th>
                       <th className="px-4 py-3">Lectures</th>
                       <th className="px-4 py-3">Rate</th>
                       <th className="px-4 py-3">Amount</th>
@@ -1314,22 +1316,25 @@ export default function BillingManager() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {customVisLoading ? (
-                      <TableLoader colSpan={6} />
+                      <TableLoader colSpan={7} />
                     ) : !customVisTeacherId ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                           Select a department and visiting teacher to preview a custom bill.
                         </td>
                       </tr>
                     ) : customVisItems.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                           No unbilled lectures found for this teacher in the selected period.
                         </td>
                       </tr>
                     ) : (
                       customVisItems.map((item) => (
-                        <tr key={item.allocation_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <tr
+                          key={`${item.allocation_id}-${item.billing_period_month ?? "range"}`}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                        >
                           <td className="px-4 py-3">
                             <div className="font-medium text-slate-800 dark:text-slate-100">
                               {item.course_code}
@@ -1343,6 +1348,14 @@ export default function BillingManager() {
                           </td>
                           <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                             {allocTypeLabel[item.allocation_type]}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {item.billing_period_month
+                              ? new Date(`${item.billing_period_month}T00:00:00`).toLocaleDateString(
+                                  "en-US",
+                                  { month: "long", year: "numeric" },
+                                )
+                              : `${formatDateOnly(customVisFrom)} – ${formatDateOnly(customVisTo)}`}
                           </td>
                           <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                             {item.total_lectures}
