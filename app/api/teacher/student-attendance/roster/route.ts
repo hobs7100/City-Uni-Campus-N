@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
     class_name: string;
     session: string;
     student_status: string;
+    monthly_on_leave: boolean;
     att_status: string | null;
     reason: string | null;
     call_remarks: string | null;
@@ -121,6 +122,12 @@ export async function GET(request: NextRequest) {
   }>(
     `select st.id as student_id, st.name, st.father_name, st.roll_no, st.contact,
             cl.class_name, cl.session, st.status as student_status,
+             exists (
+               select 1 from student_leaves sl
+               where sl.student_id = st.id and sl.revoked_at is null
+                 and sl.leave_type = 'monthly'
+                 and $2::date between sl.leave_start_date and sl.leave_end_date
+             ) as monthly_on_leave,
             sca.status as att_status, sca.reason, sca.call_remarks,
             sar.status  as coord_status
      from students st
@@ -143,7 +150,7 @@ export async function GET(request: NextRequest) {
 
   const rows = students.map((st) => {
     const isStruckOff = st.student_status === "struck_off";
-    const isOnLeave   = st.student_status === "permanent_leave";
+    const isOnLeave   = st.student_status === "permanent_leave" || st.monthly_on_leave === true;
     // Only "leave" set by coordinator locks the teacher's subject attendance.
     // "absent" set by coordinator is informational — teacher can still mark course attendance.
     const coordLocked = st.coord_status === "leave";
@@ -276,12 +283,28 @@ export async function POST(request: NextRequest) {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // Serialize with leave issuance so the leave range and attendance status
+    // are evaluated from one consistent state.
+    await client.query(
+      `select id from students
+       where id = any($1::uuid[])
+       order by id
+       for update`,
+      [d.rows.map((row) => row.student_id)]
+    );
     for (const row of d.rows) {
       await client.query(
         `insert into student_course_attendance
            (allocation_id, student_id, attendance_date, start_time, end_time,
             status, reason, call_remarks, marked_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          values ($1,$2,$3,$4,$5,
+            case when exists (
+              select 1 from student_leaves sl
+              where sl.student_id = $2 and sl.revoked_at is null
+                and sl.leave_type = 'monthly'
+                and $3::date between sl.leave_start_date and sl.leave_end_date
+            ) then 'leave'::student_attendance_status else $6::student_attendance_status end,
+            $7,$8,$9)
          on conflict (allocation_id, student_id, attendance_date, start_time, end_time)
          where start_time is not null
          do update set status        = excluded.status,

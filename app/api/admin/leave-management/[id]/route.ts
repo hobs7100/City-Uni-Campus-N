@@ -26,8 +26,10 @@ export async function GET(
     reason: string | null;
     notes: string | null;
     proof_urls: string[];
-    leave_type: "permanent" | "partial";
+    leave_type: "permanent" | "partial" | "monthly";
     partial_days_per_week: number | null;
+    leave_start_date: string | null;
+    leave_end_date: string | null;
     issued_by_name: string | null;
     revoked_at: string | null;
     created_at: string;
@@ -48,6 +50,8 @@ export async function GET(
        sl.proof_urls,
        sl.leave_type,
        sl.partial_days_per_week,
+       to_char(sl.leave_start_date, 'YYYY-MM-DD') as leave_start_date,
+       to_char(sl.leave_end_date, 'YYYY-MM-DD') as leave_end_date,
        u.name            as issued_by_name,
        sl.revoked_at,
        sl.created_at
@@ -88,12 +92,11 @@ export async function PUT(
 
   const d = parsed.data;
 
-  const existing = await queryOne<{ id: string; student_id: string; revoked_at: string | null; leave_type: "permanent" | "partial" }>(
+  const existing = await queryOne<{ id: string; student_id: string; revoked_at: string | null; leave_type: "permanent" | "partial" | "monthly" }>(
     `select id, student_id, revoked_at, leave_type from student_leaves where id = $1`,
     [id]
   );
   if (!existing) return NextResponse.json({ error: "Leave not found." }, { status: 404 });
-
   const client = await pool.connect();
   try {
     await client.query("begin");

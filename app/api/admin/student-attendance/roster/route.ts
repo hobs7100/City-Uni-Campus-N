@@ -29,6 +29,12 @@ export async function GET(request: NextRequest) {
   const students = await query<Record<string, unknown>>(
     `select st.id as student_id, st.name, st.father_name, st.roll_no, st.contact,
             st.status as student_status,
+             exists (
+               select 1 from student_leaves sl
+               where sl.student_id = st.id and sl.revoked_at is null
+                 and sl.leave_type = 'monthly'
+                 and $1::date between sl.leave_start_date and sl.leave_end_date
+             ) as monthly_on_leave,
             r.status as att_status, r.reason, r.call_remarks,
             (r.status is not null) as already_marked
      from students st
@@ -44,7 +50,7 @@ export async function GET(request: NextRequest) {
 
   const rows = students.map((st) => {
     const isStruckOff = st.student_status === "struck_off";
-    const isOnLeave = st.student_status === "permanent_leave";
+    const isOnLeave = st.student_status === "permanent_leave" || st.monthly_on_leave === true;
     return {
       student_id: st.student_id,
       name: st.name,
@@ -119,6 +125,12 @@ export async function POST(request: NextRequest) {
   let savedCount = 0;
   try {
     await client.query("begin");
+    // Serialize with leave issuance so a concurrent attendance save cannot
+    // miss a Monthly Leave that is being created for the same student.
+    await client.query(
+      `select id from students where id = any($1::uuid[]) order by id for update`,
+      [studentIds]
+    );
     for (const row of d.rows) {
       if (isCoordinator) {
         // Preserve an already-marked status in this semester. If the unique
@@ -126,7 +138,14 @@ export async function POST(request: NextRequest) {
         // active semester and save the coordinator's current status.
         const result = await client.query(
           `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
-           values ($1,$2,$3,$4,$5,$6,$7)
+           values ($1,$2,$3,
+             case when exists (
+               select 1 from student_leaves sl
+               where sl.student_id = $1 and sl.revoked_at is null
+                 and sl.leave_type = 'monthly'
+                 and $3::date between sl.leave_start_date and sl.leave_end_date
+             ) then 'leave'::student_attendance_status else $4::student_attendance_status end,
+             $5,$6,$7)
            on conflict (student_id, attendance_date)
            do update set
              semester_id = case
@@ -135,6 +154,12 @@ export async function POST(request: NextRequest) {
                else student_attendance_records.semester_id
              end,
              status = case
+                when exists (
+                  select 1 from student_leaves sl
+                  where sl.student_id = excluded.student_id and sl.revoked_at is null
+                    and sl.leave_type = 'monthly'
+                    and excluded.attendance_date between sl.leave_start_date and sl.leave_end_date
+                ) then 'leave'::student_attendance_status
                when student_attendance_records.semester_id <> excluded.semester_id
                  then excluded.status
                else student_attendance_records.status
@@ -155,7 +180,14 @@ export async function POST(request: NextRequest) {
         // Admins can update existing records
         const result = await client.query(
           `insert into student_attendance_records (student_id, semester_id, attendance_date, status, reason, call_remarks, marked_by)
-           values ($1,$2,$3,$4,$5,$6,$7)
+           values ($1,$2,$3,
+             case when exists (
+               select 1 from student_leaves sl
+               where sl.student_id = $1 and sl.revoked_at is null
+                 and sl.leave_type = 'monthly'
+                 and $3::date between sl.leave_start_date and sl.leave_end_date
+             ) then 'leave'::student_attendance_status else $4::student_attendance_status end,
+             $5,$6,$7)
            on conflict (student_id, attendance_date)
            do update set semester_id = excluded.semester_id, status = excluded.status, reason = excluded.reason,
                           call_remarks = excluded.call_remarks, marked_by = excluded.marked_by, updated_at = now()
