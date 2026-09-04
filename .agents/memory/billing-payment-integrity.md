@@ -12,3 +12,9 @@ Visiting fixed-rate allocations represent one flat entitlement per calendar mont
 **Why:** Concurrent generators can both observe unclaimed attendance, and child deletion or claim reassignment can make already-paid attendance billable again. Fixed-rate date slices can also produce multiple flat charges without reusing an attendance row.
 
 **How to apply:** Any new billing route must use the shared teacher lock discipline, exact claim verification, monthly fixed entitlement where applicable, and database guards across bills, bill items, and attendance claims. Unpaid bill deletion may release claims; paid records may not.
+
+PostgreSQL `BEFORE` row triggers that guard attendance must return `NEW` for allowed `INSERT`/`UPDATE` operations and `OLD` for allowed `DELETE` operations. Returning `OLD` from `BEFORE INSERT` resolves to null and silently cancels an otherwise valid unbilled attendance insert.
+
+**Why:** A paid-claim guard once used a shared final `RETURN OLD`; new teacher attendance appeared to conflict with billing because PostgreSQL cancelled the insert and the upsert returned no row.
+
+**How to apply:** Keep paid-parent checks separate from pass-through return semantics, and regression-test new unbilled inserts, unbilled updates, paid updates, and unpaid deletion whenever these triggers change.

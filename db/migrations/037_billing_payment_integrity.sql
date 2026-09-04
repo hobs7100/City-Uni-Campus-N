@@ -61,7 +61,10 @@ begin
   if old.status = 'paid' then
     raise exception 'Paid bills are immutable and cannot be changed or deleted.';
   end if;
-  return old;
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
 end;
 $$;
 
@@ -142,10 +145,12 @@ begin
     if new_parent_status = 'paid' then
       raise exception 'Attendance cannot be attached or moved to a paid bill.';
     end if;
-    return new;
   end if;
 
-  return old;
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
 end;
 $$;
 
