@@ -105,11 +105,11 @@ const stepperSchemes = [
 
 function formatSemesterDate(value: string | null | undefined) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-PK", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  // Read the calendar date from the API value directly. Parsing an ISO date
+  // with `new Date()` can move it across a day when the browser timezone differs.
+  const datePart = value.slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : "—";
 }
 
 export default function SemestersPage() {
@@ -706,7 +706,9 @@ export default function SemestersPage() {
 
             {semesterTimelines.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-5 py-14 text-center">
-                <span className="text-3xl">🎓</span>
+                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                   <Calendar size={19} />
+                 </span>
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                   No active classes found.
                 </p>
@@ -721,39 +723,40 @@ export default function SemestersPage() {
                    return (
                   <div
                     key={classInfo.id}
-                     className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
                      style={{
                        borderTopColor: scheme.accentSoft,
                        boxShadow: `0 12px 28px -20px ${scheme.accent}`,
                      }}
                   >
                      <div
-                       className="semester-stepper-header flex flex-wrap items-start justify-between gap-3 border-b border-white/60 px-4 py-4 dark:border-white/10"
+                        className="semester-stepper-header flex flex-wrap items-start justify-between gap-3 border-b border-slate-200/80 px-4 py-4 dark:border-white/10"
                        style={{
                          "--semester-card-bg": scheme.card,
                          "--semester-card-dark-bg": scheme.darkCard,
                        } as CSSProperties}
                      >
-                      <div>
-                        <h4 className="font-semibold text-slate-800 dark:text-slate-100">
+                       <div className="min-w-0">
+                         <h4 className="text-[15px] font-bold tracking-[-0.01em] text-slate-950 dark:text-white">
                           {classInfo.class_name}
-                          <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+                           <span className="ml-2 inline-flex rounded-md bg-white/75 px-2 py-0.5 align-middle text-xs font-semibold tracking-normal text-slate-700 ring-1 ring-slate-900/10 dark:bg-slate-950/40 dark:text-slate-200 dark:ring-white/15">
                             {classInfo.session}
                           </span>
                         </h4>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {classInfo.total_semesters} semester{classInfo.total_semesters === 1 ? "" : "s"} in program
+                         <p className="mt-1.5 text-xs font-medium text-slate-700 dark:text-slate-200">
+                           <span className="font-bold text-slate-900 dark:text-white">{classInfo.total_semesters}</span>{" "}
+                           semester{classInfo.total_semesters === 1 ? "" : "s"} in program
                         </p>
                       </div>
                       {runningSemester && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                         <span className="inline-flex items-center gap-1.5 rounded-lg border border-red-300/80 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800 shadow-sm dark:border-red-400/30 dark:bg-red-950/35 dark:text-red-200">
                           <AlertTriangle size={13} />
                           Close Semester {runningSemester.semester_number} to continue
                         </span>
                       )}
                     </div>
 
-                     <div className="overflow-x-auto bg-white/70 px-4 pb-4 pt-5 dark:bg-slate-900/70">
+                      <div className="overflow-x-auto bg-slate-50/90 px-4 pb-5 pt-5 dark:bg-slate-950/60">
                        <div className="flex min-w-max items-start">
                         {steps.map((step, index) => {
                           const record = step.semester;
@@ -810,8 +813,18 @@ export default function SemestersPage() {
                           );
 
                           return (
-                             <div key={step.number} className="flex w-[166px] shrink-0 items-start">
-                               <div className="flex w-[116px] shrink-0 flex-col items-center">
+                              <div key={step.number} className="flex w-[182px] shrink-0 items-start">
+                                <div
+                                  className={`flex w-[136px] shrink-0 flex-col items-center rounded-lg px-1.5 pb-2 ${
+                                    isReady
+                                      ? "bg-blue-50/90 dark:bg-blue-950/30"
+                                      : isBlocked
+                                        ? "bg-red-50/90 dark:bg-red-950/30"
+                                        : isCurrent
+                                          ? "bg-indigo-50/90 dark:bg-indigo-950/30"
+                                          : "bg-white/55 dark:bg-slate-900/55"
+                                  }`}
+                                >
                                 {isReady ? (
                                   <button
                                     type="button"
@@ -829,7 +842,7 @@ export default function SemestersPage() {
                                   </span>
                                 )}
                                 <span
-                                  className={`mt-2 text-center text-[11px] font-bold ${
+                                  className={`mt-2 text-center text-xs font-bold tracking-tight ${
                                     isReady
                                       ? "text-blue-700 dark:text-blue-300"
                                       : isBlocked
@@ -841,41 +854,40 @@ export default function SemestersPage() {
                                 >
                                   Semester {step.number}
                                 </span>
-                                <span className="mt-1 min-h-[76px] space-y-0.5 text-center text-[10px] leading-3 text-slate-400 dark:text-slate-500">
-                                  <span className="block">
-                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Status:</span>{" "}
-                                    {record
-                                      ? record.status === "mid_term"
-                                        ? "Mid-Term"
-                                        : record.status === "final_term"
-                                          ? "Final-Term"
-                                          : record.status === "closed"
-                                            ? "Closed"
-                                            : "Active"
-                                      : isReady
-                                        ? "Ready to start"
-                                        : isBlocked
-                                          ? "Waiting to close"
-                                          : "Not available"}
+                                <span className="mt-2 min-h-[88px] w-full space-y-1 rounded-md border border-slate-200/80 bg-white/75 px-2 py-2 text-left text-[11px] leading-[1.25] text-slate-700 shadow-sm dark:border-slate-700/80 dark:bg-slate-950/55 dark:text-slate-200">
+                                  <span className="flex items-start justify-between gap-1">
+                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Status</span>
+                                    <span className={`text-right font-bold ${
+                                      isReady ? "text-blue-700 dark:text-blue-300" :
+                                      isBlocked ? "text-red-700 dark:text-red-300" :
+                                      isCompleted ? "text-emerald-700 dark:text-emerald-300" :
+                                      isCurrent ? "text-indigo-700 dark:text-indigo-300" :
+                                      "text-slate-700 dark:text-slate-200"
+                                    }`}>
+                                      {record
+                                        ? record.status === "mid_term"
+                                          ? "Mid-Term"
+                                          : record.status === "final_term"
+                                            ? "Final-Term"
+                                            : record.status === "closed"
+                                              ? "Closed"
+                                              : "Active"
+                                        : isReady
+                                          ? "Ready to start"
+                                          : isBlocked
+                                            ? "Waiting to close"
+                                            : "Not available"}
+                                    </span>
                                   </span>
-                                  <span className="block">
-                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Start:</span>{" "}
-                                    {formatSemesterDate(record?.start_date)}
-                                  </span>
-                                  <span className="block">
-                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Closed:</span>{" "}
-                                    {formatSemesterDate(record?.close_date)}
-                                  </span>
-                                  <span className="block">
-                                    <span className="font-semibold text-slate-500 dark:text-slate-400">Updated:</span>{" "}
-                                    {formatSemesterDate(record?.updated_at)}
-                                  </span>
+                                  <span className="flex justify-between gap-1"><span className="font-semibold text-slate-500 dark:text-slate-400">Start</span><span className="text-right font-medium">{formatSemesterDate(record?.start_date)}</span></span>
+                                  <span className="flex justify-between gap-1"><span className="font-semibold text-slate-500 dark:text-slate-400">Closed</span><span className="text-right font-medium">{formatSemesterDate(record?.close_date)}</span></span>
+                                  <span className="flex justify-between gap-1"><span className="font-semibold text-slate-500 dark:text-slate-400">Updated</span><span className="text-right font-medium">{formatSemesterDate(record?.updated_at)}</span></span>
                                 </span>
                               </div>
                               {index < steps.length - 1 && (
                                  <div
                                    aria-hidden="true"
-                                   className="mt-[21px] h-2 w-[50px] shrink-0 rounded-full"
+                                    className="mt-[21px] h-2 w-[46px] shrink-0 rounded-full"
                                    style={connectorStyle}
                                  />
                               )}
