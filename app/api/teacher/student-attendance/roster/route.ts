@@ -24,6 +24,12 @@ export async function GET(request: NextRequest) {
   if (!allocationId || !date) {
     return NextResponse.json({ error: "allocation_id and date are required." }, { status: 400 });
   }
+  if (!startTime || !endTime) {
+    return NextResponse.json(
+      { error: "Select a scheduled timetable slot before loading attendance." },
+      { status: 400 }
+    );
+  }
 
   const allocation = await queryOne<{ id: string; is_combined: boolean }>(
     `select a.id, a.is_combined
@@ -51,8 +57,18 @@ export async function GET(request: NextRequest) {
           join timetables tt on tt.id = tc.timetable_id
           join timetable_days td on td.id = tc.day_id
           join timetable_periods tp on tp.id = tc.period_id
+          join allocation_semesters slot_als
+            on slot_als.allocation_id = tc.allocation_id
+           and slot_als.semester_id = tt.semester_id
+          join semesters slot_semester
+            on slot_semester.id = slot_als.semester_id
+           and slot_semester.status = 'active'
+          join semester_courses slot_sc
+            on slot_sc.semester_id = slot_als.semester_id
+           and slot_sc.course_id = slot_als.course_id
+           and slot_sc.syllabus_completed_at is null
           where tc.allocation_id = als.allocation_id
-            and tt.semester_id = als.semester_id
+            and (a.is_combined or tt.semester_id = als.semester_id)
             and td.day_name = $2
             and tp.start_time = $3
             and tp.end_time = $4
@@ -167,8 +183,8 @@ const rowSchema = z.object({
 const schema = z.object({
   allocation_id:   z.string().uuid(),
   attendance_date: z.string().min(1),
-  start_time:      z.string().optional().nullable(),
-  end_time:        z.string().optional().nullable(),
+  start_time:      z.string().min(1),
+  end_time:        z.string().min(1),
   rows:            z.array(rowSchema).min(1),
 });
 
@@ -202,7 +218,6 @@ export async function POST(request: NextRequest) {
 
   // Fetch all active semesters (and their class_ids) for this allocation.
   // Combined allocations span multiple classes/semesters.
-  const hasSlot  = !!(d.start_time && d.end_time);
   const activeSemsWithClass = await query<{ id: string; class_id: string }>(
     `select distinct s.id, s.class_id from semesters s
      join allocation_semesters als on als.semester_id = s.id
@@ -212,22 +227,29 @@ export async function POST(request: NextRequest) {
      where als.allocation_id = $1
        and s.status = 'active'
         and sc.syllabus_completed_at is null
-        ${hasSlot ? `
         and exists (
           select 1
           from timetable_cells tc
           join timetables tt on tt.id = tc.timetable_id
           join timetable_days td on td.id = tc.day_id
           join timetable_periods tp on tp.id = tc.period_id
+          join allocation_semesters slot_als
+            on slot_als.allocation_id = tc.allocation_id
+           and slot_als.semester_id = tt.semester_id
+          join semesters slot_semester
+            on slot_semester.id = slot_als.semester_id
+           and slot_semester.status = 'active'
+          join semester_courses slot_sc
+            on slot_sc.semester_id = slot_als.semester_id
+           and slot_sc.course_id = slot_als.course_id
+           and slot_sc.syllabus_completed_at is null
           where tc.allocation_id = als.allocation_id
-            and tt.semester_id = als.semester_id
+            and (a.is_combined or tt.semester_id = als.semester_id)
             and td.day_name = $2
             and tp.start_time = $3
             and tp.end_time = $4
-        )` : ""}`,
-    hasSlot
-      ? [d.allocation_id, dayNameFor(d.attendance_date), d.start_time, d.end_time]
-      : [d.allocation_id]
+        )`,
+    [d.allocation_id, dayNameFor(d.attendance_date), d.start_time, d.end_time]
   );
   if (!activeSemsWithClass.length) {
     return NextResponse.json(
@@ -251,16 +273,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const startVal = hasSlot ? d.start_time : null;
-  const endVal   = hasSlot ? d.end_time   : null;
-
-  // Choose the right ON CONFLICT clause to match the partial unique index
-  const conflictClause = hasSlot
-    ? `on conflict (allocation_id, student_id, attendance_date, start_time, end_time)
-       where start_time is not null`
-    : `on conflict (allocation_id, student_id, attendance_date)
-       where start_time is null`;
-
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -270,7 +282,8 @@ export async function POST(request: NextRequest) {
            (allocation_id, student_id, attendance_date, start_time, end_time,
             status, reason, call_remarks, marked_by)
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         ${conflictClause}
+         on conflict (allocation_id, student_id, attendance_date, start_time, end_time)
+         where start_time is not null
          do update set status        = excluded.status,
                        reason        = excluded.reason,
                        call_remarks  = excluded.call_remarks,
@@ -280,8 +293,8 @@ export async function POST(request: NextRequest) {
           d.allocation_id,
           row.student_id,
           d.attendance_date,
-          startVal,
-          endVal,
+          d.start_time,
+          d.end_time,
           row.status,
           row.reason       || null,
           row.call_remarks || null,

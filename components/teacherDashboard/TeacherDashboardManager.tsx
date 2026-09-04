@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Bell,
@@ -94,29 +94,27 @@ interface ResRosterRow {
   status: "pass" | "fail" | "freezed" | "drop";
 }
 
-interface TimetableSummary {
-  id: string;
-  shift: string;
-  wef_date: string;
-  class_name: string;
-  session: string;
-  semester_number: number;
-  term_type: string;
-}
-
-interface TimetableDetail {
-  timetable: Record<string, unknown>;
-  days: { id: string; day_name: string; position: number }[];
-  periods: { id: string; start_time: string; end_time: string; position: number }[];
-  cells: {
-    id: string;
-    day_id: string;
-    period_id: string;
-    allocation_id: string | null;
-    course_code: string | null;
-    course_title: string | null;
-    teacher_name: string | null;
-    combined_with: { class_name: string; session: string }[];
+interface TeacherTimetableGrid {
+  teacher: { name: string; type: string };
+  workload: {
+    committed_credit_hours: number | null;
+    assigned_credit_hours: number;
+    status: "Completed" | "Underload" | "Overload" | "Not Set";
+  };
+  slots: SlotInfo[];
+  days: {
+    day_name: string;
+    cells: {
+      start_time: string;
+      end_time: string;
+      courses: {
+        allocation_id: string;
+        course_code: string;
+        course_title: string;
+        is_combined: boolean;
+        classes: { class_id: string; class_name: string; session: string }[];
+      }[];
+    }[];
   }[];
 }
 
@@ -321,9 +319,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [coursesSubTab, setCoursesSubTab] = useState<"active" | "completed" | "transferred" | "inactive">("active");
 
-  const [timetables, setTimetables] = useState<TimetableSummary[]>([]);
-  const [selectedTimetableId, setSelectedTimetableId] = useState("");
-  const [timetableDetail, setTimetableDetail] = useState<TimetableDetail | null>(null);
+  const [timetableGrid, setTimetableGrid] = useState<TeacherTimetableGrid | null>(null);
   const [timetableLoading, setTimetableLoading] = useState(false);
 
   const [markAllocationId, setMarkAllocationId] = useState("");
@@ -337,6 +333,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [markSlots, setMarkSlots]     = useState<SlotInfo[]>([]);
   const [markSlot, setMarkSlot]       = useState<SlotInfo | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const attendanceRequestId = useRef(0);
 
   const [studentsAllocId, setStudentsAllocId] = useState("");
   const [studentReportRows, setStudentReportRows] = useState<StudentAttendanceRow[]>([]);
@@ -578,9 +575,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const res = await fetch("/api/teacher/timetable");
       const data = await res.json();
       if (res.ok) {
-        setTimetables(data.timetables);
-        if (data.timetables.length > 0 && !selectedTimetableId)
-          setSelectedTimetableId(data.timetables[0].id);
+        setTimetableGrid(data);
       }
     } finally {
       setTimetableLoading(false);
@@ -588,30 +583,20 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadTimetableDetail = useCallback(async (id: string) => {
-    if (!id) {
-      setTimetableDetail(null);
-      return;
-    }
-    const res = await fetch(`/api/admin/timetables/${id}`);
-    const data = await res.json();
-    if (res.ok) setTimetableDetail(data);
-  }, []);
-
-  const loadRoster = useCallback(async (slotArg?: SlotInfo | null) => {
-    if (!markAllocationId || !markDate) {
+  const loadRoster = useCallback(async (slotArg: SlotInfo, requestId?: number) => {
+    if (!markAllocationId || !markDate || !slotArg) {
       setRosterRows([]);
       return;
     }
+    const currentRequestId = requestId ?? ++attendanceRequestId.current;
     setRosterLoading(true);
     try {
       const params = new URLSearchParams({ allocation_id: markAllocationId, date: markDate });
-      if (slotArg) {
-        params.set("start_time", slotArg.start_time);
-        params.set("end_time",   slotArg.end_time);
-      }
+      params.set("start_time", slotArg.start_time);
+      params.set("end_time",   slotArg.end_time);
       const res = await fetch(`/api/teacher/student-attendance/roster?${params.toString()}`);
       const data = await res.json();
+      if (currentRequestId !== attendanceRequestId.current) return;
       if (!res.ok) {
         toast.error(data.error || "Could not load roster.");
         setRosterRows([]);
@@ -620,7 +605,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       setRosterRows(data.rows);
       setIsCombinedRoster(data.is_combined);
     } finally {
-      setRosterLoading(false);
+      if (currentRequestId === attendanceRequestId.current) setRosterLoading(false);
     }
   }, [markAllocationId, markDate]);
 
@@ -631,22 +616,24 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       setRosterRows([]);
       return;
     }
+    const currentRequestId = ++attendanceRequestId.current;
     setSlotsLoading(true);
     setRosterRows([]);
     try {
       const params = new URLSearchParams({ allocation_id: markAllocationId, date: markDate });
       const res  = await fetch(`/api/teacher/student-attendance/slots?${params.toString()}`);
       const data = await res.json();
+      if (currentRequestId !== attendanceRequestId.current) return;
       if (res.ok) {
         const slots: SlotInfo[] = data.slots ?? [];
         setMarkSlots(slots);
-        if (slots.length <= 1) {
-          // 0 slots (no timetable entry for this day) or exactly 1 slot → auto-proceed
-          const slot = slots[0] ?? null;
+        if (slots.length === 1) {
+          // Exactly one scheduled slot can be selected automatically.
+          const slot = slots[0];
           setMarkSlot(slot);
-          await loadRoster(slot);
+          await loadRoster(slot, currentRequestId);
         } else {
-          // 2+ slots → teacher must pick; roster loads on slot selection
+          // Zero slots or multiple slots require no automatic roster request.
           setMarkSlot(null);
         }
       } else {
@@ -654,7 +641,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         setMarkSlot(null);
       }
     } finally {
-      setSlotsLoading(false);
+      if (currentRequestId === attendanceRequestId.current) setSlotsLoading(false);
     }
   }, [markAllocationId, markDate, loadRoster]);
 
@@ -871,16 +858,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "dit-results" && ditAllocId && ditSemId) loadDitStudents();
   }, [tab, ditAllocId, ditSemId, ditSeriesId, ditTestDate, loadDitStudents]);
 
-  useEffect(() => {
-    if (selectedTimetableId) loadTimetableDetail(selectedTimetableId);
-  }, [selectedTimetableId, loadTimetableDetail]);
-
   function updateRosterRow(studentId: string, patch: Partial<RosterRow>) {
     setRosterRows((prev) => prev.map((r) => (r.student_id === studentId ? { ...r, ...patch } : r)));
   }
 
   async function handleSaveRoster() {
-    if (!markAllocationId) return;
+    if (!markAllocationId || !markSlot || slotsLoading || rosterLoading) return;
     setRosterSaving(true);
     try {
       const res = await fetch("/api/teacher/student-attendance/roster", {
@@ -890,8 +873,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           allocation_id:   markAllocationId,
           attendance_date: markDate,
           // include slot times so each lecture gets its own attendance record
-          start_time: markSlot?.start_time ?? null,
-          end_time:   markSlot?.end_time   ?? null,
+          start_time: markSlot.start_time,
+          end_time:   markSlot.end_time,
           // exclude coord_locked rows — teacher cannot mark those
           rows: rosterRows.filter((r) => !r.coord_locked && !r.locked).map((r) => ({
             student_id:   r.student_id,
@@ -1052,10 +1035,6 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       }),
     [groupedActive],
   );
-
-  function cellFor(dayId: string, periodId: string) {
-    return timetableDetail?.cells.find((c) => c.day_id === dayId && c.period_id === periodId);
-  }
 
   return (
     <div>
@@ -1572,83 +1551,92 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
       {tab === "timetable" && (
         <div>
-          <div className="mb-4 flex flex-wrap gap-2">
-            {timetableLoading ? (
-              <DataFetchLoader />
-            ) : timetables.length === 0 ? (
-              <p className="text-sm text-slate-400">
-                No timetable entries found for your active courses.
-              </p>
-            ) : (
-              timetables.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setSelectedTimetableId(t.id)}
-                  className={`rounded-lg border px-3 py-1.5 text-sm ${
-                    selectedTimetableId === t.id
-                      ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
-                      : "border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  {t.class_name} ({t.session}) — {t.shift}
-                </button>
-              ))
-            )}
-          </div>
-
-          {timetableDetail && (
-            <div className="overflow-x-auto card-3d p-4">
-              <table className="w-full border-collapse text-left text-sm">
+          {timetableLoading ? (
+            <DataFetchLoader />
+          ) : !timetableGrid || timetableGrid.slots.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No timetable entries found for your active courses.
+            </p>
+          ) : (
+            <div className="card-3d overflow-hidden">
+              <div className="border-b border-slate-200 bg-gradient-to-r from-indigo-50 via-white to-violet-50 p-5 dark:border-slate-700 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Teacher Timetable</h2>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border border-white/80 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Teacher Name</p>
+                    <p className="mt-1 font-semibold text-slate-800 dark:text-slate-100">{timetableGrid.teacher.name}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/80 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Workload Credit Hours (Committed)</p>
+                    <p className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-100">
+                      {timetableGrid.workload.committed_credit_hours ?? "Not set"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/80 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Assigned Credit Hours</p>
+                    <p className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-100">{timetableGrid.workload.assigned_credit_hours}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/80 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Workload Status</p>
+                    <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                      timetableGrid.workload.status === "Completed"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                        : timetableGrid.workload.status === "Overload"
+                          ? "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
+                    }`}>
+                      {timetableGrid.workload.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="overflow-x-auto p-4">
+                <table className="w-full min-w-[900px] border-collapse text-left text-sm">
                 <thead>
-                  <tr>
-                    <th className="border border-slate-200 px-2 py-2 dark:border-slate-700">Day</th>
-                    {timetableDetail.periods.map((p) => (
+                  <tr className="bg-slate-50 dark:bg-slate-800/70">
+                    <th className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-800">Day</th>
+                    {timetableGrid.slots.map((slot) => (
                       <th
-                        key={p.id}
-                        className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700"
+                        key={`${slot.start_time}-${slot.end_time}`}
+                        className="min-w-[175px] border border-slate-200 px-3 py-3 text-center text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300"
                       >
-                        {p.start_time.slice(0, 5)}–{p.end_time.slice(0, 5)}
+                        {slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {timetableDetail.days.map((d) => (
-                    <tr key={d.id}>
-                      <td className="border border-slate-200 px-2 py-2 font-medium dark:border-slate-700">
-                        {d.day_name}
+                  {timetableGrid.days.map((day) => (
+                    <tr key={day.day_name}>
+                      <td className="sticky left-0 z-10 border border-slate-200 bg-white px-3 py-3 font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        {day.day_name}
                       </td>
-                      {timetableDetail.periods.map((p) => {
-                        const cell = cellFor(d.id, p.id);
-                        return (
-                          <td
-                            key={p.id}
-                            className="border border-slate-200 px-2 py-2 text-xs dark:border-slate-700"
-                          >
-                            {cell?.allocation_id ? (
-                              <div>
-                                <div className="font-medium text-slate-800 dark:text-slate-100">
-                                  {cell.course_title}
+                      {day.cells.map((cell) => (
+                        <td
+                          key={`${cell.start_time}-${cell.end_time}`}
+                          className="border border-slate-200 p-2 align-top dark:border-slate-700"
+                        >
+                          {cell.courses.length > 0 ? (
+                            <div className="space-y-2">
+                              {cell.courses.map((course) => (
+                                <div key={course.allocation_id} className="rounded-lg bg-indigo-50 p-2.5 ring-1 ring-indigo-100 dark:bg-indigo-500/10 dark:ring-indigo-500/20">
+                                  <p className="font-semibold text-slate-800 dark:text-slate-100">{course.course_title}</p>
+                                  <p className="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+                                    {course.classes.map((item) => `${item.class_name} (${item.session})`).join(", ")}
+                                  </p>
                                 </div>
-                                {cell.combined_with && cell.combined_with.length > 0 && (
-                                  <div className="text-[10px] text-slate-400">
-                                    Combined:{" "}
-                                    {cell.combined_with
-                                      .map((cw) => `${cw.class_name} (${cw.session})`)
-                                      .join(",")}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-slate-300">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="py-4 text-center text-slate-300 dark:text-slate-700">—</div>
+                          )}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
@@ -1912,6 +1900,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             </div>
           )}
 
+          {!slotsLoading && markAllocationId && markSlots.length === 0 && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              No scheduled lecture is available for this course on the selected date.
+            </div>
+          )}
+
           {/* Multiple slots on same allocation → show picker */}
           {!slotsLoading && markSlots.length > 1 && (
             <div className="mb-4 card-3d p-4">
@@ -1927,8 +1921,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     <button
                       key={`${s.start_time}-${s.end_time}`}
                       onClick={() => {
+                        const requestId = ++attendanceRequestId.current;
                         setMarkSlot(s);
-                        loadRoster(s);
+                        setRosterRows([]);
+                        loadRoster(s, requestId);
                       }}
                       className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
                         isSelected
@@ -2110,7 +2106,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             <div className="mt-4 flex justify-end">
               <button
                 onClick={handleSaveRoster}
-                disabled={rosterSaving}
+                disabled={rosterSaving || rosterLoading || slotsLoading || !markSlot}
                 className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {rosterSaving ? <ButtonLoader /> : <Save size={16} />}
