@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Banknote, CheckCircle2, FileDown, Trash2, Wallet } from "lucide-react";
+import { Banknote, CheckCircle2, Eye, FileDown, Trash2, Wallet } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Modal from "@/components/ui/Modal";
 import { formatDateOnly } from "@/lib/format";
 import { TableLoader, ButtonLoader } from "@/components/ui/Loaders";
 import { useUserRole } from "@/lib/roleContext";
@@ -88,6 +89,7 @@ interface VisitingPreviewItem {
   total_lectures: string;
   amount: number;
   billing_period_month?: string | null;
+  attendance?: AttendanceRow[];
   transfer_group_id: string | null;
   transfer_part: number;
   transfer_total_parts: number;
@@ -110,6 +112,15 @@ interface PermanentPreviewItem {
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
+
+const attendanceStatusLabels: Record<string, string> = {
+  ok: "Present",
+  absent: "Absent",
+  fixture: "Fixture (Rescheduled)",
+  mid_term: "Mid Term Exam",
+  all_absent: "All Students Absent",
+  final_term: "Final Term Exams",
+};
 
 function TransferChainBadge({
   transfer_group_id,
@@ -332,6 +343,7 @@ export default function BillingManager() {
   const [customVisLoading, setCustomVisLoading] = useState(false);
   const [customVisGenerating, setCustomVisGenerating] = useState(false);
   const [customVisPreviewKey, setCustomVisPreviewKey] = useState("");
+  const [customVisDetails, setCustomVisDetails] = useState<VisitingPreviewItem | null>(null);
   const customVisRequestId = useRef(0);
 
   const [permDepartmentId, setPermDepartmentId] = useState("");
@@ -1166,6 +1178,7 @@ export default function BillingManager() {
                       <th className="px-4 py-3">Lectures</th>
                       <th className="px-4 py-3">Rate</th>
                       <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3 text-right">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1316,16 +1329,16 @@ export default function BillingManager() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {customVisLoading ? (
-                      <TableLoader colSpan={7} />
+                      <TableLoader colSpan={8} />
                     ) : !customVisTeacherId ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                           Select a department and visiting teacher to preview a custom bill.
                         </td>
                       </tr>
                     ) : customVisItems.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                           No unbilled lectures found for this teacher in the selected period.
                         </td>
                       </tr>
@@ -1365,6 +1378,16 @@ export default function BillingManager() {
                           </td>
                           <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
                             {Number(item.amount).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setCustomVisDetails(item)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                            >
+                              <Eye size={14} />
+                              View Details
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -1675,6 +1698,55 @@ export default function BillingManager() {
           />
         </div>
       )}
+
+      <Modal
+        open={!!customVisDetails}
+        onClose={() => setCustomVisDetails(null)}
+        title={
+          customVisDetails
+            ? `${customVisDetails.course_code} — Attendance Details`
+            : "Attendance Details"
+        }
+        widthClass="max-w-3xl"
+      >
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+          <table className="w-full min-w-[560px] border-collapse text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-3">Lecture Date</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Min Late</th>
+                <th className="px-4 py-3">Lecture Count</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {(customVisDetails?.attendance ?? []).map((row, index) => (
+                <tr key={`${row.attendance_date}-${index}`}>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+                    {formatDateOnly(row.attendance_date)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+                    {attendanceStatusLabels[row.status] ?? row.status.replaceAll("_", " ")}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+                    {row.late_minutes}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+                    {row.lecture_count}
+                  </td>
+                </tr>
+              ))}
+              {(customVisDetails?.attendance ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                    No attendance details are available for this course.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={!!deleteTarget}

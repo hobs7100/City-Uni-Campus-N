@@ -39,6 +39,12 @@ export async function GET(request: NextRequest) {
     classes: string[];
     total_lectures: string;
     billing_period_month: string | null;
+    attendance: {
+      attendance_date: string;
+      status: string;
+      late_minutes: number;
+      lecture_count: string;
+    }[];
   }>(
     `with attendance_totals as (
        select ar.allocation_id,
@@ -80,7 +86,8 @@ export async function GET(request: NextRequest) {
             c.title as course_title,
             coalesce(class_info.classes, array[]::text[]) as classes,
             totals.total_lectures,
-            totals.billing_period_month::text
+             totals.billing_period_month::text,
+             attendance_info.attendance
      from allocations al
      join attendance_totals totals on totals.allocation_id = al.id
      join courses c on c.id = al.course_id
@@ -94,6 +101,29 @@ export async function GET(request: NextRequest) {
        join classes cl on cl.id = s.class_id
        where als.allocation_id = al.id
      ) class_info
+     cross join lateral (
+       select coalesce(
+                json_agg(
+                  json_build_object(
+                    'attendance_date', ar.attendance_date,
+                    'status', ar.status,
+                    'late_minutes', ar.late_minutes,
+                    'lecture_count', ar.lecture_count
+                  )
+                  order by ar.attendance_date, ar.start_time
+                ),
+                '[]'::json
+              ) as attendance
+       from attendance_records ar
+       where ar.allocation_id = al.id
+         and ar.bill_item_id is null
+         and ar.attendance_date between $2 and $3
+         and (
+           totals.billing_period_month is null
+           or date_trunc('month', ar.attendance_date)::date =
+              totals.billing_period_month
+         )
+     ) attendance_info
      where al.teacher_id = $1
      order by c.code, c.title, totals.billing_period_month nulls first`,
     [teacherId, from, to],
