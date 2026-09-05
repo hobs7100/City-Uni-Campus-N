@@ -88,6 +88,7 @@ function DeliveryStatus({ delivered, allowed }: { delivered: number; allowed: nu
 }
 
 export default function SyllabusReportManager() {
+  const [departmentId, setDepartmentId] = useState("");
   const [classId, setClassId] = useState("");
   const [session, setSession] = useState("");
   const [semesterId, setSemesterId] = useState("");
@@ -117,13 +118,22 @@ export default function SyllabusReportManager() {
     load();
   }, [load]);
 
-  const classOptions = useMemo(() => {
+  const departmentOptions = useMemo(() => {
     const options = new Map<string, SemesterOption>();
     for (const semester of semesters) {
-      if (!options.has(semester.class_id)) options.set(semester.class_id, semester);
+      if (!options.has(semester.department_id)) options.set(semester.department_id, semester);
     }
     return Array.from(options.values());
   }, [semesters]);
+
+  const classOptions = useMemo(() => {
+    const options = new Map<string, SemesterOption>();
+    for (const semester of semesters) {
+      if (departmentId && semester.department_id !== departmentId) continue;
+      if (!options.has(semester.class_id)) options.set(semester.class_id, semester);
+    }
+    return Array.from(options.values());
+  }, [semesters, departmentId]);
 
   const sessionOptions = useMemo(
     () =>
@@ -151,11 +161,12 @@ export default function SyllabusReportManager() {
     () =>
       rows.filter(
         (row) =>
+          (!departmentId || row.department_id === departmentId) &&
           (!classId || row.class_id === classId) &&
           (!session || row.session === session) &&
           (!semesterId || row.id === semesterId),
       ),
-    [rows, classId, session, semesterId],
+    [rows, departmentId, classId, session, semesterId],
   );
 
   const groups = useMemo<ReportGroup[]>(() => {
@@ -207,7 +218,27 @@ export default function SyllabusReportManager() {
               </p>
             </div>
           </div>
-          <div className="grid w-full gap-3 sm:grid-cols-3 lg:w-[720px]">
+          <div className="grid w-full gap-3 sm:grid-cols-2 xl:w-[900px] xl:grid-cols-4">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-indigo-100">Department</span>
+              <select
+                value={departmentId}
+                onChange={(event) => {
+                  setDepartmentId(event.target.value);
+                  setClassId("");
+                  setSession("");
+                  setSemesterId("");
+                }}
+                className="w-full rounded-xl border border-white/25 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none ring-white/30 focus:ring-2"
+              >
+                <option value="">All departments</option>
+                {departmentOptions.map((option) => (
+                  <option key={option.department_id} value={option.department_id}>
+                    {option.department_name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-indigo-100">Class</span>
               <select
@@ -222,7 +253,7 @@ export default function SyllabusReportManager() {
                 <option value="">All classes</option>
                 {classOptions.map((option) => (
                   <option key={option.class_id} value={option.class_id}>
-                    {option.class_name} — {option.department_name}
+                    {option.class_name}
                   </option>
                 ))}
               </select>
