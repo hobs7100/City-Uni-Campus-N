@@ -88,17 +88,17 @@ function DeliveryStatus({ delivered, allowed }: { delivered: number; allowed: nu
 }
 
 export default function SyllabusReportManager() {
+  const [classId, setClassId] = useState("");
+  const [session, setSession] = useState("");
   const [semesterId, setSemesterId] = useState("");
   const [semesters, setSemesters] = useState<SemesterOption[]>([]);
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async (selectedSemesterId: string) => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (selectedSemesterId) params.set("semester_id", selectedSemesterId);
-      const response = await fetch(`/api/admin/syllabus-report?${params.toString()}`);
+      const response = await fetch("/api/admin/syllabus-report");
       const data = await response.json();
       if (!response.ok) {
         toast.error(data.error ?? "Unable to load the syllabus report.");
@@ -114,12 +114,53 @@ export default function SyllabusReportManager() {
   }, []);
 
   useEffect(() => {
-    load(semesterId);
-  }, [load, semesterId]);
+    load();
+  }, [load]);
+
+  const classOptions = useMemo(() => {
+    const options = new Map<string, SemesterOption>();
+    for (const semester of semesters) {
+      if (!options.has(semester.class_id)) options.set(semester.class_id, semester);
+    }
+    return Array.from(options.values());
+  }, [semesters]);
+
+  const sessionOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          semesters
+            .filter((semester) => !classId || semester.class_id === classId)
+            .map((semester) => semester.session),
+        ),
+      ),
+    [semesters, classId],
+  );
+
+  const semesterOptions = useMemo(
+    () =>
+      semesters.filter(
+        (semester) =>
+          (!classId || semester.class_id === classId) &&
+          (!session || semester.session === session),
+      ),
+    [semesters, classId, session],
+  );
+
+  const visibleRows = useMemo(
+    () =>
+      rows.filter(
+        (row) =>
+          (!classId || row.class_id === classId) &&
+          (!session || row.session === session) &&
+          (!semesterId || row.id === semesterId),
+      ),
+    [rows, classId, session, semesterId],
+  );
 
   const groups = useMemo<ReportGroup[]>(() => {
     const grouped = new Map<string, ReportGroup>();
-    for (const row of rows) {
+    for (const row of visibleRows) {
       const key = `${row.department_id}:${row.class_id}:${row.id}`;
       const current = grouped.get(key);
       if (current) {
@@ -137,19 +178,19 @@ export default function SyllabusReportManager() {
       }
     }
     return Array.from(grouped.values());
-  }, [rows]);
+  }, [visibleRows]);
 
   const totals = useMemo(() => {
-    const allowed = rows.reduce((sum, row) => sum + Number(row.allowed_lectures), 0);
-    const delivered = rows.reduce((sum, row) => sum + Number(row.delivered_lectures), 0);
+    const allowed = visibleRows.reduce((sum, row) => sum + Number(row.allowed_lectures), 0);
+    const delivered = visibleRows.reduce((sum, row) => sum + Number(row.delivered_lectures), 0);
     return {
-      courses: rows.length,
-      teachers: new Set(rows.map((row) => row.teacher_name).filter(Boolean)).size,
+      courses: visibleRows.length,
+      teachers: new Set(visibleRows.map((row) => row.teacher_name).filter(Boolean)).size,
       allowed,
       delivered,
       percentage: allowed > 0 ? (delivered / allowed) * 100 : 0,
     };
-  }, [rows]);
+  }, [visibleRows]);
 
   return (
     <div className="space-y-6">
@@ -166,37 +207,72 @@ export default function SyllabusReportManager() {
               </p>
             </div>
           </div>
-          <div className="w-full lg:w-[430px]">
-            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-indigo-100">
-              Class + Session + Active Semester
-            </label>
-            <div className="flex gap-2">
+          <div className="grid w-full gap-3 sm:grid-cols-3 lg:w-[720px]">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-indigo-100">Class</span>
               <select
-                value={semesterId}
-                onChange={(event) => setSemesterId(event.target.value)}
-                className="min-w-0 flex-1 rounded-xl border border-white/25 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none ring-white/30 focus:ring-2"
+                value={classId}
+                onChange={(event) => {
+                  setClassId(event.target.value);
+                  setSession("");
+                  setSemesterId("");
+                }}
+                className="w-full rounded-xl border border-white/25 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none ring-white/30 focus:ring-2"
               >
-                <option value="">All active semesters</option>
-                {semesters.map((semester) => (
-                  <option key={semester.id} value={semester.id}>
-                    {semester.class_name} — {semester.session} — Semester {semester.semester_number} ({semester.term_type})
+                <option value="">All classes</option>
+                {classOptions.map((option) => (
+                  <option key={option.class_id} value={option.class_id}>
+                    {option.class_name} — {option.department_name}
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-indigo-100">Session</span>
+              <select
+                value={session}
+                onChange={(event) => {
+                  setSession(event.target.value);
+                  setSemesterId("");
+                }}
+                className="w-full rounded-xl border border-white/25 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none ring-white/30 focus:ring-2"
+              >
+                <option value="">All sessions</option>
+                {sessionOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-indigo-100">Active Semester</span>
+              <div className="flex gap-2">
+                <select
+                  value={semesterId}
+                  onChange={(event) => setSemesterId(event.target.value)}
+                  className="min-w-0 flex-1 rounded-xl border border-white/25 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none ring-white/30 focus:ring-2"
+                >
+                  <option value="">All semesters</option>
+                  {semesterOptions.map((semester) => (
+                    <option key={semester.id} value={semester.id}>
+                      Semester {semester.semester_number} ({semester.term_type})
+                    </option>
+                  ))}
+                </select>
               <button
-                onClick={() => load(semesterId)}
+                onClick={load}
                 disabled={loading}
                 title="Refresh report"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 disabled:opacity-50"
               >
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
               </button>
-            </div>
+              </div>
+            </label>
           </div>
         </div>
       </div>
 
-      {!loading && rows.length > 0 && (
+      {!loading && visibleRows.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: "Courses", value: totals.courses, icon: BookCheck, color: "from-indigo-500 to-blue-500" },
