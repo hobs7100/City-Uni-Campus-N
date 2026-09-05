@@ -36,6 +36,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   admin: [
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Campus Report", href: "/dashboard/admin/campus-report", icon: "FileSearch" },
+    { label: "Syllabus Report", href: "/dashboard/admin/syllabus-report", icon: "BookCheck" },
     { label: "Overall Classes Summary", href: "/dashboard/admin/overall-classes-summary", icon: "School" },
     { label: "Users", href: "/dashboard/admin/users", icon: "Users" },
     { label: "Portal Management", href: "/dashboard/admin/portal-management", icon: "ShieldCheck" },
@@ -115,6 +116,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   assistant: [
     { label: "Overview", href: "/dashboard/admin", icon: "LayoutDashboard" },
     { label: "Campus Report", href: "/dashboard/admin/campus-report", icon: "FileSearch" },
+    { label: "Syllabus Report", href: "/dashboard/admin/syllabus-report", icon: "BookCheck" },
     { label: "Affiliations", href: "/dashboard/admin/affiliations", icon: "Landmark" },
     { label: "Faculties", href: "/dashboard/admin/departments", icon: "Building2" },
     { label: "Classes", href: "/dashboard/admin/classes", icon: "School" },
