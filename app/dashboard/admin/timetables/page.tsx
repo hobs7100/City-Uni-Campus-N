@@ -384,15 +384,13 @@ export default function TimetablesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
-                      {canEdit && (
-                        <Link
-                          href={`/dashboard/admin/timetables/${tt.id}`}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
-                          title="Open grid"
-                        >
-                          <CalendarDays size={16} />
-                        </Link>
-                      )}
+                      <Link
+                        href={`/dashboard/admin/timetables/${tt.id}`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                        title={canManage ? "Open grid" : "View grid"}
+                      >
+                        <CalendarDays size={16} />
+                      </Link>
                       {canRemove && (
                         <button
                           onClick={() => setDeleteTarget(tt)}

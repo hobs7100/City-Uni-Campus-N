@@ -359,6 +359,12 @@ export default function TimetableGridPage() {
         <p className="text-xs opacity-90">W.e.f {new Date(info.wef_date).toLocaleDateString()}</p>
       </div>
 
+      {!canManage && (
+        <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 print:hidden dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300">
+          View-only mode: timetable editing has been locked by the administrator.
+        </div>
+      )}
+
       <div className="overflow-x-auto card-3d card-hover print:rounded-none print:border-0">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 print:bg-indigo-600 print:text-white">
@@ -420,7 +426,11 @@ export default function TimetableGridPage() {
                         <button
                           onClick={() => openCell(cell)}
                           disabled={!canManage}
-                          className="w-full rounded-lg border border-indigo-200 bg-gradient-to-br from-indigo-50 to-sky-50 p-2 text-left shadow-sm hover:from-indigo-100 hover:to-sky-100 dark:border-indigo-500/30 dark:from-indigo-500/10 dark:to-sky-500/10 dark:hover:from-indigo-500/20 dark:hover:to-sky-500/20 print:border-indigo-300 print:bg-indigo-50 print:shadow-none print:hover:bg-indigo-50"
+                          className={`w-full rounded-lg border border-indigo-200 bg-gradient-to-br from-indigo-50 to-sky-50 p-2 text-left shadow-sm dark:border-indigo-500/30 dark:from-indigo-500/10 dark:to-sky-500/10 print:border-indigo-300 print:bg-indigo-50 print:shadow-none ${
+                            canManage
+                              ? "hover:from-indigo-100 hover:to-sky-100 dark:hover:from-indigo-500/20 dark:hover:to-sky-500/20"
+                              : "cursor-default"
+                          }`}
                         >
                           <div className="flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 print:text-indigo-800">
                             {cell.is_combined && <Layers size={11} />} {cell.course_title}
@@ -445,13 +455,16 @@ export default function TimetableGridPage() {
                             )}
                         </button>
                       ) : (
-                        <button
-                          onClick={() => cell && openCell(cell)}
-                          disabled={!canManage}
-                          className="flex h-12 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-300 hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 print:hidden"
-                        >
-                          <Plus size={16} />
-                        </button>
+                        canManage ? (
+                          <button
+                            onClick={() => cell && openCell(cell)}
+                            className="flex h-12 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-300 hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 print:hidden"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        ) : (
+                          <div className="h-12 w-full print:hidden" />
+                        )
                       )}
                     </td>
                   );
