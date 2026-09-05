@@ -80,6 +80,7 @@ export default function TimetablesPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
   const [printData, setPrintData] = useState<PrintableTimetableData[]>([]);
+  const [printRequested, setPrintRequested] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +113,27 @@ export default function TimetablesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!printRequested || printData.length === 0) return;
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => window.print());
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
+  }, [printRequested, printData]);
+
+  useEffect(() => {
+    const cleanup = () => {
+      setPrintRequested(false);
+      setPrintData([]);
+    };
+    window.addEventListener("afterprint", cleanup);
+    return () => window.removeEventListener("afterprint", cleanup);
+  }, []);
 
   function resetForm() {
     setDepartmentId("");
@@ -256,8 +278,8 @@ export default function TimetablesPage() {
           return data as PrintableTimetableData;
         }),
       );
+      setPrintRequested(true);
       setPrintData(results);
-      setTimeout(() => window.print(), 100);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to export timetables.");
     } finally {

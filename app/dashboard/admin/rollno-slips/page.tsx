@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   FileCheck2, Search, Eye, CheckCircle2, XCircle, AlertTriangle,
-  ChevronDown, ChevronUp, User, ShieldCheck, Trash2, X,
+  ChevronDown, ChevronUp, User, ShieldCheck, Trash2, X, FileDown,
 } from "lucide-react";
 import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
+import { escapePrintHtml, printHtmlDocument } from "@/lib/printDocument";
 
 /* ── types ─────────────────────────────────────────────────────────────── */
 interface Override {
@@ -62,6 +63,26 @@ interface StudentHistory {
     department_name: string;
   };
   semesters: SemesterHistory[];
+}
+
+interface AdminSlipData {
+  student: {
+    name: string;
+    father_name: string | null;
+    roll_no: string | null;
+    class_name: string;
+    session: string;
+    department: string;
+  };
+  semester: { semester_number: number; term_type: string };
+  overall_attendance: number;
+  rows: Array<{
+    course_id: string;
+    course_code: string;
+    course_title: string;
+    paper_date: string | null;
+    att_percentage: number;
+  }>;
 }
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
@@ -355,6 +376,7 @@ export default function RollnoSlipsPage() {
   const [search,    setSearch]    = useState("");
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [allowFor,  setAllowFor]  = useState<StudentRow | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -368,6 +390,78 @@ export default function RollnoSlipsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const printSlip = async (student: StudentRow) => {
+    setPrintingId(student.student_id);
+    try {
+      const response = await fetch(`/api/admin/rollno-slips/${student.student_id}`);
+      const data = (await response.json()) as AdminSlipData & { error?: string };
+      if (!response.ok) {
+        toast.error(data.error ?? "Unable to prepare the Roll Number Slip.");
+        return;
+      }
+      const formatDate = (value: string | null) =>
+        value
+          ? new Date(`${value}T00:00:00`).toLocaleDateString("en-PK", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "—";
+      const rows = data.rows
+        .map(
+          (row) => `<tr>
+            <td>${escapePrintHtml(row.course_code)}</td>
+            <td>${escapePrintHtml(row.course_title)}</td>
+            <td class="center">${escapePrintHtml(row.att_percentage.toFixed(1))}%</td>
+            <td class="center">${escapePrintHtml(formatDate(row.paper_date))}</td>
+          </tr>`,
+        )
+        .join("");
+      const html = `<!doctype html><html><head><meta charset="utf-8"/>
+        <title>Roll Number Slip</title>
+        <style>
+          @page{size:A4 portrait;margin:14mm}
+          *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+          body{font-family:Arial,sans-serif;color:#1e293b;margin:0}
+          .slip{border:2px solid #3730a3;border-radius:8px;overflow:hidden}
+          header{text-align:center;border-bottom:2px solid #3730a3;padding:16px}
+          header img{height:58px;max-width:100%;object-fit:contain}
+          h1{font-size:20px;color:#3730a3;margin:8px 0 2px;text-transform:uppercase}
+          .meta{padding:14px 20px;background:#f8fafc;display:grid;grid-template-columns:1fr 1fr;gap:7px 24px;font-size:12px}
+          .meta strong{color:#475569}
+          main{padding:18px 20px}
+          table{width:100%;border-collapse:collapse;font-size:11px}
+          th{background:#3730a3;color:#fff;text-align:left}
+          th,td{border:1px solid #cbd5e1;padding:7px 9px}
+          .center{text-align:center}
+          footer{background:#3730a3;color:#c7d2fe;padding:9px 20px;font-size:9px;text-align:center}
+        </style></head><body><section class="slip">
+          <header><img src="${window.location.origin}/images/logo.png" alt="City College"/>
+            <h1>Roll Number Slip</h1>
+            <div>Mid Term Examination — ${escapePrintHtml(data.semester.term_type)} ${escapePrintHtml(data.student.session)}</div>
+          </header>
+          <div class="meta">
+            <div><strong>Student:</strong> ${escapePrintHtml(data.student.name)}</div>
+            <div><strong>Father:</strong> ${escapePrintHtml(data.student.father_name || "—")}</div>
+            <div><strong>Roll No:</strong> ${escapePrintHtml(data.student.roll_no || "—")}</div>
+            <div><strong>Class:</strong> ${escapePrintHtml(data.student.class_name)}</div>
+            <div><strong>Department:</strong> ${escapePrintHtml(data.student.department)}</div>
+            <div><strong>Semester:</strong> ${escapePrintHtml(data.semester.semester_number)}</div>
+            <div><strong>Attendance:</strong> ${escapePrintHtml(data.overall_attendance.toFixed(1))}%</div>
+            <div><strong>Issue Date:</strong> ${escapePrintHtml(new Date().toLocaleDateString("en-PK"))}</div>
+          </div>
+          <main><table><thead><tr><th>Course Code</th><th>Course Title</th><th class="center">Attendance</th><th class="center">Paper Date</th></tr></thead>
+            <tbody>${rows}</tbody></table></main>
+          <footer>This is a computer-generated slip and does not require a signature.</footer>
+        </section></body></html>`;
+      await printHtmlDocument(html, `Roll Number Slip — ${student.name}`);
+    } catch {
+      toast.error("Unable to open the print dialog. Please try again.");
+    } finally {
+      setPrintingId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -553,6 +647,14 @@ export default function RollnoSlipsPage() {
                         >
                           <Eye size={12} />
                           History
+                        </button>
+                        <button
+                          onClick={() => printSlip(s)}
+                          disabled={printingId === s.student_id}
+                          className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300"
+                        >
+                          {printingId === s.student_id ? <ButtonLoader /> : <FileDown size={12} />}
+                          PDF
                         </button>
                         <button
                           onClick={() => setAllowFor(s)}

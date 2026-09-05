@@ -540,7 +540,7 @@ export default function CampusReportManager() {
     )}
 
     {/* ── Print-only area (hidden on screen, visible on print via globals.css) ── */}
-    <div id="campus-report-print-area" style={{ display: "none", fontFamily: "Arial, sans-serif", color: "#111", padding: "0 8px" }}>
+    <div id="campus-report-print-area" className="hidden" style={{ fontFamily: "Arial, sans-serif", color: "#111", padding: "0 8px" }}>
 
       {/* Logo + title */}
       <div style={{ textAlign: "center", marginBottom: 12 }}>

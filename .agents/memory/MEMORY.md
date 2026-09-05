@@ -16,3 +16,4 @@
 - [Portal permissions are restrictive overlays](portal-permission-overlay.md) — role/module locks narrow existing access; they never grant new routes, Admin always bypasses, and unset rows preserve prior behavior.
 - [Syllabus completion scoping](syllabus-completion-scoping.md) — completion is per class-semester-course; preserve history while excluding only future actions, clashes, and workload.
 - [Date-bounded student leave](date-bounded-student-leave.md) — monthly leave is evaluated per attendance date; never encode it as a persistent student status.
+- [Print CSS route scoping](print-css-route-scoping.md) — feature-specific visibility and page-size rules must never affect PDF output on unrelated routes.

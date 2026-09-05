@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { printHtmlDocument } from "@/lib/printDocument";
 import {
   Activity,
   AlertCircle,
@@ -590,12 +591,9 @@ export default function StudentDashboardManager() {
 </div>
 </body></html>`;
 
-    const win = window.open("", "_blank", "width=920,height=720");
-    if (!win) { toast.error("Pop-up blocked. Please allow pop-ups for this site and try again."); return; }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 600);
+    void printHtmlDocument(html, "Roll Number Slip").catch(() => {
+      toast.error("Unable to open the print dialog. Please try again.");
+    });
   }
 
   async function generateSlip() {

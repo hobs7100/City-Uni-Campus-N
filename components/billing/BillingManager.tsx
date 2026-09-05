@@ -335,6 +335,7 @@ export default function BillingManager() {
     billNumbersLabel: string;
     dateLabel: string;
   } | null>(null);
+  const [printRequested, setPrintRequested] = useState(false);
 
   const [visDepartmentId, setVisDepartmentId] = useState("");
   const [visitingSubTab, setVisitingSubTab] = useState<"semester" | "custom">("semester");
@@ -384,6 +385,28 @@ export default function BillingManager() {
       if (tRes.ok) setTeachers(tData.teachers);
       if (cRes.ok) setClasses(cData.classes ?? []);
     });
+  }, []);
+
+  useEffect(() => {
+    if (!printRequested || (!selectedBill && !combinedVisitingBill)) return;
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => window.print());
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
+  }, [printRequested, selectedBill, combinedVisitingBill]);
+
+  useEffect(() => {
+    const cleanup = () => {
+      setPrintRequested(false);
+      setSelectedBill(null);
+      setCombinedVisitingBill(null);
+    };
+    window.addEventListener("afterprint", cleanup);
+    return () => window.removeEventListener("afterprint", cleanup);
   }, []);
 
   const loadBills = useCallback(async () => {
@@ -528,12 +551,12 @@ export default function BillingManager() {
       const billNumbersLabel = generatedBills.map((b) => b.bill_number).join(",");
       toast.success(`${generatedBills.length} bill(s) generated.`);
       setSelectedBill(null);
+      setPrintRequested(true);
       setCombinedVisitingBill({
         items,
         billNumbersLabel,
         dateLabel: new Date().toLocaleDateString(),
       });
-      setTimeout(() => window.print(), 150);
       loadVisPreview();
       setTab("find");
     } finally {
@@ -633,13 +656,13 @@ export default function BillingManager() {
       };
       toast.success("Custom visiting-faculty bill generated.");
       setSelectedBill(null);
+      setPrintRequested(true);
       setCombinedVisitingBill({
         items: generatedBill.items,
         billNumbersLabel: generatedBill.bill_number,
         dateLabel: `${formatDateOnly(customVisFrom)} to ${formatDateOnly(customVisTo)}`,
       });
       setCustomVisItems([]);
-      setTimeout(() => window.print(), 150);
       setTab("find");
     } finally {
       setCustomVisGenerating(false);
@@ -808,8 +831,8 @@ export default function BillingManager() {
 
   function handlePrint(bill: Bill) {
     setCombinedVisitingBill(null);
+    setPrintRequested(true);
     setSelectedBill(bill);
-    setTimeout(() => window.print(), 100);
   }
 
   return (
