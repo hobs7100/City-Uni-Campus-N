@@ -531,13 +531,13 @@ export default function StudentDashboardManager() {
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Roll Number Slip</title>
 <style>
-  @page{size:A4 portrait;margin:8mm}
-  html,body{width:210mm;margin:0;padding:0;background:#fff}
-  body{font-family:Arial,'Segoe UI',sans-serif;color:#172033;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{size:A4 portrait;margin:0}
+  html{width:210mm;height:297mm;margin:0;padding:0;background:#fff}
+  body{width:210mm;min-height:297mm;margin:0;padding:12mm;font-family:Arial,'Segoe UI',sans-serif;color:#172033;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   *{box-sizing:border-box}
-  @media print{html,body{width:auto;height:auto;overflow:visible}}
+  @media print{html,body{margin:0;width:210mm;height:297mm;overflow:hidden}}
 </style></head><body>
-<main data-fit-single-page data-print-width-mm="194" data-print-height-mm="281" style="width:194mm;border:1.5px solid #273783;overflow:hidden;background:#fff">
+<main data-fit-single-page data-print-width-mm="186" data-print-height-mm="273" style="width:186mm;max-width:186mm;border:1.5px solid #273783;overflow:hidden;background:#fff">
   <header style="padding:10px 14px;border-bottom:2px solid #273783;display:grid;grid-template-columns:42mm 1fr 42mm;align-items:center;gap:8px">
     <img src="${window.location.origin}/images/logo.png" alt="City College" style="max-height:18mm;max-width:42mm;width:auto;display:block"/>
     <div style="text-align:center;flex:1">
