@@ -497,16 +497,16 @@ export default function StudentDashboardManager() {
 
     const renderGroup = (label: string, rows: SlipCourseRow[], headerBg: string) => {
       if (rows.length === 0) return "";
-      return `<div style="margin-bottom:18px">
-        <div style="background:${headerBg};color:white;padding:5px 12px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:4px 4px 0 0">${label}</div>
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
+      return `<section style="margin-bottom:10px;break-inside:avoid">
+        <div style="background:${headerBg};color:white;padding:5px 9px;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${label}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed">
           <thead>
             <tr style="background:#f1f5f9">
-              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:110px">Course Code</th>
-              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600">Course Title</th>
-              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:center;color:#475569;font-weight:600;width:90px">Attendance</th>
-              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:105px">Paper Date</th>
-              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:90px">Paper Time</th>
+              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:15%">Code</th>
+              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:40%">Course Title</th>
+              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:center;color:#334155;font-weight:700;width:13%">Attendance</th>
+              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:18%">Paper Date</th>
+              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:14%">Time</th>
             </tr>
           </thead>
           <tbody>
@@ -515,73 +515,79 @@ export default function StudentDashboardManager() {
               const attColor = pct >= 75 ? "#15803d" : "#b91c1c";
               const attBg    = pct >= 75 ? "#dcfce7"  : "#fee2e2";
               return `<tr>
-              <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_code}</td>
-              <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_title}${pct < 75 ? `&nbsp;<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">NOT ALLOWED FOR MID EXAM</span>` : ""}</td>
-              <td style="border:1px solid #e2e8f0;padding:6px 10px;text-align:center"><span style="display:inline-block;background:${attBg};color:${attColor};font-weight:700;font-size:11px;padding:2px 7px;border-radius:4px">${pct.toFixed(1)}%</span></td>
-              <td style="border:1px solid #e2e8f0;padding:6px 10px;font-weight:500">${r.paper_date ? fmtDate(r.paper_date) : "—"}</td>
-              <td style="border:1px solid #e2e8f0;padding:6px 10px;font-weight:500">${r.paper_time || "—"}</td>
+              <td style="border:1px solid #cbd5e1;padding:5px 7px;font-weight:700">${r.course_code}</td>
+              <td style="border:1px solid #cbd5e1;padding:5px 7px;overflow-wrap:anywhere">${r.course_title}${pct < 75 ? `<div style="color:#b91c1c;font-size:7px;font-weight:800;margin-top:2px">NOT ALLOWED FOR MID EXAM</div>` : ""}</td>
+              <td style="border:1px solid #cbd5e1;padding:5px 7px;text-align:center"><span style="display:inline-block;background:${attBg};color:${attColor};font-weight:800;font-size:9px;padding:2px 5px">${pct.toFixed(1)}%</span></td>
+              <td style="border:1px solid #cbd5e1;padding:5px 7px;font-weight:600">${r.paper_date ? fmtDate(r.paper_date) : "—"}</td>
+              <td style="border:1px solid #cbd5e1;padding:5px 7px;font-weight:600">${r.paper_time || "—"}</td>
             </tr>`;}).join("")}
           </tbody>
         </table>
-      </div>`;
+      </section>`;
     };
 
     const photoHtml = `<img src="${data.student.profile_image_url}" alt="Photo"
-             style="width:90px;height:110px;object-fit:cover;border-radius:4px;border:2px solid #e2e8f0;display:block"/>`;
+             style="width:28mm;height:34mm;object-fit:cover;border:1px solid #94a3b8;display:block"/>`;
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Roll Number Slip</title>
 <style>
-  @page{size:A4 portrait;margin:14mm}
-  body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;margin:0;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{size:A4 portrait;margin:8mm}
+  html,body{width:210mm;margin:0;padding:0;background:#fff}
+  body{font-family:Arial,'Segoe UI',sans-serif;color:#172033;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   *{box-sizing:border-box}
+  @media print{html,body{width:auto;height:auto;overflow:visible}}
 </style></head><body>
-<div data-fit-single-page style="border:2px solid #3730a3;border-radius:8px;overflow:hidden">
-  <div style="background:#ffffff;padding:18px 24px;border-bottom:2px solid #3730a3;display:flex;align-items:center;justify-content:space-between;gap:16px">
-    <img src="${window.location.origin}/images/logo.png" alt="City College" style="height:54px;width:auto;display:block;flex-shrink:0"/>
+<main data-fit-single-page data-print-width-mm="194" data-print-height-mm="281" style="width:194mm;border:1.5px solid #273783;overflow:hidden;background:#fff">
+  <header style="padding:10px 14px;border-bottom:2px solid #273783;display:grid;grid-template-columns:42mm 1fr 42mm;align-items:center;gap:8px">
+    <img src="${window.location.origin}/images/logo.png" alt="City College" style="max-height:18mm;max-width:42mm;width:auto;display:block"/>
     <div style="text-align:center;flex:1">
-      <div style="color:#3730a3;font-size:20px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Roll Number Slip</div>
-      <div style="color:#64748b;font-size:11px">Mid Term Examination &mdash; ${data.semester.term_type} ${data.student.session}</div>
+      <div style="color:#273783;font-size:18px;font-weight:800;letter-spacing:.05em;text-transform:uppercase">Roll Number Slip</div>
+      <div style="color:#475569;font-size:9.5px;font-weight:600;margin-top:3px">MID TERM EXAMINATION</div>
     </div>
-    <div style="width:54px;flex-shrink:0"></div>
-  </div>
-  <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:14px 24px">
-    <div style="display:flex;align-items:flex-start;gap:18px">
-      <table style="flex:1;border-collapse:collapse;font-size:11.5px">
+    <div style="justify-self:end;border:1px solid #cbd5e1;padding:6px 8px;text-align:center;min-width:37mm">
+      <div style="font-size:7.5px;color:#64748b;text-transform:uppercase;font-weight:700">Academic Term</div>
+      <div style="font-size:10px;color:#273783;font-weight:800;margin-top:2px">${data.semester.term_type}</div>
+      <div style="font-size:8px;color:#475569;margin-top:1px">${data.student.session}</div>
+    </div>
+  </header>
+  <section style="background:#f8fafc;border-bottom:1px solid #cbd5e1;padding:9px 14px">
+    <div style="display:grid;grid-template-columns:1fr 28mm;align-items:stretch;gap:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:10px">
         <tr>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:115px">Student Name</td>
-          <td style="padding:4px 8px;font-weight:600;color:#1e293b">${data.student.name}</td>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em;width:80px">Class</td>
-          <td style="padding:4px 8px;color:#1e293b">${data.student.class_name}</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px;width:24mm">Student Name</td>
+           <td style="padding:4px 6px;font-weight:800;border-bottom:1px solid #dbe2ea">${data.student.name}</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px;width:17mm">Class</td>
+           <td style="padding:4px 6px;font-weight:700;border-bottom:1px solid #dbe2ea">${data.student.class_name}</td>
         </tr>
         <tr>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Father&rsquo;s Name</td>
-          <td style="padding:4px 8px;color:#1e293b">${data.student.father_name || "&mdash;"}</td>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Session</td>
-          <td style="padding:4px 8px;color:#1e293b">${data.student.session}</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Father&rsquo;s Name</td>
+           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">${data.student.father_name || "&mdash;"}</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Session</td>
+           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">${data.student.session}</td>
         </tr>
         <tr>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Department</td>
-          <td style="padding:4px 8px;color:#1e293b">${data.student.department}</td>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Semester</td>
-          <td style="padding:4px 8px;color:#1e293b">Semester ${data.semester.semester_number}</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Department</td>
+           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">${data.student.department}</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Semester</td>
+           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">Semester ${data.semester.semester_number}</td>
         </tr>
         <tr>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Issue Date</td>
-          <td style="padding:4px 8px;color:#1e293b">${today}</td>
-          <td style="padding:4px 0;color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.06em">Attendance</td>
-          <td style="padding:4px 8px;font-weight:600;color:${data.overall_attendance >= 75 ? "#15803d" : "#b91c1c"}">${data.overall_attendance.toFixed(1)}%</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Issue Date</td>
+           <td style="padding:4px 6px">${today}</td>
+           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Attendance</td>
+           <td style="padding:4px 6px;font-weight:800;color:${data.overall_attendance >= 75 ? "#15803d" : "#b91c1c"}">${data.overall_attendance.toFixed(1)}%</td>
         </tr>
       </table>
       <div style="flex-shrink:0">${photoHtml}</div>
     </div>
-  </div>
-  <div style="padding:16px 24px">
+  </section>
+  <section style="padding:10px 14px 2px">
     ${renderGroup("Date Sheet \u2013 Theory", theoryRows, "#3730a3")}
     ${renderGroup("Date Sheet \u2013 Practical", practicalRows, "#047857")}
-  </div>
-  <div style="margin:0 24px 16px;border:1px solid #e2e8f0;border-radius:4px;padding:12px">
-    <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;border-bottom:1px solid #f1f5f9;padding-bottom:4px">Instructions</div>
-    <ol style="margin:0;padding-left:16px;font-size:10px;color:#475569;line-height:1.85">
+  </section>
+  <section style="margin:0 14px 9px;border:1px solid #cbd5e1;padding:8px 10px;break-inside:avoid">
+    <div style="font-size:8.5px;font-weight:800;color:#273783;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Important Instructions</div>
+    <ol style="margin:0;padding-left:15px;font-size:8px;color:#334155;line-height:1.45;columns:2;column-gap:28px">
       <li>Students will not be allowed to enter the examination hall without a valid Roll Number Slip and Original Student ID Card.</li>
       <li>Report to the examination hall at least 30 minutes before the scheduled examination time.</li>
       <li>Students arriving more than 15 minutes late after the commencement of the examination will not be permitted to enter.</li>
@@ -589,20 +595,20 @@ export default function StudentDashboardManager() {
       <li>Any form of cheating, possession of unauthorized material, or misconduct will result in disciplinary action according to university rules.</li>
       <li>Maintain complete silence and follow all instructions given by the invigilators throughout the examination.</li>
     </ol>
-  </div>
-  <div style="margin:0 24px 16px;border:1.5px solid #3730a3;border-radius:4px;padding:10px 12px">
-    <div style="font-size:10px;font-weight:700;color:#3730a3;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Account Office Clearance</div>
-    <div style="display:grid;grid-template-columns:1fr 170px 150px;gap:16px;align-items:end;font-size:10px;color:#475569">
-      <div><div style="margin-bottom:18px">Remarks:</div><div style="border-bottom:1px solid #94a3b8"></div></div>
-      <div style="text-align:center"><div style="height:18px;border-bottom:1px solid #94a3b8"></div><div style="margin-top:4px">Authorized Signature</div></div>
-      <div style="text-align:center"><div style="height:18px;border-bottom:1px solid #94a3b8"></div><div style="margin-top:4px">Official Stamp</div></div>
+  </section>
+  <section style="margin:0 14px 9px;border:1.5px solid #273783;padding:8px 10px;break-inside:avoid">
+    <div style="font-size:8.5px;font-weight:800;color:#273783;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px">Account Office Clearance</div>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:14px;align-items:end;font-size:8px;color:#475569">
+      <div><div style="height:16px;border-bottom:1px solid #64748b"></div><div style="margin-top:3px">Remarks</div></div>
+      <div style="text-align:center"><div style="height:16px;border-bottom:1px solid #64748b"></div><div style="margin-top:3px">Authorized Signature</div></div>
+      <div style="text-align:center"><div style="height:16px;border-bottom:1px solid #64748b"></div><div style="margin-top:3px">Official Stamp</div></div>
     </div>
-  </div>
-  <div style="background:#3730a3;padding:8px 24px;display:flex;justify-content:space-between;align-items:center">
-    <span style="color:#c7d2fe;font-size:9px">This is a computer-generated slip and does not require a signature.</span>
-    <span style="color:#c7d2fe;font-size:9px">City College &mdash; University Campus</span>
-  </div>
-</div>
+  </section>
+  <footer style="background:#273783;padding:6px 14px;display:flex;justify-content:space-between;align-items:center">
+    <span style="color:#e0e7ff;font-size:7.5px">Computer-generated examination slip</span>
+    <span style="color:#e0e7ff;font-size:7.5px;font-weight:700">City College &mdash; University Campus</span>
+  </footer>
+</main>
 </body></html>`;
 
     void printHtmlDocument(html, "Roll Number Slip").catch(() => {

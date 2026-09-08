@@ -17,3 +17,4 @@
 - [Syllabus completion scoping](syllabus-completion-scoping.md) — completion is per class-semester-course; preserve history while excluding only future actions, clashes, and workload.
 - [Date-bounded student leave](date-bounded-student-leave.md) — monthly leave is evaluated per attendance date; never encode it as a persistent student status.
 - [Print CSS route scoping](print-css-route-scoping.md) — feature-specific visibility and page-size rules must never affect PDF output on unrelated routes.
+- [Print iframe viewport sizing](print-iframe-viewport-sizing.md) — hidden print frames must render at page dimensions before measuring and fitting content.

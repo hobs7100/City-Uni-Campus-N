@@ -6,10 +6,10 @@ export async function printHtmlDocument(html: string, title: string) {
   iframe.setAttribute("aria-hidden", "true");
   Object.assign(iframe.style, {
     position: "fixed",
-    right: "0",
-    bottom: "0",
-    width: "1px",
-    height: "1px",
+    left: "-10000px",
+    top: "0",
+    width: "210mm",
+    height: "297mm",
     border: "0",
     opacity: "0",
     pointerEvents: "none",
@@ -44,10 +44,18 @@ export async function printHtmlDocument(html: string, title: string) {
 
   const singlePageElement = frameDocument.querySelector<HTMLElement>("[data-fit-single-page]");
   if (singlePageElement) {
-    const printableA4HeightPx = (269 / 25.4) * 96;
+    const printableWidthMm = Number(singlePageElement.dataset.printWidthMm || 194);
+    const printableHeightMm = Number(singlePageElement.dataset.printHeightMm || 281);
+    const printableWidthPx = (printableWidthMm / 25.4) * 96;
+    const printableHeightPx = (printableHeightMm / 25.4) * 96;
+    const contentWidth = singlePageElement.scrollWidth;
     const contentHeight = singlePageElement.scrollHeight;
-    if (contentHeight > printableA4HeightPx) {
-      const scale = printableA4HeightPx / contentHeight;
+    const scale = Math.min(
+      1,
+      printableWidthPx / contentWidth,
+      printableHeightPx / contentHeight,
+    );
+    if (scale < 1) {
       singlePageElement.style.zoom = String(scale);
     }
   }
