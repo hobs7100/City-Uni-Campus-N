@@ -36,6 +36,14 @@ export async function GET() {
 
   if (!student) return NextResponse.json({ error: "Student not found." }, { status: 404 });
 
+  if (!student.profile_image_url) {
+    return NextResponse.json({
+      allowed: false,
+      reason: "missing_profile_photo",
+      message: "Please upload your profile picture from the Profile section before generating your Roll Number Slip.",
+    });
+  }
+
   // ── Validation 1: active student ────────────────────────────────────────────
   if (student.status !== "active") {
     return NextResponse.json({
@@ -50,7 +58,10 @@ export async function GET() {
     id: string; semester_number: number; term_type: string;
   }>(
     `select id, semester_number, term_type
-     from semesters where class_id = $1 and status = 'active'`,
+     from semesters
+     where class_id = $1 and status in ('active', 'mid_term')
+     order by case status when 'mid_term' then 0 else 1 end
+     limit 1`,
     [student.class_id]
   );
 

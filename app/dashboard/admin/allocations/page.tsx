@@ -95,6 +95,7 @@ interface TeacherWorkloadDetail {
   course_code: string;
   course_title: string;
   credit_hours: string;
+  allocation_type: "workload" | "per_credit_hour" | "fixed";
   assigned_date: string;
   classes: string[];
 }
@@ -899,7 +900,7 @@ export default function AllocationsPage() {
                 </div>
               )}
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Counts all current course allocations linked to Active or Mid-Term semesters once per allocation.
+                Counts current Workload and Fixed allocations linked to Active or Mid-Term semesters. Per Credit Hour courses are shown in details but excluded from the workload total.
               </p>
             </div>
           )}
@@ -967,13 +968,14 @@ export default function AllocationsPage() {
                 <th className="px-4 py-3">Course</th>
                 <th className="px-4 py-3">Class</th>
                 <th className="px-4 py-3 text-center">Credit Hours</th>
+                <th className="px-4 py-3">Workload</th>
                 <th className="px-4 py-3">Assigned Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {(teacherWorkload?.details ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-slate-400">
+                  <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
                     No current workload allocations found.
                   </td>
                 </tr>
@@ -987,6 +989,13 @@ export default function AllocationsPage() {
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{detail.classes.join(", ")}</td>
                     <td className="px-4 py-3 text-center font-semibold text-indigo-700 dark:text-indigo-300">
                       {Number(detail.credit_hours).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      {detail.allocation_type === "per_credit_hour" ? (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">Excluded</span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">Counted</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {new Date(`${detail.assigned_date}T00:00:00`).toLocaleDateString()}

@@ -42,6 +42,16 @@ export async function printHtmlDocument(html: string, title: string) {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
   );
 
+  const singlePageElement = frameDocument.querySelector<HTMLElement>("[data-fit-single-page]");
+  if (singlePageElement) {
+    const printableA4HeightPx = (269 / 25.4) * 96;
+    const contentHeight = singlePageElement.scrollHeight;
+    if (contentHeight > printableA4HeightPx) {
+      const scale = printableA4HeightPx / contentHeight;
+      singlePageElement.style.zoom = String(scale);
+    }
+  }
+
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return;

@@ -1683,7 +1683,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-amber-50 dark:bg-amber-500/5" },
                             { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
                           ].map(({ label, isPractical, hdrCls }) => {
-                            const subRows = group.rows.filter((r: TeacherRdRow) => (Number(r.credit_hours) === 1) === isPractical);
+                            const subRows = group.rows.filter((r: TeacherRdRow) =>
+                              (Number(r.credit_hours) === 1 &&
+                                !r.course_title.toLowerCase().includes("translation of holy quran")) === isPractical
+                            );
                             if (subRows.length === 0) return null;
                             return (
                               <div key={label}>
@@ -1781,7 +1784,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                           { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-slate-50 dark:bg-slate-800" },
                           { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
                         ].map(({ label, isPractical, hdrCls }) => {
-                          const subRows = group.rows.filter((r: TeacherDsRow) => (Number(r.credit_hours) === 1) === isPractical);
+                          const subRows = group.rows.filter((r: TeacherDsRow) =>
+                            (Number(r.credit_hours) === 1 &&
+                              !r.course_title.toLowerCase().includes("translation of holy quran")) === isPractical
+                          );
                           if (subRows.length === 0) return null;
                           return (
                             <div key={label}>

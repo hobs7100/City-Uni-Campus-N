@@ -481,8 +481,14 @@ export default function StudentDashboardManager() {
       year: "numeric", month: "long", day: "numeric",
     });
 
-    const theoryRows = data.rows.filter((r) => Number(r.credit_hours) !== 1);
-    const practicalRows = data.rows.filter((r) => Number(r.credit_hours) === 1);
+    const byPaperDate = (a: SlipCourseRow, b: SlipCourseRow) =>
+      (a.paper_date ?? "9999-12-31").localeCompare(b.paper_date ?? "9999-12-31") ||
+      a.course_title.localeCompare(b.course_title);
+    const isPracticalCourse = (row: SlipCourseRow) =>
+      Number(row.credit_hours) === 1 &&
+      !row.course_title.toLowerCase().includes("translation of holy quran");
+    const theoryRows = data.rows.filter((r) => !isPracticalCourse(r)).sort(byPaperDate);
+    const practicalRows = data.rows.filter(isPracticalCourse).sort(byPaperDate);
 
     const fmtDate = (d: string) =>
       new Date(d + "T00:00:00").toLocaleDateString("en-PK", {
@@ -520,12 +526,8 @@ export default function StudentDashboardManager() {
       </div>`;
     };
 
-    const photoHtml = data.student.profile_image_url
-      ? `<img src="${data.student.profile_image_url}" alt="Photo"
-             style="width:90px;height:110px;object-fit:cover;border-radius:4px;border:2px solid #e2e8f0;display:block"/>`
-      : `<div style="width:90px;height:110px;border-radius:4px;border:2px dashed #cbd5e1;background:#f1f5f9;display:flex;align-items:center;justify-content:center">
-           <span style="font-size:9px;color:#94a3b8;text-align:center;line-height:1.4">No<br/>Photo</span>
-         </div>`;
+    const photoHtml = `<img src="${data.student.profile_image_url}" alt="Photo"
+             style="width:90px;height:110px;object-fit:cover;border-radius:4px;border:2px solid #e2e8f0;display:block"/>`;
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Roll Number Slip</title>
 <style>
@@ -533,7 +535,7 @@ export default function StudentDashboardManager() {
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;margin:0;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   *{box-sizing:border-box}
 </style></head><body>
-<div style="border:2px solid #3730a3;border-radius:8px;overflow:hidden">
+<div data-fit-single-page style="border:2px solid #3730a3;border-radius:8px;overflow:hidden">
   <div style="background:#ffffff;padding:18px 24px;border-bottom:2px solid #3730a3;display:flex;align-items:center;justify-content:space-between;gap:16px">
     <img src="${window.location.origin}/images/logo.png" alt="City College" style="height:54px;width:auto;display:block;flex-shrink:0"/>
     <div style="text-align:center;flex:1">
@@ -588,6 +590,14 @@ export default function StudentDashboardManager() {
       <li>Maintain complete silence and follow all instructions given by the invigilators throughout the examination.</li>
     </ol>
   </div>
+  <div style="margin:0 24px 16px;border:1.5px solid #3730a3;border-radius:4px;padding:10px 12px">
+    <div style="font-size:10px;font-weight:700;color:#3730a3;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Account Office Clearance</div>
+    <div style="display:grid;grid-template-columns:1fr 170px 150px;gap:16px;align-items:end;font-size:10px;color:#475569">
+      <div><div style="margin-bottom:18px">Remarks:</div><div style="border-bottom:1px solid #94a3b8"></div></div>
+      <div style="text-align:center"><div style="height:18px;border-bottom:1px solid #94a3b8"></div><div style="margin-top:4px">Authorized Signature</div></div>
+      <div style="text-align:center"><div style="height:18px;border-bottom:1px solid #94a3b8"></div><div style="margin-top:4px">Official Stamp</div></div>
+    </div>
+  </div>
   <div style="background:#3730a3;padding:8px 24px;display:flex;justify-content:space-between;align-items:center">
     <span style="color:#c7d2fe;font-size:9px">This is a computer-generated slip and does not require a signature.</span>
     <span style="color:#c7d2fe;font-size:9px">City College &mdash; University Campus</span>
@@ -612,6 +622,7 @@ export default function StudentDashboardManager() {
           no_active_semester: "No Active Semester",
           no_datesheet: "Date Sheet Not Available",
           low_attendance: "Insufficient Attendance",
+          missing_profile_photo: "Profile Picture Required",
         };
         setSlipBlock({
           title: titles[data.reason as string] ?? "Cannot Generate Slip",
@@ -1432,7 +1443,10 @@ export default function StudentDashboardManager() {
                 { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-amber-50 dark:bg-amber-500/5" },
                 { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
               ].map(({ label, isPractical, hdrCls }) => {
-                const rows = rdRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                const rows = rdRows.filter((r) =>
+                  (Number(r.credit_hours) === 1 &&
+                    !r.course_title.toLowerCase().includes("translation of holy quran")) === isPractical
+                );
                 if (rows.length === 0) return null;
                 return (
                   <div key={label}>
@@ -1503,7 +1517,10 @@ export default function StudentDashboardManager() {
                 { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-slate-50 dark:bg-slate-800" },
                 { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
               ].map(({ label, isPractical, hdrCls }) => {
-                const rows = dsRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                const rows = dsRows.filter((r) =>
+                  (Number(r.credit_hours) === 1 &&
+                    !r.course_title.toLowerCase().includes("translation of holy quran")) === isPractical
+                );
                 if (rows.length === 0) return null;
                 return (
                   <div key={label}>

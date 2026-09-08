@@ -140,6 +140,13 @@ interface RdRow {
   return_date: string;
 }
 
+function isPracticalDateSheetCourse(row: { credit_hours: string; course_title: string }) {
+  return (
+    Number(row.credit_hours) === 1 &&
+    !row.course_title.toLowerCase().includes("translation of holy quran")
+  );
+}
+
 interface AllResultsRow {
   semester_id: string;
   course_id: string;
@@ -1594,7 +1601,7 @@ export default function ResultsManager() {
                 { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-slate-50 dark:bg-slate-800" },
                 { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
               ].map(({ label, isPractical, hdrCls }) => {
-                const rows = dsRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                const rows = dsRows.filter((r) => isPracticalDateSheetCourse(r) === isPractical);
                 if (rows.length === 0) return null;
                 return (
                   <div key={label} className="mb-5">
@@ -1840,7 +1847,7 @@ export default function ResultsManager() {
                 { label: "Date Sheet – Theory",    isPractical: false, hdrCls: "bg-amber-50 dark:bg-amber-500/5" },
                 { label: "Date Sheet – Practical", isPractical: true,  hdrCls: "bg-green-50 dark:bg-green-500/5" },
               ].map(({ label, isPractical, hdrCls }) => {
-                const rows = rdRows.filter((r) => (Number(r.credit_hours) === 1) === isPractical);
+                const rows = rdRows.filter((r) => isPracticalDateSheetCourse(r) === isPractical);
                 if (rows.length === 0) return null;
                 return (
                   <div key={label} className="mb-5">

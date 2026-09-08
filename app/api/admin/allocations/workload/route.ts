@@ -7,6 +7,7 @@ interface WorkloadDetail {
   course_code: string;
   course_title: string;
   credit_hours: string;
+  allocation_type: "workload" | "per_credit_hour" | "fixed";
   assigned_date: string;
   classes: string[];
 }
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
        c.code as course_code,
        c.title as course_title,
        c.credit_hours::text as credit_hours,
+       a.allocation_type,
        to_char(coalesce(a.started_at, a.created_at::date), 'YYYY-MM-DD') as assigned_date,
        array_agg(
          distinct cl.class_name || ' (' || cl.session || ') - Sem ' || s.semester_number
@@ -71,7 +73,10 @@ export async function GET(request: NextRequest) {
   );
 
   const currentWorkload = details.reduce(
-    (total, detail) => total + Number(detail.credit_hours),
+    (total, detail) =>
+      detail.allocation_type === "per_credit_hour"
+        ? total
+        : total + Number(detail.credit_hours),
     0,
   );
 
