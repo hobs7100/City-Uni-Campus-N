@@ -68,15 +68,26 @@ export async function GET(request: NextRequest) {
   }>(
     `select
        coalesce((
-         select sum(c.credit_hours)
-         from allocations al
-         join courses c on c.id = al.course_id
-         where al.teacher_id = t.id
+         select sum(eligible_courses.credit_hours)
+         from (
+           select distinct c.id, c.credit_hours
+           from allocations al
+           join courses c on c.id = al.course_id
+           where al.teacher_id = t.id
+             and exists (
+               select 1
+               from attendance_records ar
+               where ar.allocation_id = al.id
+                 and ar.bill_item_id is null
+                 and ar.attendance_date between $2 and $3
+                 and ar.lecture_count > 0
+             )
+         ) eligible_courses
        ), 0)::text as total_assigned_credit_hours,
        coalesce(t.workload_credit_hours, 0)::text as workload_credit_hours_committed
      from teachers t
      where t.id = $1`,
-    [teacherId]
+    [teacherId, from, to]
   );
 
   return NextResponse.json({

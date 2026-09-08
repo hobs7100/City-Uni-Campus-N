@@ -1511,7 +1511,7 @@ export default function BillingManager() {
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="card-3d p-4">
                 <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
-                  Total Credit Hours Assigned
+                  Total Credit Hours Assigned (Selected Period)
                 </div>
                 <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
                   {Number(permSummary.total_assigned_credit_hours).toLocaleString()}
