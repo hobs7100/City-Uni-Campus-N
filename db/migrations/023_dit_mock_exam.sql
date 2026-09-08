@@ -27,6 +27,7 @@ create table if not exists dit_mock_results (
   student_id      uuid        not null references students(id)          on delete cascade,
   test_date       date        not null,
   obtained_marks  integer     not null check (obtained_marks >= 0),
+  is_absent       boolean     not null default false,
   remarks         text,
   submitted_by    uuid        not null references teachers(id)          on delete restrict,
   created_at      timestamptz not null default now(),

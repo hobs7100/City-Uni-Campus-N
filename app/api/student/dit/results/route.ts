@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     passing_marks: number;
     test_date: string;
     obtained_marks: number;
+    is_absent: boolean;
     remarks: string | null;
     course_title: string;
     course_code: string;
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
             ts.passing_marks,
             to_char(dmr.test_date, 'YYYY-MM-DD') as test_date,
             dmr.obtained_marks,
+             dmr.is_absent,
             dmr.remarks,
             co.title                              as course_title,
             co.code                               as course_code,

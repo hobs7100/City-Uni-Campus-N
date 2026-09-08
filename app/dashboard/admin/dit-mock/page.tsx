@@ -41,6 +41,7 @@ interface DitResult {
   allocation_id: string;
   test_date: string;
   obtained_marks: number;
+  is_absent: boolean;
   remarks: string | null;
   teacher_name: string;
 }
@@ -54,7 +55,8 @@ interface DitStudent {
 }
 
 /* ─── Grade helper ───────────────────────────────────────────────────────── */
-function calcGrade(obtained: number, total: number, passing: number): string {
+function calcGrade(obtained: number, total: number, passing: number, isAbsent = false): string {
+  if (isAbsent) return "Absent";
   const pct = total > 0 ? (obtained / total) * 100 : 0;
   if (obtained < passing) return "F";
   if (pct >= 90) return "A+";
@@ -104,6 +106,7 @@ export default function DitMockPage() {
   const [editResultOpen,     setEditResultOpen]     = useState(false);
   const [editResultSaving,   setEditResultSaving]   = useState(false);
   const [editObtained,       setEditObtained]       = useState("");
+  const [editAbsent,         setEditAbsent]         = useState(false);
   const [editRemarks,        setEditRemarks]        = useState("");
 
   /* ── DIT class/semester options for View Results filter ─────────────── */
@@ -242,6 +245,7 @@ export default function DitMockPage() {
   function openEditResult(r: DitResult) {
     setEditResultTarget(r);
     setEditObtained(String(r.obtained_marks));
+    setEditAbsent(r.is_absent);
     setEditRemarks(r.remarks ?? "");
     setEditResultOpen(true);
   }
@@ -253,7 +257,7 @@ export default function DitMockPage() {
     try {
       const res  = await fetch(`/api/admin/dit/results/${editResultTarget.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ obtained_marks: Number(editObtained), remarks: editRemarks || null }),
+        body: JSON.stringify({ obtained_marks: editAbsent ? 0 : Number(editObtained), is_absent: editAbsent, remarks: editRemarks || null }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Failed."); return; }
@@ -277,12 +281,13 @@ export default function DitMockPage() {
   /* ─── Summary for View Results ───────────────────────────────────────── */
   const vrSummary = useMemo(() => {
     if (vrResults.length === 0) return null;
-    const totalObtained = vrResults.reduce((s, r) => s + r.obtained_marks, 0);
-    const totalMax      = vrResults.reduce((s, r) => s + r.total_marks, 0);
+    const scored = vrResults.filter((r) => !r.is_absent);
+    const totalObtained = scored.reduce((s, r) => s + r.obtained_marks, 0);
+    const totalMax      = scored.reduce((s, r) => s + r.total_marks, 0);
     const pct = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : "0.0";
     const firstPassing  = vrResults[0]?.passing_marks ?? 0;
-    const grade = calcGrade(totalObtained / vrResults.length, totalMax / vrResults.length, firstPassing);
-    return { totalObtained, totalMax, pct, grade };
+    const grade = scored.length ? calcGrade(totalObtained / scored.length, totalMax / scored.length, firstPassing) : "—";
+    return { totalObtained, totalMax, pct, grade, absentCount: vrResults.length - scored.length };
   }, [vrResults]);
 
   /* ─── Print-only info ────────────────────────────────────────────────── */
@@ -470,7 +475,7 @@ export default function DitMockPage() {
                     <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No results found for the selected filters.</td></tr>
                   ) : (
                     vrResults.map((r) => {
-                      const grade = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks);
+                      const grade = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks, r.is_absent);
                       return (
                         <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                           <td className="px-3 py-3">
@@ -482,10 +487,11 @@ export default function DitMockPage() {
                           <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{r.test_series_name}</td>
                           <td className="px-3 py-3 text-slate-500">{r.course_code}</td>
                           <td className="px-3 py-3 text-slate-500">{r.test_date}</td>
-                          <td className="px-3 py-3 text-center font-semibold">{r.obtained_marks}/{r.total_marks}</td>
+                          <td className="px-3 py-3 text-center font-semibold">{r.is_absent ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Absent</span> : `${r.obtained_marks}/${r.total_marks}`}</td>
                           <td className="px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                              grade === "F" ? "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                               grade === "Absent" ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                               : grade === "F" ? "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
                               : grade.startsWith("A") ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
                               : "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400"
                             }`}>{grade}</span>
@@ -501,7 +507,7 @@ export default function DitMockPage() {
                     <tr>
                       <td colSpan={6} className="px-3 py-3 text-right text-slate-600 dark:text-slate-300">Totals</td>
                       <td className="px-3 py-3 text-center">{vrSummary.totalObtained}/{vrSummary.totalMax}</td>
-                      <td className="px-3 py-3 text-center">{vrSummary.pct}% — {vrSummary.grade}</td>
+                      <td className="px-3 py-3 text-center">{vrSummary.pct}% — {vrSummary.grade}{vrSummary.absentCount ? ` · ${vrSummary.absentCount} absent` : ""}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -575,13 +581,13 @@ export default function DitMockPage() {
                 </thead>
                 <tbody>
                   {vrResults.map((r, idx) => {
-                    const g = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks);
+                    const g = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks, r.is_absent);
                     return (
                       <tr key={r.id} className={idx % 2 === 0 ? "bg-indigo-50" : "bg-white"}>
                         <td className="border border-indigo-100 px-3 py-2">{idx + 1}</td>
                         <td className="border border-indigo-100 px-3 py-2">{r.test_date}</td>
                         <td className="border border-indigo-100 px-3 py-2">{r.course_title}</td>
-                        <td className="border border-indigo-100 px-3 py-2 text-center font-semibold">{r.obtained_marks}/{r.total_marks}</td>
+                        <td className="border border-indigo-100 px-3 py-2 text-center font-semibold">{r.is_absent ? "Absent" : `${r.obtained_marks}/${r.total_marks}`}</td>
                         <td className="border border-indigo-100 px-3 py-2 text-center font-bold">{g}</td>
                         <td className="border border-indigo-100 px-3 py-2">{r.remarks ?? "—"}</td>
                       </tr>
@@ -593,7 +599,7 @@ export default function DitMockPage() {
                     <tr className="bg-indigo-700 font-bold text-white">
                       <td colSpan={3} className="border border-indigo-500 px-3 py-2 text-right">Overall</td>
                       <td className="border border-indigo-500 px-3 py-2 text-center">
-                        {vrSummary.totalObtained}/{vrSummary.totalMax} ({vrSummary.pct}%)
+                        {vrSummary.totalObtained}/{vrSummary.totalMax} ({vrSummary.pct}%){vrSummary.absentCount ? ` · ${vrSummary.absentCount} absent` : ""}
                       </td>
                       <td className="border border-indigo-500 px-3 py-2 text-center">{vrSummary.grade}</td>
                       <td className="border border-indigo-500 px-3 py-2" />
@@ -638,7 +644,7 @@ export default function DitMockPage() {
                   <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400">No DIT mock results yet.</td></tr>
                 ) : (
                   allResults.map((r) => {
-                    const grade = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks);
+                    const grade = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks, r.is_absent);
                     return (
                       <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                         <td className="px-3 py-3">
@@ -650,10 +656,11 @@ export default function DitMockPage() {
                         <td className="px-3 py-3 font-medium text-slate-700 dark:text-slate-200">{r.test_series_name}</td>
                         <td className="px-3 py-3 text-slate-500 text-xs">{r.course_code}<br/>{r.course_title}</td>
                         <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{r.test_date}</td>
-                        <td className="px-3 py-3 text-center font-semibold">{r.obtained_marks}/{r.total_marks}</td>
+                        <td className="px-3 py-3 text-center font-semibold">{r.is_absent ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Absent</span> : `${r.obtained_marks}/${r.total_marks}`}</td>
                         <td className="px-3 py-3 text-center">
                           <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                            grade === "F" ? "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                             grade === "Absent" ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                             : grade === "F" ? "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
                             : grade.startsWith("A") ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
                             : "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400"
                           }`}>{grade}</span>
@@ -728,10 +735,14 @@ export default function DitMockPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Obtained Marks</label>
-              <input required type="number" min="0" max={editResultTarget.total_marks} value={editObtained} onChange={(e) => setEditObtained(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              <input required={!editAbsent} disabled={editAbsent} type="number" min="0" max={editResultTarget.total_marks} value={editAbsent ? "" : editObtained} onChange={(e) => setEditObtained(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={editAbsent} onChange={(e) => setEditAbsent(e.target.checked)} />
+              Absent (marks will be recorded as 0)
+            </label>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Remarks</label>
               <textarea rows={3} value={editRemarks} onChange={(e) => setEditRemarks(e.target.value)}

@@ -67,6 +67,7 @@ interface DitMockResult {
   passing_marks: number;
   test_date: string;
   obtained_marks: number;
+  is_absent: boolean;
   remarks: string | null;
   course_title: string;
   course_code: string;
@@ -655,6 +656,7 @@ export default function StudentDashboardManager() {
     const dateMap = new Map<string, Record<string, number | null>>();
     const seriesSet = new Set<string>();
     for (const r of ditOverviewResults) {
+      if (r.is_absent) continue;
       seriesSet.add(r.test_series_name);
       if (!dateMap.has(r.test_date)) dateMap.set(r.test_date, {});
       const entry = dateMap.get(r.test_date)!;
@@ -683,7 +685,8 @@ export default function StudentDashboardManager() {
   const SERIES_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#0ea5e9"];
 
   // Grade helper (reused from admin page logic)
-  function ditGrade(obtained: number, total: number, passing: number): string {
+  function ditGrade(obtained: number, total: number, passing: number, isAbsent = false): string {
+    if (isAbsent) return "Absent";
     if (obtained < passing) return "F";
     const pct = (obtained / total) * 100;
     if (pct >= 90) return "A+";
@@ -700,6 +703,7 @@ export default function StudentDashboardManager() {
       "C":  "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
       "D":  "bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400",
       "F":  "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+      "Absent": "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
     };
     return map[grade] ?? "";
   }
@@ -1344,8 +1348,8 @@ export default function StudentDashboardManager() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {ditTabResults.map((r) => {
-                      const grade = ditGrade(r.obtained_marks, r.total_marks, r.passing_marks);
-                      const pct   = Math.round((r.obtained_marks / r.total_marks) * 100);
+                      const grade = ditGrade(r.obtained_marks, r.total_marks, r.passing_marks, r.is_absent);
+                      const pct   = r.is_absent ? null : Math.round((r.obtained_marks / r.total_marks) * 100);
                       return (
                         <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                           <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{r.test_series_name}</td>
@@ -1362,10 +1366,10 @@ export default function StudentDashboardManager() {
                             })}
                           </td>
                           <td className="px-4 py-3 text-center font-semibold text-slate-800 dark:text-white">
-                            {r.obtained_marks} / {r.total_marks}
+                             {r.is_absent ? "Absent" : `${r.obtained_marks} / ${r.total_marks}`}
                           </td>
                           <td className="px-4 py-3 text-center font-semibold text-slate-700 dark:text-slate-200">
-                            {pct}%
+                             {pct === null ? "—" : `${pct}%`}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${ditGradeCls(grade)}`}>

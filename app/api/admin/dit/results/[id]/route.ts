@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { query, queryOne } from "@/lib/db";
+import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
 const patchSchema = z.object({
   obtained_marks: z.coerce.number().int().min(0).optional(),
+  is_absent: z.boolean().optional(),
   remarks: z.string().nullable().optional(),
 });
 
@@ -22,31 +23,40 @@ export async function PATCH(
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
 
-  const row = await queryOne<{ test_series_id: string }>(
-    `select test_series_id from dit_mock_results where id = $1`, [id]
-  );
-  if (!row) return NextResponse.json({ error: "Result not found." }, { status: 404 });
-
-  if (parsed.data.obtained_marks !== undefined) {
-    const series = await queryOne<{ total_marks: number }>(
-      `select total_marks from dit_test_series where id = $1`, [row.test_series_id]
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await client.query<{ obtained_marks: number; is_absent: boolean; total_marks: number }>(
+      `select dmr.obtained_marks, dmr.is_absent, ts.total_marks
+       from dit_mock_results dmr join dit_test_series ts on ts.id = dmr.test_series_id
+       where dmr.id = $1 for update of dmr`,
+      [id]
     );
-    if (series && parsed.data.obtained_marks > series.total_marks)
-      return NextResponse.json(
-        { error: `Obtained marks cannot exceed total marks (${series.total_marks}).` },
-        { status: 400 }
-      );
+    if (!result.rowCount) {
+      await client.query("rollback");
+      return NextResponse.json({ error: "Result not found." }, { status: 404 });
+    }
+    const current = result.rows[0];
+    const isAbsent = parsed.data.is_absent ?? current.is_absent;
+    const obtainedMarks = isAbsent ? 0 : (parsed.data.obtained_marks ?? current.obtained_marks);
+    if (obtainedMarks > current.total_marks) {
+      await client.query("rollback");
+      return NextResponse.json({ error: `Obtained marks cannot exceed total marks (${current.total_marks}).` }, { status: 400 });
+    }
+    await client.query(
+      `update dit_mock_results set obtained_marks=$1, is_absent=$2,
+       remarks=case when $3::boolean then $4 else remarks end, updated_at=now() where id=$5`,
+      [obtainedMarks, isAbsent, parsed.data.remarks !== undefined, parsed.data.remarks ?? null, id]
+    );
+    await client.query("commit");
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    await client.query("rollback");
+    console.error("DIT result admin update error:", error);
+    return NextResponse.json({ error: "Failed to update result." }, { status: 500 });
+  } finally {
+    client.release();
   }
-
-  await query(
-    `update dit_mock_results
-     set obtained_marks = coalesce($1, obtained_marks),
-         remarks        = coalesce($2, remarks),
-         updated_at     = now()
-     where id = $3`,
-    [parsed.data.obtained_marks ?? null, parsed.data.remarks ?? null, id]
-  );
-  return NextResponse.json({ ok: true });
 }
 
 // DELETE /api/admin/dit/results/[id]

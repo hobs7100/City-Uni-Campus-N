@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     allocation_id: string;
     test_date: string;
     obtained_marks: number;
+    is_absent: boolean;
     remarks: string | null;
     teacher_name: string;
   }>(
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
             dmr.allocation_id,
             to_char(dmr.test_date, 'YYYY-MM-DD')      as test_date,
             dmr.obtained_marks,
+             dmr.is_absent,
             dmr.remarks,
             t.name                                     as teacher_name
      from dit_mock_results dmr

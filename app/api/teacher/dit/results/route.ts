@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
      father_name: string | null;
     roll_no: string | null;
     obtained_marks: number | null;
+    is_absent: boolean;
     remarks: string | null;
     result_id: string | null;
     attendance_pct: number | null;
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
              s.father_name,
             s.roll_no,
             dmr.obtained_marks,
+             coalesce(dmr.is_absent, false) as is_absent,
             dmr.remarks,
             dmr.id     as result_id,
             (
@@ -87,6 +89,7 @@ export async function GET(request: NextRequest) {
 const rowSchema = z.object({
   student_id:     z.string().uuid(),
   obtained_marks: z.coerce.number().int().min(0),
+  is_absent:      z.boolean().optional().default(false),
   remarks:        z.string().nullable().optional(),
 });
 
@@ -139,7 +142,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Test series not found." }, { status: 404 });
     }
     const totalMarks = seriesResult.rows[0].total_marks;
-    if (d.rows.some((row) => row.obtained_marks > totalMarks)) {
+    if (d.rows.some((row) => !row.is_absent && row.obtained_marks > totalMarks)) {
       await client.query("rollback");
       return NextResponse.json({ error: `Obtained marks cannot exceed total marks (${totalMarks}).` }, { status: 400 });
     }
@@ -155,14 +158,14 @@ export async function POST(request: NextRequest) {
     }
     await client.query(
       `insert into dit_mock_results
-       (test_series_id, allocation_id, semester_id, student_id, test_date, obtained_marks, remarks, submitted_by)
-       select $1, $2, $3, r.student_id, $4, r.obtained_marks, r.remarks, $5
-       from jsonb_to_recordset($6::jsonb) as r(student_id uuid, obtained_marks integer, remarks text)
+       (test_series_id, allocation_id, semester_id, student_id, test_date, obtained_marks, is_absent, remarks, submitted_by)
+        select $1, $2, $3, r.student_id, $4, case when r.is_absent then 0 else r.obtained_marks end, r.is_absent, r.remarks, $5
+        from jsonb_to_recordset($6::jsonb) as r(student_id uuid, obtained_marks integer, is_absent boolean, remarks text)
        on conflict (test_series_id, allocation_id, semester_id, student_id, test_date)
-       do update set obtained_marks = excluded.obtained_marks, remarks = excluded.remarks, updated_at = now()
+        do update set obtained_marks = excluded.obtained_marks, is_absent = excluded.is_absent, remarks = excluded.remarks, updated_at = now()
        where dit_mock_results.submitted_by = $5`,
       [d.test_series_id, d.allocation_id, d.semester_id, d.test_date, session!.userId,
-        JSON.stringify(d.rows.map(({ student_id, obtained_marks, remarks }) => ({ student_id, obtained_marks, remarks: remarks ?? null })))]
+         JSON.stringify(d.rows.map(({ student_id, obtained_marks, is_absent, remarks }) => ({ student_id, obtained_marks: is_absent ? 0 : obtained_marks, is_absent, remarks: remarks ?? null })))]
     );
     // An existing row authored by somebody else is never overwritten.
     const changed = await client.query<{ count: string }>(
