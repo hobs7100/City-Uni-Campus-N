@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   if (to) { dateConditions.push(`r.attendance_date <= $${i++}`); values.push(to); }
 
   const rows = await query<Record<string, unknown>>(
-    `select st.id as student_id, st.name, st.roll_no, st.contact, st.status as student_status,
+    `select st.id as student_id, st.name, st.father_name, st.roll_no, st.contact, st.status as student_status,
             count(*) filter (where r.status = 'present') as presents,
             count(*) filter (where r.status = 'absent') as absents,
              count(*) filter (where r.status = 'leave') as leaves,
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
      join classes c on c.id = st.class_id
      left join student_attendance_records r on r.student_id = st.id and ${dateConditions.join(" and ")}
      where ${conditions.join(" and ")}
-      group by st.id, st.name, st.roll_no, st.contact, st.status
+      group by st.id, st.name, st.father_name, st.roll_no, st.contact, st.status
      order by (st.roll_no is null), st.roll_no, st.name`,
     values
   );
@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     return {
       student_id: r.student_id,
       name: r.name,
+      father_name: r.father_name,
       roll_no: r.roll_no,
       contact: r.contact,
       student_status: r.student_status,

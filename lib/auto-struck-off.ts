@@ -11,9 +11,9 @@
  *   1. student_attendance_records  — coordinator marks class-wide attendance daily
  *   2. student_course_attendance   — teachers mark per-course attendance
  *
- * The service detects which source has reached the 10-distinct-day threshold
+ * The service detects which source has reached the 15-distinct-working-day threshold
  * and uses that source for evaluation.  Coordinator records are checked first
- * because they are the canonical school-day source; if fewer than 10 coordinator
+ * because they are the canonical school-day source; if fewer than 15 coordinator
  * days are recorded for the class/semester the service falls back to teacher
  * course records (aggregated per student per day).
  *
@@ -29,7 +29,7 @@
  * ───────────────────────────────
  * students.reactivated_at is set when a STRUCK_OFF student is reinstated.
  * The service only counts attendance days *after* that date, requiring the
- * student to accumulate 10 new days before being evaluated again.
+ * student to accumulate 15 new working attendance days before being evaluated again.
  *
  * Everything runs inside the caller's already-open transaction (client param).
  */
@@ -51,7 +51,7 @@ export interface RunAutoStruckOffParams {
   client: PoolClient;
 }
 
-const MIN_ATTENDANCE_DAYS = 10;
+const MIN_ATTENDANCE_DAYS = 15;
 const REGULAR_STRUCK_OFF_THRESHOLD = 0.6;
 const PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD = 0.3;
 
@@ -146,7 +146,7 @@ async function findCandidatesFromCoordinator(
        AND  st.deleted_at IS NULL
      GROUP  BY st.id, st.reactivated_at
      HAVING
-       -- Each student must have ≥ 10 personally evaluable days before being struck off.
+       -- Each student must have ≥ 15 personally evaluable days before being struck off.
        -- This prevents a new/incomplete-record student from being caught by the class
        -- threshold while their own sample is too small to be meaningful.
        COUNT(DISTINCT sar.attendance_date) FILTER (
@@ -230,7 +230,7 @@ async function findCandidatesFromTeacher(
        AND  st.deleted_at IS NULL
      GROUP  BY st.id, st.reactivated_at
      HAVING
-       -- Require ≥ 10 personally evaluable days before the student can be struck off.
+       -- Require ≥ 15 personally evaluable days before the student can be struck off.
        COUNT(DISTINCT sca.attendance_date) FILTER (
          WHERE sca.status IN ('present','absent')
            AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)

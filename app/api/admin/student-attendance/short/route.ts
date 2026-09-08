@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
   const rows = await query<{
     student_id: string;
     name: string;
+    father_name: string | null;
     roll_no: string | null;
     contact: string | null;
     class_name: string;
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     leaves: string;
     leave_type: "permanent" | "partial";
   }>(
-    `select st.id as student_id, st.name, st.roll_no, st.contact,
+    `select st.id as student_id, st.name, st.father_name, st.roll_no, st.contact,
             cl.class_name, cl.session, st.status as student_status,
             count(*) filter (where sar.status = 'present') as presents,
             count(*) filter (where sar.status = 'absent')  as absents,
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
      left join student_attendance_records sar
        on sar.student_id = st.id and sar.semester_id = sem.id
      where ${conditions.join(" and ")}
-     group by st.id, st.name, st.roll_no, st.contact, cl.class_name, cl.session, st.status
+     group by st.id, st.name, st.father_name, st.roll_no, st.contact, cl.class_name, cl.session, st.status
      having
        count(*) filter (where sar.status in ('present','absent')) > 0
        and (count(*) filter (where sar.status = 'present'))::float /
@@ -98,6 +99,7 @@ export async function GET(request: NextRequest) {
     return {
       student_id: r.student_id,
       name: r.name,
+      father_name: r.father_name,
       roll_no: r.roll_no,
       contact: r.contact,
       class_name: r.class_name,

@@ -57,6 +57,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     },
     { label: "Daily Attendance", href: "/dashboard/admin/daily-student-attendance", icon: "ClipboardCheck" },
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
+    { label: "Fine", href: "/dashboard/admin/fines", icon: "Wallet" },
     { label: "Exams & Results", href: "/dashboard/admin/results", icon: "Award" },
     { label: "Dept. Attendance", href: "/dashboard/admin/dept-attendance", icon: "BarChart2" },
     { label: "Course Attendance", href: "/dashboard/admin/course-attendance", icon: "BookCheck" },
@@ -88,6 +89,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
       icon: "ClipboardCheck",
     },
     { label: "Billing", href: "/dashboard/coordinator/billing", icon: "Wallet" },
+    { label: "Fine", href: "/dashboard/coordinator/fines", icon: "Wallet" },
     { label: "Profile", href: "/dashboard/coordinator/profile", icon: "UserCog" },
   ],
   teacher: [
@@ -110,6 +112,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Timetables", href: "/dashboard/admin/timetables", icon: "CalendarClock" },
     { label: "Teacher Attendance", href: "/dashboard/admin/attendance", icon: "UserCheck" },
     { label: "Billing", href: "/dashboard/admin/billing", icon: "Wallet" },
+    { label: "Fine", href: "/dashboard/admin/fines", icon: "Wallet" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
     // Roll No. Slips intentionally excluded for Finance Manager
   ],

@@ -43,6 +43,7 @@ interface RosterRow {
 interface ShortRow {
   student_id: string;
   name: string;
+  father_name: string | null;
   roll_no: string | null;
   contact: string | null;
   class_name: string;
@@ -59,6 +60,7 @@ interface ShortRow {
 interface ReportRow {
   student_id: string;
   name: string;
+  father_name: string | null;
   roll_no: string | null;
   contact: string | null;
   student_status: string;
@@ -654,6 +656,11 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                             </span>
                           )}
                         </div>
+                        {r.father_name && (
+                          <div className="text-xs text-slate-400 dark:text-slate-500">
+                            Father Name: {r.father_name}
+                          </div>
+                        )}
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {r.roll_no || "—"} · {r.class_name} ({r.session})
                         </div>
@@ -809,6 +816,11 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                             </span>
                           )}
                         </div>
+                        {r.father_name && (
+                          <div className="text-xs text-slate-400 dark:text-slate-500">
+                            Father Name: {r.father_name}
+                          </div>
+                        )}
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {r.roll_no || "—"}
                         </div>
@@ -870,6 +882,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
                     </td>
                     <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
                       {r.name}
+                      {r.father_name ? ` (Father Name: ${r.father_name})` : ""}
                     </td>
                     <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
                       {r.contact || "—"}

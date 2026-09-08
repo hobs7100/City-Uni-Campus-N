@@ -859,7 +859,7 @@ export default function StudentDashboardManager() {
                     <>
                       <p className="mb-2 font-semibold">
                         {isBelowStrikeThreshold ? (
-                          <>Your attendance is below the {attendancePolicy.struckOffBelow}% struck-off threshold. Automatic action applies after at least 10 marked working days.</>
+                          <>Your attendance is below the {attendancePolicy.struckOffBelow}% struck-off threshold. Automatic action applies after at least 15 working days.</>
                         ) : isPartialLeave ? (
                           <>Your approved partial leave permits attendance on {profile.partial_days_per_week} days per week. Your attendance is below the required 40% minimum and is currently in the warning zone (30%–39%).</>
                         ) : (
@@ -1912,7 +1912,7 @@ export default function StudentDashboardManager() {
                   <div>
                     <p className="font-bold text-red-800 dark:text-red-300">Auto Struck-Off: Below {attendancePolicy.struckOffBelow}%</p>
                     <p className="mt-0.5 text-red-700 dark:text-red-400">
-                      If your attendance drops below <strong>{attendancePolicy.struckOffBelow}%</strong> after at least 10 marked working days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
+                      If your attendance drops below <strong>{attendancePolicy.struckOffBelow}%</strong> after at least 15 working days, the system will <strong>automatically strike off</strong> your enrollment. You will lose examination eligibility and will not receive a Roll Number Slip.
                     </p>
                   </div>
                 </div>

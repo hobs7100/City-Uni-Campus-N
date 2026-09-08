@@ -13,6 +13,7 @@ import {
 export interface StudentAttendanceStudent {
   id: string;
   name: string;
+  father_name?: string | null;
   roll_no: string | null;
   class_name: string;
   session: string;
@@ -71,7 +72,7 @@ export default function StudentAttendanceLookup({
     () =>
       students.map((student) => ({
         value: student.id,
-        label: `${student.name}${student.roll_no ? ` (${student.roll_no})` : ""} — ${student.class_name} ${student.session}`,
+        label: `${student.name}${student.father_name ? ` — ${student.father_name}` : ""}${student.roll_no ? ` (${student.roll_no})` : ""} — ${student.class_name} ${student.session}`,
       })),
     [students],
   );
@@ -117,6 +118,7 @@ export default function StudentAttendanceLookup({
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             {studentInfo.class_name} &middot; {studentInfo.session}
             {studentInfo.roll_no ? ` · Roll: ${studentInfo.roll_no}` : ""}
+            {studentInfo.father_name ? ` · Father Name: ${studentInfo.father_name}` : ""}
           </p>
         )}
       </div>

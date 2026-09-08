@@ -19,6 +19,9 @@ const schema = z.object({
   status: z.enum(["active", "struck_off", "left", "dropped", "freezed", "permanent_leave"]).optional(),
   status_change_date: z.string().optional().nullable(),
   status_change_semester: z.coerce.number().optional().nullable(),
+  fine_amount: z.coerce.number().positive().optional(),
+  fid: z.string().trim().min(1).max(100).optional(),
+  reactivation_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,59 +52,103 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (existing) return NextResponse.json({ error: "A student with this email already exists." }, { status: 409 });
   }
 
-  // Fetch current status before the update so we can detect reactivation.
-  const current = await queryOne<{ status: string; class_id: string }>(
-    `select status, class_id from students where id = $1 and deleted_at is null`,
-    [id]
-  );
-  if (!current) return NextResponse.json({ error: "Student not found." }, { status: 404 });
-
-  const isReactivation = d.status === "active" && current.status === "struck_off";
-
-  const { password, ...rest } = d;
-  const sets: string[] = [];
-  const values: unknown[] = [];
-  let i = 1;
-
-  for (const [key, value] of Object.entries(rest)) {
-    if (value === undefined) continue;
-    sets.push(`${key} = $${i++}`);
-    values.push(key === "email" && typeof value === "string" ? value.toLowerCase() : value);
-  }
-  if (password) {
-    sets.push(`password_hash = $${i++}`);
-    values.push(await hashPassword(password));
-  }
-  // When status changes, record who made the change
-  if (d.status !== undefined) {
-    sets.push(`status_changed_by_name = $${i++}`);
-    values.push(session!.name);
-  }
-  // On reactivation: reset the protection-window timestamp so the auto struck-off
-  // service waits for 10 new coordinator-marked days before evaluating again.
-  if (isReactivation) {
-    sets.push(`reactivated_at = now()`);
-  } else if (d.status && d.status !== "active") {
-    // Any non-active status clears the reactivation timestamp
-    sets.push(`reactivated_at = NULL`);
-  }
-  // Note: status_change_date and status_change_semester come through the loop above
-  // already set to null by the frontend for active/struck_off — no duplicate block needed.
-  sets.push("updated_at = now()");
-  values.push(id);
-
   const evalClient = await pool.connect();
   let student: { id: string; name: string; email: string; status: string } | null = null;
   try {
     await evalClient.query("begin");
+    // Lock the placement before deciding whether this request is a reactivation.
+    // This prevents competing requests from both recording a fine for one student.
+    const currentResult = await evalClient.query<{
+      status: string;
+      class_id: string;
+      department_id: string;
+      semester_id: string | null;
+    }>(
+      `select st.status, st.class_id, st.department_id,
+              coalesce(
+                (select s.id from semesters s
+                 where s.class_id = st.class_id and s.status in ('active', 'mid_term')
+                 order by case s.status when 'mid_term' then 0 else 1 end limit 1),
+                (select s.id from semesters s
+                 where s.class_id = st.class_id
+                   and s.semester_number = st.status_change_semester
+                 order by s.created_at desc limit 1)
+              ) as semester_id
+       from students st where st.id = $1 and st.deleted_at is null
+       for update`,
+      [id],
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      await evalClient.query("rollback");
+      return NextResponse.json({ error: "Student not found." }, { status: 404 });
+    }
+
+    const isReactivation = d.status === "active" && current.status === "struck_off";
+    if (isReactivation && (d.class_id !== undefined || d.department_id !== undefined)) {
+      await evalClient.query("rollback");
+      return NextResponse.json(
+        { error: "Class and department cannot be changed while reactivating a struck-off student." },
+        { status: 409 },
+      );
+    }
+    if (isReactivation && (!d.fine_amount || !d.fid || !d.reactivation_date)) {
+      await evalClient.query("rollback");
+      return NextResponse.json(
+        { error: "Fine Amount, FID, and activation date are required to reactivate a struck-off student." },
+        { status: 400 },
+      );
+    }
+    if (isReactivation && !current.semester_id) {
+      await evalClient.query("rollback");
+      return NextResponse.json(
+        { error: "No semester could be identified for this fine transaction." },
+        { status: 409 },
+      );
+    }
+
+    const { password, fine_amount, fid, reactivation_date, ...rest } = d;
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+    for (const [key, value] of Object.entries(rest)) {
+      if (value === undefined) continue;
+      sets.push(`${key} = $${i++}`);
+      values.push(key === "email" && typeof value === "string" ? value.toLowerCase() : value);
+    }
+    if (password) {
+      sets.push(`password_hash = $${i++}`);
+      values.push(await hashPassword(password));
+    }
+    if (d.status !== undefined) {
+      sets.push(`status_changed_by_name = $${i++}`);
+      values.push(session!.name);
+    }
+    if (isReactivation) {
+      sets.push(`reactivated_at = $${i++}::date`);
+      values.push(reactivation_date);
+      sets.push("status_change_date = NULL");
+      sets.push("status_change_semester = NULL");
+    } else if (d.status && d.status !== "active") {
+      sets.push("reactivated_at = NULL");
+    }
+    sets.push("updated_at = now()");
+    values.push(id);
+
+    const statusCondition = isReactivation ? " and status = 'struck_off'" : "";
     const res = await evalClient.query<{ id: string; name: string; email: string; status: string }>(
-      `update students set ${sets.join(", ")} where id = $${i} and deleted_at is null returning id, name, email, status`,
-      values
+      `update students set ${sets.join(", ")}
+       where id = $${i} and deleted_at is null${statusCondition}
+       returning id, name, email, status`,
+      values,
     );
     student = res.rows[0] ?? null;
     if (!student) {
       await evalClient.query("rollback");
-      return NextResponse.json({ error: "Student not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: isReactivation ? "Student is no longer struck off." : "Student not found." },
+        { status: isReactivation ? 409 : 404 },
+      );
     }
     // Log status changes to the audit history with the real actor role
     if (d.status !== undefined && d.status !== current.status) {
@@ -118,15 +165,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           current.status,
           d.status,
           isReactivation
-            ? "Manually reactivated — new 10-day protection window started"
+            ? `Manually reactivated from ${reactivation_date} — new 15-working-day protection window started`
             : `Status manually changed to ${d.status}`,
           actorRole,
         ]
       );
     }
+    if (isReactivation) {
+      await evalClient.query(
+        `insert into student_fines
+           (student_id, department_id, class_id, semester_id, amount, fid,
+            paid_date, reactivated_on, created_by_name)
+         values ($1, $2, $3, $4, $5, $6, $7::date, $7::date, $8)`,
+        [
+          id,
+          current.department_id,
+          current.class_id,
+          current.semester_id,
+          fine_amount,
+          fid,
+          reactivation_date,
+          session!.name,
+        ],
+      );
+    }
     await evalClient.query("commit");
   } catch (err) {
     await evalClient.query("rollback");
+    if ((err as { code?: string }).code === "23505") {
+      return NextResponse.json({ error: "This FID has already been used." }, { status: 409 });
+    }
     throw err;
   } finally {
     evalClient.release();

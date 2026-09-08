@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  CheckCircle2, GraduationCap, KeyRound, Pencil, Plus, Search, Trash2, Upload, User, Users, UserCheck, UserX,
+  BadgeDollarSign, CalendarDays, GraduationCap, KeyRound, Pencil, Plus, ReceiptText, Search, ShieldCheck, Trash2, Upload, User, Users, UserCheck, UserX,
 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -66,7 +66,7 @@ const emptyForm = {
   status_change_semester: "",
 };
 
-type Tab = "active" | "struck_off" | "activate_by_class";
+type Tab = "active" | "struck_off";
 
 interface Props {
   /** "admin" | "coordinator" | "hod" | "assistant" | "readonly" — controls which action buttons appear */
@@ -103,10 +103,13 @@ export default function StudentManagementPage({ role }: Props) {
   const [regenTarget, setRegenTarget] = useState<Student | null>(null);
   const [regenLoading, setRegenLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [activationClassId, setActivationClassId] = useState("");
-  const [activationSelectedIds, setActivationSelectedIds] = useState<Set<string>>(new Set());
-  const [activationConfirmOpen, setActivationConfirmOpen] = useState(false);
-  const [activationLoading, setActivationLoading] = useState(false);
+  const [reactivationTarget, setReactivationTarget] = useState<Student | null>(null);
+  const [reactivationSaving, setReactivationSaving] = useState(false);
+  const [reactivationForm, setReactivationForm] = useState({
+    fine_amount: "",
+    fid: "",
+    reactivation_date: new Date().toISOString().slice(0, 10),
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -180,15 +183,6 @@ export default function StudentManagementPage({ role }: Props) {
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [struckOffStudents]);
 
-  const activationCandidates = useMemo(
-    () => items.filter((student) => student.status === "struck_off" && student.class_id === activationClassId),
-    [items, activationClassId],
-  );
-
-  useEffect(() => {
-    setActivationSelectedIds(new Set(activationCandidates.map((student) => student.id)));
-  }, [activationClassId, activationCandidates]);
-
   // ── Form helpers ─────────────────────────────────────────────────────────
   const sessionOptions = useMemo(() => {
     const sessions = new Set(classes.filter((c) => c.department_id === form.department_id).map((c) => c.session));
@@ -217,6 +211,15 @@ export default function StudentManagementPage({ role }: Props) {
   }
 
   function openEdit(item: Student) {
+    if (item.status === "struck_off" && canChangeStatus) {
+      setReactivationTarget(item);
+      setReactivationForm({
+        fine_amount: "",
+        fid: "",
+        reactivation_date: new Date().toISOString().slice(0, 10),
+      });
+      return;
+    }
     setForm({
       id: item.id,
       name: item.name,
@@ -235,6 +238,34 @@ export default function StudentManagementPage({ role }: Props) {
     });
     setEditing(true);
     setModalOpen(true);
+  }
+
+  async function handleReactivation(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reactivationTarget) return;
+    setReactivationSaving(true);
+    try {
+      const res = await fetch(`/api/admin/students/${reactivationTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "active",
+          fine_amount: Number(reactivationForm.fine_amount),
+          fid: reactivationForm.fid.trim(),
+          reactivation_date: reactivationForm.reactivation_date,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to reactivate student.");
+        return;
+      }
+      toast.success("Student reactivated and fine transaction recorded.");
+      setReactivationTarget(null);
+      await load();
+    } finally {
+      setReactivationSaving(false);
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -308,33 +339,6 @@ export default function StudentManagementPage({ role }: Props) {
     } finally { setRegenLoading(false); }
   }
 
-  async function handleClassActivation() {
-    if (!activationClassId || activationSelectedIds.size === 0) return;
-    setActivationLoading(true);
-    try {
-      const res = await fetch("/api/admin/students/activate-class", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          class_id: activationClassId,
-          student_ids: Array.from(activationSelectedIds),
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(data?.error || "Students could not be activated.");
-        return;
-      }
-      toast.success(`${data.activated_count} student(s) activated.`);
-      setActivationConfirmOpen(false);
-      await load();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Students could not be activated.");
-    } finally {
-      setActivationLoading(false);
-    }
-  }
-
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -391,6 +395,9 @@ export default function StudentManagementPage({ role }: Props) {
           )}
           <div>
             <p className="font-medium text-slate-800 dark:text-slate-100">{s.name}</p>
+            <p className="text-xs font-medium text-indigo-500 dark:text-indigo-300">
+              Father: {s.father_name || "—"}
+            </p>
             <p className="text-xs text-slate-400">{s.email}</p>
           </div>
         </div>
@@ -492,147 +499,10 @@ export default function StudentManagementPage({ role }: Props) {
             tab === "struck_off" ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400" : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
           }`}>{struckOffCount}</span>
         </button>
-        {role === "admin" && (
-          <button
-            onClick={() => setTab("activate_by_class")}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-              tab === "activate_by_class"
-                ? "bg-white text-emerald-700 shadow dark:bg-slate-700 dark:text-emerald-400"
-                : "text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            <UserCheck size={15} />
-            Activate by Class
-          </button>
-        )}
       </div>
 
       {/* Filter Bar — rendered as a variable, not a component, to preserve input focus */}
-      {tab !== "activate_by_class" && filterBar}
-
-      {/* ── Activate by Class Tab ───────────────────────────────────────── */}
-      {tab === "activate_by_class" && role === "admin" && (
-        <div className="space-y-4">
-          <div className="card-3d p-4">
-            <div className="mb-3">
-              <h2 className="font-semibold text-slate-800 dark:text-slate-100">Reactivate students by class</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Only struck-off students are shown. Activation starts a new 10-day attendance protection window.
-              </p>
-            </div>
-            <div className="max-w-md">
-              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
-                Class + Session
-              </label>
-              <SearchableSelect
-                options={classSessionOptions}
-                value={classSessionOptions.find((option) => option.value === activationClassId) || null}
-                onChange={(option) => setActivationClassId(option ? (option as SelectOption).value : "")}
-                placeholder="Select class…"
-                isClearable
-              />
-            </div>
-          </div>
-
-          {activationClassId && (
-            <div className="overflow-hidden card-3d card-hover">
-              <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <CheckCircle2 size={16} className="text-emerald-600" />
-                  {activationSelectedIds.size} of {activationCandidates.length} selected
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setActivationSelectedIds(new Set(activationCandidates.map((student) => student.id)))}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    onClick={() => setActivationSelectedIds(new Set())}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={() => setActivationConfirmOpen(true)}
-                    disabled={activationSelectedIds.size === 0}
-                    className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    <UserCheck size={14} /> Activate Selected
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                    <tr>
-                      <th className="w-12 px-4 py-3">
-                        <input
-                          type="checkbox"
-                          aria-label="Select all struck-off students"
-                          checked={activationCandidates.length > 0 && activationSelectedIds.size === activationCandidates.length}
-                          onChange={(event) =>
-                            setActivationSelectedIds(
-                              event.target.checked
-                                ? new Set(activationCandidates.map((student) => student.id))
-                                : new Set(),
-                            )
-                          }
-                          className="accent-emerald-600"
-                        />
-                      </th>
-                      <th className="px-4 py-3">Student</th>
-                      <th className="px-4 py-3">Current Status</th>
-                      <th className="px-4 py-3">Status Changed By</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {loading ? (
-                      <TableLoader colSpan={4} />
-                    ) : activationCandidates.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-12 text-center text-slate-400">
-                          No struck-off students found in this class.
-                        </td>
-                      </tr>
-                    ) : (
-                      activationCandidates.map((student) => (
-                        <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                          <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              checked={activationSelectedIds.has(student.id)}
-                              aria-label={`Select ${student.name}`}
-                              onChange={(event) => {
-                                setActivationSelectedIds((current) => {
-                                  const next = new Set(current);
-                                  if (event.target.checked) next.add(student.id);
-                                  else next.delete(student.id);
-                                  return next;
-                                });
-                              }}
-                              className="accent-emerald-600"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-slate-800 dark:text-slate-100">{student.name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {student.class_name} ({student.session}) · {student.email}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3"><StatusBadge status={student.status} /></td>
-                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{student.status_changed_by_name || "—"}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {filterBar}
 
       {/* ── Active Tab ─────────────────────────────────────────────────── */}
       {tab === "active" && (
@@ -830,6 +700,95 @@ export default function StudentManagementPage({ role }: Props) {
         </form>
       </Modal>
 
+      <Modal
+        open={!!reactivationTarget}
+        onClose={() => setReactivationTarget(null)}
+        title="Reactivate Student & Record Fine"
+        widthClass="max-w-xl"
+      >
+        <form onSubmit={handleReactivation} className="space-y-5">
+          <div className="overflow-hidden rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-xl shadow-indigo-500/20">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/20 shadow-inner">
+                <UserCheck size={24} />
+              </div>
+              <div>
+                <p className="text-lg font-bold">{reactivationTarget?.name}</p>
+                <p className="text-sm text-indigo-100">
+                  Father: {reactivationTarget?.father_name || "—"}
+                </p>
+                <p className="mt-1 text-xs text-indigo-100">
+                  {reactivationTarget?.class_name} · {reactivationTarget?.session}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+              <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                <BadgeDollarSign size={17} /> Fine Amount
+              </span>
+              <input
+                required
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={reactivationForm.fine_amount}
+                onChange={(e) => setReactivationForm((current) => ({ ...current, fine_amount: e.target.value }))}
+                placeholder="0.00"
+                className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-emerald-500/30 dark:bg-slate-900 dark:text-white"
+              />
+            </label>
+
+            <label className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+              <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
+                <ReceiptText size={17} /> FID
+              </span>
+              <input
+                required
+                value={reactivationForm.fid}
+                onChange={(e) => setReactivationForm((current) => ({ ...current, fid: e.target.value }))}
+                placeholder="Fine receipt / FID"
+                className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-500/30 dark:bg-slate-900 dark:text-white"
+              />
+            </label>
+          </div>
+
+          <label className="block rounded-xl border border-sky-200 bg-sky-50/80 p-3 dark:border-sky-500/30 dark:bg-sky-500/10">
+            <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
+              <CalendarDays size={17} /> Date on which student becomes Active
+            </span>
+            <input
+              required
+              type="date"
+              value={reactivationForm.reactivation_date}
+              onChange={(e) => setReactivationForm((current) => ({ ...current, reactivation_date: e.target.value }))}
+              className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-sky-500/30 dark:border-sky-500/30 dark:bg-slate-900 dark:text-white"
+            />
+          </label>
+
+          <div className="flex items-start gap-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200">
+            <ShieldCheck size={19} className="mt-0.5 shrink-0" />
+            <p>
+              Automatic strike-off evaluation will ignore attendance on or before this date and wait for
+              15 new working attendance days before evaluating this student again.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setReactivationTarget(null)}
+              className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+              Cancel
+            </button>
+            <button type="submit" disabled={reactivationSaving}
+              className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60">
+              {reactivationSaving ? "Activating…" : "Record Fine & Activate"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Confirm: Delete */}
       <ConfirmDialog
         open={!!deleteTarget}
@@ -840,16 +799,6 @@ export default function StudentManagementPage({ role }: Props) {
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}
         danger
-      />
-
-      <ConfirmDialog
-        open={activationConfirmOpen}
-        title="Activate Students by Class"
-        message={`Set ${activationSelectedIds.size} selected struck-off student${activationSelectedIds.size === 1 ? "" : "s"} to Active? Each student will receive a new 10-day attendance protection window.`}
-        confirmLabel="Activate Students"
-        onConfirm={handleClassActivation}
-        onCancel={() => setActivationConfirmOpen(false)}
-        loading={activationLoading}
       />
 
       {/* Confirm: Regen password */}
