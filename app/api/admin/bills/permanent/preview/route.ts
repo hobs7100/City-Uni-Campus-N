@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
      join classes cl on cl.id = s.class_id
      left join chain_info ci on ci.id = al.id
      where al.teacher_id = $1
+        and s.status in ('active', 'mid_term')
      group by al.id, al.allocation_type, al.rate, al.transfer_group_id,
               ci.transfer_part, ci.transfer_total_parts,
               c.id, c.code, c.title, c.credit_hours
@@ -68,12 +69,19 @@ export async function GET(request: NextRequest) {
   }>(
     `select
        coalesce((
-         select sum(eligible_courses.credit_hours)
+         select sum(eligible_allocations.credit_hours)
          from (
-           select distinct c.id, c.credit_hours
+           select distinct al.id, c.credit_hours
            from allocations al
            join courses c on c.id = al.course_id
            where al.teacher_id = t.id
+             and exists (
+               select 1
+               from allocation_semesters als
+               join semesters s on s.id = als.semester_id
+               where als.allocation_id = al.id
+                 and s.status in ('active', 'mid_term')
+             )
              and exists (
                select 1
                from attendance_records ar
@@ -82,7 +90,7 @@ export async function GET(request: NextRequest) {
                  and ar.attendance_date between $2 and $3
                  and ar.lecture_count > 0
              )
-         ) eligible_courses
+         ) eligible_allocations
        ), 0)::text as total_assigned_credit_hours,
        coalesce(t.workload_credit_hours, 0)::text as workload_credit_hours_committed
      from teachers t

@@ -899,7 +899,7 @@ export default function AllocationsPage() {
                 </div>
               )}
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Counts current Workload allocations linked to Active or Mid-Term semesters only.
+                Counts all current course allocations linked to Active or Mid-Term semesters once per allocation.
               </p>
             </div>
           )}

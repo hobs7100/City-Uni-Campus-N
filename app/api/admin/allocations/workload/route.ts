@@ -61,7 +61,6 @@ export async function GET(request: NextRequest) {
      join semesters s on s.id = als.semester_id
      join classes cl on cl.id = s.class_id
      where a.teacher_id = $1
-       and a.allocation_type = 'workload'
        and a.status = 'active'
        and s.status in ('active', 'mid_term')
        and coalesce(a.started_at, a.created_at::date) <= current_date
