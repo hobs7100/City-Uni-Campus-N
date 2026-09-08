@@ -65,14 +65,15 @@ export async function GET() {
   // ── Validation 2: datesheet must exist ─────────────────────────────────────
   const datesheetRows = await query<{
     course_id: string; course_title: string; course_code: string;
-    credit_hours: string; paper_date: string | null;
+    credit_hours: string; paper_date: string | null; paper_time: string | null;
   }>(
     `select distinct on (sc.course_id)
        sc.course_id,
        c.title              as course_title,
        c.code               as course_code,
        c.credit_hours::text as credit_hours,
-       to_char(med.paper_date, 'YYYY-MM-DD') as paper_date
+       to_char(med.paper_date, 'YYYY-MM-DD') as paper_date,
+       to_char(med.paper_time, 'HH12:MI AM') as paper_time
      from semester_courses sc
      join courses c on c.id = sc.course_id
      left join mid_exam_datesheets med

@@ -110,6 +110,7 @@ interface StudentDsRow {
   course_code: string;
   credit_hours: string;
   paper_date: string | null;
+  paper_time: string | null;
 }
 
 interface StudentRdRow {
@@ -122,7 +123,7 @@ interface StudentRdRow {
 
 interface SlipCourseRow {
   course_id: string; course_title: string; course_code: string;
-  credit_hours: string; paper_date: string | null; att_percentage: number;
+  credit_hours: string; paper_date: string | null; paper_time: string | null; att_percentage: number;
 }
 interface SlipData {
   student: { id: string; name: string; father_name: string | null; class_name: string; session: string; department: string; profile_image_url: string | null };
@@ -498,6 +499,7 @@ export default function StudentDashboardManager() {
               <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600">Course Title</th>
               <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:center;color:#475569;font-weight:600;width:90px">Attendance</th>
               <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:105px">Paper Date</th>
+              <th style="border:1px solid #e2e8f0;padding:6px 10px;text-align:left;color:#475569;font-weight:600;width:90px">Paper Time</th>
             </tr>
           </thead>
           <tbody>
@@ -510,6 +512,7 @@ export default function StudentDashboardManager() {
               <td style="border:1px solid #e2e8f0;padding:6px 10px">${r.course_title}${pct < 75 ? `&nbsp;<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">NOT ALLOWED FOR MID EXAM</span>` : ""}</td>
               <td style="border:1px solid #e2e8f0;padding:6px 10px;text-align:center"><span style="display:inline-block;background:${attBg};color:${attColor};font-weight:700;font-size:11px;padding:2px 7px;border-radius:4px">${pct.toFixed(1)}%</span></td>
               <td style="border:1px solid #e2e8f0;padding:6px 10px;font-weight:500">${r.paper_date ? fmtDate(r.paper_date) : "—"}</td>
+              <td style="border:1px solid #e2e8f0;padding:6px 10px;font-weight:500">${r.paper_time || "—"}</td>
             </tr>`;}).join("")}
           </tbody>
         </table>
@@ -1507,6 +1510,7 @@ export default function StudentDashboardManager() {
                             <th className="px-4 py-2">Course</th>
                             <th className="px-4 py-2 text-center">Cr. Hrs</th>
                             <th className="px-4 py-2">Paper Date</th>
+                            <th className="px-4 py-2">Paper Time</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1525,6 +1529,9 @@ export default function StudentDashboardManager() {
                                 ) : (
                                   <span className="text-slate-400">Not scheduled</span>
                                 )}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {r.paper_time ? <span className="font-medium text-indigo-700 dark:text-indigo-400">{r.paper_time}</span> : <span className="text-slate-400">Not set</span>}
                               </td>
                             </tr>
                           ))}

@@ -107,9 +107,26 @@ interface DsRow {
   teacher_name: string;
   datesheet_id: string | null;
   paper_date: string;
+  paper_time: string;
   bundle_received_date: string;
   return_date: string;
   result_uploaded: boolean;
+}
+
+interface DateSheetSummary {
+  semester_id: string;
+  semester_number: number;
+  term_type: string;
+  status: string;
+  class_id: string;
+  class_name: string;
+  session: string;
+  department_id: string;
+  department_name: string;
+  scheduled_courses: number;
+  first_paper_date: string | null;
+  last_paper_date: string | null;
+  updated_at: string;
 }
 
 interface RdRow {
@@ -149,7 +166,35 @@ const statusBadgeClass: Record<string, string> = {
   drop: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
 };
 
-type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet" | "remid-datesheet" | "all-results";
+function PaperTimeInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [rawHour = "", minute = "00"] = value.split(":");
+  const hour24 = Number(rawHour);
+  const period = value ? (hour24 >= 12 ? "PM" : "AM") : "AM";
+  const hour12 = value ? String(hour24 % 12 || 12) : "";
+  const update = (hour: string, nextMinute: string, nextPeriod: string) => {
+    if (!hour) return onChange("");
+    const base = Number(hour) % 12;
+    onChange(`${String(base + (nextPeriod === "PM" ? 12 : 0)).padStart(2, "0")}:${nextMinute}`);
+  };
+  const cls = "rounded border border-slate-300 bg-white px-1.5 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white";
+  return (
+    <div className="flex items-center gap-1">
+      <select aria-label="Paper hour" value={hour12} onChange={(e) => update(e.target.value, minute, period)} className={cls}>
+        <option value="">--</option>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span>:</span>
+      <select aria-label="Paper minute" value={minute} onChange={(e) => update(hour12, e.target.value, period)} disabled={!hour12} className={cls}>
+        {["00", "15", "30", "45"].map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <select aria-label="AM or PM" value={period} onChange={(e) => update(hour12, minute, e.target.value)} disabled={!hour12} className={cls}>
+        <option>AM</option><option>PM</option>
+      </select>
+    </div>
+  );
+}
+
+type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet" | "all-datesheets" | "remid-datesheet" | "all-results";
 
 export default function ResultsManager() {
   const [tab, setTab] = useState<Tab>("failed");
@@ -473,14 +518,35 @@ export default function ResultsManager() {
   const [dsLoading, setDsLoading] = useState(false);
   const [dsBulkSaving, setDsBulkSaving] = useState(false);
   const [dsRowSaving, setDsRowSaving] = useState<Record<string, boolean>>({});
+  const [allDsDeptId, setAllDsDeptId] = useState("");
+  const [allDsSession, setAllDsSession] = useState("");
+  const [allDsClassId, setAllDsClassId] = useState("");
+  const [allDsSemesterId, setAllDsSemesterId] = useState("");
+  const [allDsRows, setAllDsRows] = useState<DateSheetSummary[]>([]);
+  const [allDsLoading, setAllDsLoading] = useState(false);
 
   const classesForDs = useMemo(
     () => allClasses.filter((c) => !dsDeptId || c.department_id === dsDeptId),
     [allClasses, dsDeptId],
   );
   const semestersForDs = useMemo(
-    () => allSemesters.filter((s) => s.class_id === dsClassId && s.status === "active"),
-    [allSemesters, dsClassId],
+    () => allSemesters.filter((s) => s.class_id === dsClassId && (s.status === "active" || s.id === dsSemesterId)),
+    [allSemesters, dsClassId, dsSemesterId],
+  );
+  const allDsSessions = useMemo(
+    () => Array.from(new Set(allClasses.filter((c) => !allDsDeptId || c.department_id === allDsDeptId).map((c) => c.session)))
+      .map((session) => ({ value: session, label: session })),
+    [allClasses, allDsDeptId],
+  );
+  const allDsClasses = useMemo(
+    () => allClasses.filter((c) =>
+      (!allDsDeptId || c.department_id === allDsDeptId) &&
+      (!allDsSession || c.session === allDsSession)),
+    [allClasses, allDsDeptId, allDsSession],
+  );
+  const allDsSemesters = useMemo(
+    () => allSemesters.filter((s) => !allDsClassId || s.class_id === allDsClassId),
+    [allSemesters, allDsClassId],
   );
 
   const loadDs = useCallback(async () => {
@@ -497,6 +563,7 @@ export default function ResultsManager() {
         (data.rows ?? []).map((r: DsRow) => ({
           ...r,
           paper_date: r.paper_date ?? "",
+          paper_time: r.paper_time ?? "",
           bundle_received_date: r.bundle_received_date ?? "",
           return_date: r.return_date ?? "",
         })),
@@ -506,9 +573,29 @@ export default function ResultsManager() {
     }
   }, [dsSemesterId]);
 
+  const loadAllDateSheets = useCallback(async () => {
+    setAllDsLoading(true);
+    try {
+      const params = new URLSearchParams({ list: "all" });
+      if (allDsDeptId) params.set("department_id", allDsDeptId);
+      if (allDsSession) params.set("session", allDsSession);
+      if (allDsClassId) params.set("class_id", allDsClassId);
+      if (allDsSemesterId) params.set("filter_semester_id", allDsSemesterId);
+      const res = await fetch(`/api/admin/mid-exam-datesheet?${params}`);
+      const data = await res.json();
+      if (res.ok) setAllDsRows(data.sheets ?? []);
+      else toast.error(data.error || "Failed to load date sheets.");
+    } finally {
+      setAllDsLoading(false);
+    }
+  }, [allDsDeptId, allDsSession, allDsClassId, allDsSemesterId]);
+
   useEffect(() => {
     if (tab === "datesheet") loadDs();
   }, [tab, loadDs]);
+  useEffect(() => {
+    if (tab === "all-datesheets") loadAllDateSheets();
+  }, [tab, loadAllDateSheets]);
 
   // ---------------- Re-Mid Exam Date Sheet ----------------
   const [rdDeptId, setRdDeptId] = useState("");
@@ -654,6 +741,7 @@ export default function ResultsManager() {
             ["dropped", "Dropped Students"],
             ["search", "Search Result"],
             ["datesheet", "Mid Exam Date Sheet"],
+            ["all-datesheets", "All Date Sheets"],
             ["remid-datesheet", "Re-Mid Exam Date Sheet"],
             ["all-results",     "All Results"],
           ] as [Tab, string][]
@@ -1368,6 +1456,63 @@ export default function ResultsManager() {
         </div>
       )}
 
+      {tab === "all-datesheets" && (
+        <div>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div className="w-56">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Department</label>
+              <SearchableSelect options={departments} value={departments.find((d) => d.value === allDsDeptId) || null}
+                onChange={(v) => { setAllDsDeptId((v as SelectOption | null)?.value || ""); setAllDsSession(""); setAllDsClassId(""); setAllDsSemesterId(""); }} />
+            </div>
+            <div className="w-44">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Session</label>
+              <SearchableSelect options={allDsSessions} value={allDsSessions.find((s) => s.value === allDsSession) || null}
+                onChange={(v) => { setAllDsSession((v as SelectOption | null)?.value || ""); setAllDsClassId(""); setAllDsSemesterId(""); }}
+                isDisabled={!allDsDeptId} />
+            </div>
+            <div className="w-56">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Class</label>
+              <SearchableSelect options={allDsClasses.map((c) => ({ value: c.id, label: c.class_name }))}
+                value={allDsClasses.filter((c) => c.id === allDsClassId).map((c) => ({ value: c.id, label: c.class_name }))[0] || null}
+                onChange={(v) => { setAllDsClassId((v as SelectOption | null)?.value || ""); setAllDsSemesterId(""); }}
+                isDisabled={!allDsSession} />
+            </div>
+            <div className="w-64">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Semester</label>
+              <SearchableSelect options={allDsSemesters.map((s) => ({ value: s.id, label: `Semester ${s.semester_number} – ${s.term_type} (${s.status})` }))}
+                value={allDsSemesters.filter((s) => s.id === allDsSemesterId).map((s) => ({ value: s.id, label: `Semester ${s.semester_number} – ${s.term_type} (${s.status})` }))[0] || null}
+                onChange={(v) => setAllDsSemesterId((v as SelectOption | null)?.value || "")}
+                isDisabled={!allDsClassId} />
+            </div>
+          </div>
+          {allDsLoading ? <DataFetchLoader /> : allDsRows.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">No saved Mid Term date sheets match these filters.</p>
+          ) : (
+            <div className="overflow-x-auto card-3d shadow-sm">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-slate-200 text-left dark:border-slate-800">
+                  <th className="px-4 py-3">Department</th><th className="px-4 py-3">Class / Session</th>
+                  <th className="px-4 py-3">Semester</th><th className="px-4 py-3">Papers</th>
+                  <th className="px-4 py-3">Date range</th><th className="px-4 py-3" />
+                </tr></thead>
+                <tbody>{allDsRows.map((sheet) => (
+                  <tr key={sheet.semester_id} className="border-b border-slate-100 dark:border-slate-800">
+                    <td className="px-4 py-3">{sheet.department_name}</td>
+                    <td className="px-4 py-3"><div className="font-medium">{sheet.class_name}</div><div className="text-xs text-slate-400">{sheet.session}</div></td>
+                    <td className="px-4 py-3">Semester {sheet.semester_number} – {sheet.term_type}<div className="text-xs capitalize text-slate-400">{sheet.status}</div></td>
+                    <td className="px-4 py-3">{sheet.scheduled_courses}</td>
+                    <td className="px-4 py-3">{sheet.first_paper_date ? `${formatDateOnly(sheet.first_paper_date)}${sheet.last_paper_date && sheet.last_paper_date !== sheet.first_paper_date ? ` – ${formatDateOnly(sheet.last_paper_date)}` : ""}` : "Dates pending"}</td>
+                    <td className="px-4 py-3"><button onClick={() => {
+                      setDsDeptId(sheet.department_id); setDsClassId(sheet.class_id); setDsSemesterId(sheet.semester_id); setTab("datesheet");
+                    }} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"><Pencil size={12} /> View / Edit</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === "datesheet" && (
         <div>
           {/* Filters */}
@@ -1406,7 +1551,7 @@ export default function ResultsManager() {
               />
             </div>
             <div className="w-64">
-              <label className="mb-1 block text-xs font-medium text-slate-500">Semester (Active only)</label>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Semester</label>
               <SearchableSelect
                 options={semestersForDs.map((s) => ({
                   value: s.id,
@@ -1462,6 +1607,7 @@ export default function ResultsManager() {
                             <th className="px-3 py-2">Teacher</th>
                             <th className="px-3 py-2 text-center">Cr. Hrs</th>
                             <th className="px-3 py-2">Paper Date</th>
+                            <th className="px-3 py-2">Paper Time</th>
                             <th className="px-3 py-2">Bundle Received</th>
                             <th className="px-3 py-2">Return Date</th>
                             <th className="px-3 py-2 text-center">Result</th>
@@ -1474,6 +1620,10 @@ export default function ResultsManager() {
                               <td className="px-3 py-1.5">
                                 <div className="font-medium">{r.course_title}</div>
                                 <div className="text-xs text-slate-400">{r.course_code}</div>
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <PaperTimeInput value={r.paper_time}
+                                  onChange={(paperTime) => setDsRows((prev) => prev.map((row) => row.course_id === r.course_id ? { ...row, paper_time: paperTime } : row))} />
                               </td>
                               <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
                               <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
@@ -1548,6 +1698,7 @@ export default function ResultsManager() {
                                           semester_id: dsSemesterId,
                                           course_id: r.course_id,
                                           paper_date: r.paper_date || null,
+                                          paper_time: r.paper_time || null,
                                           bundle_received_date: r.bundle_received_date || null,
                                           return_date: r.return_date || null,
                                         }),
@@ -1590,6 +1741,7 @@ export default function ResultsManager() {
                             rows: dsRows.map((r) => ({
                               course_id: r.course_id,
                               paper_date: r.paper_date || null,
+                              paper_time: r.paper_time || null,
                               bundle_received_date: r.bundle_received_date || null,
                               return_date: r.return_date || null,
                             })),

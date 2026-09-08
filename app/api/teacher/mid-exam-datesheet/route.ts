@@ -20,6 +20,7 @@ export async function GET() {
     semester_number: number;
     term_type: string;
     paper_date: string | null;
+    paper_time: string | null;
     bundle_received_date: string | null;
     return_date: string | null;
     result_uploaded: boolean;
@@ -36,6 +37,7 @@ export async function GET() {
        s.semester_number,
        s.term_type,
        to_char(med.paper_date,           'YYYY-MM-DD') as paper_date,
+        to_char(med.paper_time,           'HH12:MI AM') as paper_time,
        to_char(med.bundle_received_date, 'YYYY-MM-DD') as bundle_received_date,
        to_char(med.return_date,          'YYYY-MM-DD') as return_date,
        exists (

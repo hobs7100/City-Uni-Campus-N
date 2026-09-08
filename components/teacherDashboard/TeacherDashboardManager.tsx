@@ -202,6 +202,7 @@ interface TeacherDsRow {
   semester_number: number;
   term_type: string;
   paper_date: string | null;
+  paper_time: string | null;
   bundle_received_date: string | null;
   return_date: string | null;
   result_uploaded: boolean;
@@ -1788,7 +1789,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                                     <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
                                       <th className="px-3 py-2">Course</th>
                                       <th className="px-3 py-2 text-center">Cr. Hrs</th>
-                                      <th className="px-3 py-2">Paper Date</th>
+                                        <th className="px-3 py-2">Paper Date</th>
+                                        <th className="px-3 py-2">Paper Time</th>
                                       <th className="px-3 py-2">Bundle Received</th>
                                       <th className="px-3 py-2">Return Date</th>
                                       <th className="px-3 py-2 text-center">Result</th>
@@ -1802,9 +1804,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                                           <div className="text-xs text-slate-400">{r.course_code}</div>
                                         </td>
                                         <td className="px-3 py-2 text-center">{r.credit_hours}</td>
-                                        <td className="px-3 py-2">
+                                          <td className="px-3 py-2">
                                           {r.paper_date ? formatDateOnly(r.paper_date) : <span className="text-slate-400">—</span>}
                                         </td>
+                                          <td className="px-3 py-2">
+                                            {r.paper_time || <span className="text-slate-400">—</span>}
+                                          </td>
                                         <td className="px-3 py-2">
                                           {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
                                         </td>
