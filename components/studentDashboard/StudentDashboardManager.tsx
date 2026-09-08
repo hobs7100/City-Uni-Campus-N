@@ -606,6 +606,7 @@ export default function StudentDashboardManager() {
   </section>
   <footer style="background:#273783;padding:6px 14px;display:flex;justify-content:space-between;align-items:center">
     <span style="color:#e0e7ff;font-size:7.5px">Computer-generated examination slip</span>
+    <span style="color:#ffffff;font-size:7.5px;font-weight:700">Deveploped By: Prof.M.Shahzad</span>
     <span style="color:#e0e7ff;font-size:7.5px;font-weight:700">City College &mdash; University Campus</span>
   </footer>
 </main>
