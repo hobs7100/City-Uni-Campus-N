@@ -104,7 +104,6 @@ interface DsRow {
   course_code: string;
   course_title: string;
   credit_hours: string;
-  teacher_name: string;
   datesheet_id: string | null;
   paper_date: string;
   paper_time: string;
@@ -134,7 +133,6 @@ interface RdRow {
   course_code: string;
   course_title: string;
   credit_hours: string;
-  teacher_name: string;
   paper_date: string;
   paper_time: string;
   absent_count: number;
@@ -1606,7 +1604,6 @@ export default function ResultsManager() {
                         <thead>
                           <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
                             <th className="px-3 py-2">Course</th>
-                            <th className="px-3 py-2">Teacher</th>
                             <th className="px-3 py-2 text-center">Cr. Hrs</th>
                             <th className="px-3 py-2">Paper Date</th>
                             <th className="px-3 py-2">Paper Time</th>
@@ -1623,11 +1620,6 @@ export default function ResultsManager() {
                                 <div className="font-medium">{r.course_title}</div>
                                 <div className="text-xs text-slate-400">{r.course_code}</div>
                               </td>
-                              <td className="px-3 py-1.5">
-                                <PaperTimeInput value={r.paper_time}
-                                  onChange={(paperTime) => setDsRows((prev) => prev.map((row) => row.course_id === r.course_id ? { ...row, paper_time: paperTime } : row))} />
-                              </td>
-                              <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
                               <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
                               <td className="px-3 py-1.5">
                                 <input
@@ -1644,6 +1636,10 @@ export default function ResultsManager() {
                                   }
                                   className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                 />
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <PaperTimeInput value={r.paper_time}
+                                  onChange={(paperTime) => setDsRows((prev) => prev.map((row) => row.course_id === r.course_id ? { ...row, paper_time: paperTime } : row))} />
                               </td>
                               <td className="px-3 py-1.5">
                                 <input
@@ -1854,7 +1850,6 @@ export default function ResultsManager() {
                         <thead>
                           <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
                             <th className="px-3 py-2">Course</th>
-                            <th className="px-3 py-2">Teacher</th>
                             <th className="px-3 py-2 text-center">Cr. Hrs</th>
                             <th className="px-3 py-2 text-center">Absent Students</th>
                             <th className="px-3 py-2">Re-Mid Date</th>
@@ -1871,11 +1866,6 @@ export default function ResultsManager() {
                                 <div className="font-medium">{r.course_title}</div>
                                 <div className="text-xs text-slate-400">{r.course_code}</div>
                               </td>
-                              <td className="px-3 py-1.5">
-                                <PaperTimeInput value={r.paper_time}
-                                  onChange={(paperTime) => setRdRows((prev) => prev.map((row) => row.course_id === r.course_id ? { ...row, paper_time: paperTime } : row))} />
-                              </td>
-                              <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
                               <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
                               <td className="px-3 py-1.5 text-center">
                                 <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-400">
@@ -1895,6 +1885,10 @@ export default function ResultsManager() {
                                   }
                                   className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                 />
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <PaperTimeInput value={r.paper_time}
+                                  onChange={(paperTime) => setRdRows((prev) => prev.map((row) => row.course_id === r.course_id ? { ...row, paper_time: paperTime } : row))} />
                               </td>
                               <td className="px-3 py-1.5">
                                 <input
