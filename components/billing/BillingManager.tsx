@@ -106,9 +106,17 @@ interface PermanentPreviewItem {
   allocated_at: string;
   classes: string[];
   total_lectures: string;
+  attendance: AttendanceRow[];
   transfer_group_id: string | null;
   transfer_part: number;
   transfer_total_parts: number;
+}
+
+interface AttendanceDetailsItem {
+  course_code: string;
+  course_title: string;
+  classes?: string[];
+  attendance?: AttendanceRow[];
 }
 
 interface PermanentWorkloadSummary {
@@ -351,7 +359,7 @@ export default function BillingManager() {
   const [customVisLoading, setCustomVisLoading] = useState(false);
   const [customVisGenerating, setCustomVisGenerating] = useState(false);
   const [customVisPreviewKey, setCustomVisPreviewKey] = useState("");
-  const [customVisDetails, setCustomVisDetails] = useState<VisitingPreviewItem | null>(null);
+  const [customVisDetails, setCustomVisDetails] = useState<AttendanceDetailsItem | null>(null);
   const customVisRequestId = useRef(0);
 
   const [permDepartmentId, setPermDepartmentId] = useState("");
@@ -360,9 +368,6 @@ export default function BillingManager() {
   const [permTo, setPermTo] = useState(todayStr());
   const [permItems, setPermItems] = useState<PermanentPreviewItem[]>([]);
   const [permSummary, setPermSummary] = useState<PermanentWorkloadSummary | null>(null);
-  const [permOverrides, setPermOverrides] = useState<
-    Record<string, { allocation_type: string; rate: string }>
-  >({});
   const [permLoading, setPermLoading] = useState(false);
   const [permGenerating, setPermGenerating] = useState(false);
 
@@ -690,14 +695,6 @@ export default function BillingManager() {
       if (res.ok) {
         setPermItems(data.items);
         setPermSummary(data.summary);
-        const overrides: Record<string, { allocation_type: string; rate: string }> = {};
-        for (const it of data.items as PermanentPreviewItem[]) {
-          overrides[it.allocation_id] = {
-            allocation_type: it.underlying_type, // preserve actual type: workload | extra | fixed
-            rate: it.underlying_rate,
-          };
-        }
-        setPermOverrides(overrides);
       }
     } finally {
       setPermLoading(false);
@@ -709,26 +706,17 @@ export default function BillingManager() {
   }, [tab, loadPermPreview]);
 
   function computePermAmount(item: PermanentPreviewItem) {
-    const ov = permOverrides[item.allocation_id];
-    if (!ov) return 0;
-    const rate = Number(ov.rate);
-    if (ov.allocation_type === "workload") return 0;
-    if (ov.allocation_type === "extra")    return rate * Number(item.total_lectures);
-    return rate; // fixed
+    const rate = Number(item.underlying_rate);
+    if (item.underlying_type === "workload") return 0;
+    if (item.underlying_type === "fixed") return rate;
+    return rate * Number(item.total_lectures);
   }
 
   const permTotal = useMemo(() => {
     return permItems.reduce((sum, it) => {
-      const ov = permOverrides[it.allocation_id];
-      if (!ov) return sum;
-      const rate = Number(ov.rate);
-      const amount =
-        ov.allocation_type === "workload" ? 0 :
-        ov.allocation_type === "extra"    ? rate * Number(it.total_lectures) :
-        /* fixed */                         rate;
-      return sum + amount;
+      return sum + computePermAmount(it);
     }, 0);
-  }, [permItems, permOverrides]);
+  }, [permItems]);
 
   const permWorkloadStatus = useMemo(() => {
     if (!permSummary) return null;
@@ -756,8 +744,6 @@ export default function BillingManager() {
           billing_month: `${permFrom} to ${permTo}`,
           items: permItems.map((it) => ({
             allocation_id: it.allocation_id,
-            allocation_type: permOverrides[it.allocation_id]?.allocation_type ?? "workload",
-            rate: Number(permOverrides[it.allocation_id]?.rate ?? 0),
           })),
         }),
       });
@@ -1226,10 +1212,10 @@ export default function BillingManager() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {visLoading ? (
-                      <TableLoader colSpan={8} />
+                      <TableLoader colSpan={9} />
                     ) : visItems.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                        <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                           No unbilled lectures found.
                         </td>
                       </tr>
@@ -1275,6 +1261,12 @@ export default function BillingManager() {
                           <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
                             {it.amount.toLocaleString()}
                           </td>
+                           <td className="px-4 py-3 text-right">
+                             <button type="button" onClick={() => setCustomVisDetails(it)}
+                               className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+                               <Eye size={14} /> View Details
+                             </button>
+                           </td>
                         </tr>
                       ))
                     )}
@@ -1368,6 +1360,7 @@ export default function BillingManager() {
                       <th className="px-4 py-3">Lectures</th>
                       <th className="px-4 py-3">Rate</th>
                       <th className="px-4 py-3">Amount</th>
+                   <th className="px-4 py-3 text-right">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1559,17 +1552,18 @@ export default function BillingManager() {
                   <th className="px-4 py-3">Class(es)</th>
                    <th className="px-4 py-3">Credit Hours</th>
                   <th className="px-4 py-3">Lectures</th>
-                  <th className="px-4 py-3">Bill As</th>
+                  <th className="px-4 py-3">Allocation Type</th>
                   <th className="px-4 py-3">Rate</th>
                   <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3 text-right">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {permLoading ? (
-                  <TableLoader colSpan={7} />
+                  <TableLoader colSpan={8} />
                 ) : !permTeacherId ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                       {permDepartmentId
                         ? "Select a teacher to preview billable lectures."
                         : "Select a department, then a teacher, to preview billable lectures."}
@@ -1577,16 +1571,12 @@ export default function BillingManager() {
                   </tr>
                 ) : permItems.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                       No unbilled lectures found for this period.
                     </td>
                   </tr>
                 ) : (
                   permItems.map((it) => {
-                    const ov = permOverrides[it.allocation_id] ?? {
-                      allocation_type: "workload",
-                      rate: it.underlying_rate,
-                    };
                     return (
                       <tr
                         key={it.allocation_id}
@@ -1615,36 +1605,23 @@ export default function BillingManager() {
                           {it.total_lectures}
                         </td>
                         <td className="px-4 py-3">
-                          <select
-                            value={ov.allocation_type}
-                            onChange={(e) =>
-                              setPermOverrides((prev) => ({
-                                ...prev,
-                                [it.allocation_id]: { ...ov, allocation_type: e.target.value },
-                              }))
-                            }
-                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          >
-                            <option value="workload">Workload</option>
-                            <option value="extra">Extra</option>
-                            <option value="fixed">Fixed</option>
-                          </select>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            it.underlying_type === "workload"
+                              ? "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                          }`}>{allocTypeLabel[it.underlying_type] ?? it.underlying_type}</span>
                         </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="number"
-                            value={ov.rate}
-                            onChange={(e) =>
-                              setPermOverrides((prev) => ({
-                                ...prev,
-                                [it.allocation_id]: { ...ov, rate: e.target.value },
-                              }))
-                            }
-                            className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {Number(it.underlying_rate).toLocaleString()}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
                           {computePermAmount(it).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button type="button" onClick={() => setCustomVisDetails(it)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+                            <Eye size={14} /> View Details
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1793,9 +1770,36 @@ export default function BillingManager() {
         }
         widthClass="max-w-3xl"
       >
-        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+        {customVisDetails && (
+          <div className="mb-4 overflow-hidden rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 p-4 text-white shadow-lg dark:border-indigo-500/30">
+            <div className="text-xs font-semibold uppercase tracking-wider text-indigo-100">Course attendance history</div>
+            <div className="mt-1 text-lg font-bold">{customVisDetails.course_title}</div>
+            {customVisDetails.classes && customVisDetails.classes.length > 0 && (
+              <div className="mt-1 text-sm text-indigo-100">{customVisDetails.classes.join(", ")}</div>
+            )}
+          </div>
+        )}
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-500/30 dark:bg-sky-500/10">
+            <div className="text-xs font-semibold uppercase text-sky-600 dark:text-sky-300">Records</div>
+            <div className="mt-1 text-xl font-bold text-sky-800 dark:text-sky-100">{customVisDetails?.attendance?.length ?? 0}</div>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+            <div className="text-xs font-semibold uppercase text-emerald-600 dark:text-emerald-300">Lectures</div>
+            <div className="mt-1 text-xl font-bold text-emerald-800 dark:text-emerald-100">
+              {(customVisDetails?.attendance ?? []).reduce((sum, row) => sum + Number(row.lecture_count), 0).toLocaleString()}
+            </div>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <div className="text-xs font-semibold uppercase text-amber-600 dark:text-amber-300">Late Minutes</div>
+            <div className="mt-1 text-xl font-bold text-amber-800 dark:text-amber-100">
+              {(customVisDetails?.attendance ?? []).reduce((sum, row) => sum + Number(row.late_minutes), 0).toLocaleString()}
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-indigo-100 shadow-sm dark:border-slate-700">
           <table className="w-full min-w-[560px] border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+            <thead className="bg-indigo-600 text-xs uppercase text-white">
               <tr>
                 <th className="px-4 py-3">Lecture Date</th>
                 <th className="px-4 py-3">Status</th>
@@ -1805,12 +1809,22 @@ export default function BillingManager() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {(customVisDetails?.attendance ?? []).map((row, index) => (
-                <tr key={`${row.attendance_date}-${index}`}>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+                <tr key={`${row.attendance_date}-${index}`} className={index % 2 === 0 ? "bg-indigo-50/60 dark:bg-indigo-500/5" : "bg-white dark:bg-slate-900"}>
+                  <td className="px-4 py-3 font-medium text-indigo-800 dark:text-indigo-200">
                     {formatDateOnly(row.attendance_date)}
                   </td>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
-                    {attendanceStatusLabels[row.status] ?? row.status.replaceAll("_", " ")}
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      row.status === "ok"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                        : row.status === "absent" || row.status === "all_absent"
+                          ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
+                          : row.status === "fixture"
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                            : "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
+                    }`}>
+                      {attendanceStatusLabels[row.status] ?? row.status.replaceAll("_", " ")}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
                     {row.late_minutes}

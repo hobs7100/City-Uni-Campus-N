@@ -32,7 +32,19 @@ export async function GET(request: NextRequest) {
             array_agg(distinct cl.class_name || ' (' || cl.session || ') - Sem ' || s.semester_number) as classes,
             coalesce((select sum(ar.lecture_count) from attendance_records ar
                       where ar.allocation_id = al.id and ar.bill_item_id is null
-                        and ar.attendance_date between $2 and $3), 0) as total_lectures
+                         and ar.attendance_date between $2 and $3), 0) as total_lectures,
+             coalesce((
+               select json_agg(json_build_object(
+                 'attendance_date', ar.attendance_date,
+                 'lecture_count', ar.lecture_count,
+                 'late_minutes', ar.late_minutes,
+                 'status', ar.status
+               ) order by ar.attendance_date, ar.start_time)
+               from attendance_records ar
+               where ar.allocation_id = al.id
+                 and ar.bill_item_id is null
+                 and ar.attendance_date between $2 and $3
+             ), '[]'::json) as attendance
      from allocations al
      join courses c on c.id = al.course_id
      join allocation_semesters als on als.allocation_id = al.id

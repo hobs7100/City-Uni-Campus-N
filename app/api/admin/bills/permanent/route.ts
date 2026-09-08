@@ -5,8 +5,6 @@ import { requireRole } from "@/lib/requireRole";
 
 const itemSchema = z.object({
   allocation_id: z.string().uuid(),
-  allocation_type: z.enum(["workload", "extra", "fixed"]),
-  rate: z.coerce.number().min(0),
 });
 
 const schema = z.object({
@@ -56,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     for (const it of d.items) {
       const allocRes = await client.query(
-        `select al.id, al.course_id, al.teacher_id,
+         `select al.id, al.course_id, al.teacher_id, al.allocation_type, al.rate,
                 (select s.id from allocation_semesters als join semesters s on s.id = als.semester_id
                  where als.allocation_id = al.id order by s.semester_number limit 1) as semester_id,
                 (select s.class_id from allocation_semesters als join semesters s on s.id = als.semester_id
@@ -67,6 +65,14 @@ export async function POST(request: NextRequest) {
       const alloc = allocRes.rows[0];
       if (!alloc) throw new Error(`Allocation ${it.allocation_id} not found.`);
       if (alloc.teacher_id !== d.teacher_id) throw new Error("Allocation does not belong to the selected teacher.");
+
+      const allocationType: "workload" | "extra" | "fixed" =
+        alloc.allocation_type === "workload"
+          ? "workload"
+          : alloc.allocation_type === "fixed"
+            ? "fixed"
+            : "extra";
+      const rate = Number(alloc.rate);
 
       const attendanceRes = await client.query<{ id: string; lecture_count: string }>(
         `select id, lecture_count
@@ -90,9 +96,9 @@ export async function POST(request: NextRequest) {
       // extra    = lectures × rate  (per credit hour)
       // fixed    = flat rate  (no multiplier)
       const amount =
-        it.allocation_type === "workload"   ? 0 :
-        it.allocation_type === "extra"      ? it.rate * totalLectures :
-        /* fixed */                           it.rate;
+        allocationType === "workload" ? 0 :
+        allocationType === "extra"    ? rate * totalLectures :
+        /* fixed */                      rate;
       totalAmount += amount;
 
       createdItems.push({
@@ -100,9 +106,9 @@ export async function POST(request: NextRequest) {
         course_id: alloc.course_id,
         class_id: alloc.class_id,
         semester_id: alloc.semester_id,
-        allocation_type: it.allocation_type,
+        allocation_type: allocationType,
         total_lectures: totalLectures,
-        rate: it.rate,
+        rate,
         amount,
         attendance_ids: attendanceRes.rows.map((row) => row.id),
       });
