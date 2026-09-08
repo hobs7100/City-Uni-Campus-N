@@ -83,6 +83,7 @@ interface ClassOption { id: string; class_name: string; session: string }
   teacher_name: string;
   absent_count: number;
   paper_date: string | null;
+  paper_time: string | null;
   bundle_received_date: string | null;
   return_date: string | null;
 }
@@ -1515,6 +1516,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                               <th className="px-3 py-2 text-center">Cr. Hrs</th>
                               <th className="px-3 py-2 text-center">Absent</th>
                               <th className="px-3 py-2">Re-Mid Date</th>
+                              <th className="px-3 py-2">Paper Time</th>
                               <th className="px-3 py-2">Bundle Received</th>
                               <th className="px-3 py-2">Return Date</th>
                             </tr>
@@ -1538,6 +1540,7 @@ export default function HodDashboardManager({ initialTab }: { initialTab?: strin
                                     <span className="font-medium text-amber-700 dark:text-amber-400">{formatDateOnly(r.paper_date)}</span>
                                   ) : <span className="text-slate-400">—</span>}
                                 </td>
+                                <td className="px-3 py-2">{r.paper_time || <span className="text-slate-400">—</span>}</td>
                                 <td className="px-3 py-2">
                                   {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
                                 </td>

@@ -14,13 +14,15 @@ export async function GET() {
     course_code: string;
     credit_hours: string;
     paper_date: string | null;
+    paper_time: string | null;
   }>(
     `select distinct on (r.course_id)
        r.course_id,
        c.title              as course_title,
        c.code               as course_code,
        c.credit_hours::text as credit_hours,
-       to_char(rmd.paper_date, 'YYYY-MM-DD') as paper_date
+       to_char(rmd.paper_date, 'YYYY-MM-DD') as paper_date,
+       to_char(rmd.paper_time, 'HH12:MI AM') as paper_time
      from results r
      join courses c on c.id = r.course_id
      join semesters s on s.id = r.semester_id and s.status = 'active'

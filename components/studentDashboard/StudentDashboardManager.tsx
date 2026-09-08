@@ -119,6 +119,7 @@ interface StudentRdRow {
   course_code: string;
   credit_hours: string;
   paper_date: string | null;
+  paper_time: string | null;
 }
 
 interface SlipCourseRow {
@@ -1443,6 +1444,7 @@ export default function StudentDashboardManager() {
                             <th className="px-4 py-2">Course</th>
                             <th className="px-4 py-2 text-center">Cr. Hrs</th>
                             <th className="px-4 py-2">Re-Mid Date</th>
+                            <th className="px-4 py-2">Paper Time</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1451,6 +1453,9 @@ export default function StudentDashboardManager() {
                               <td className="px-4 py-2.5">
                                 <div className="font-medium text-slate-800 dark:text-slate-100">{r.course_title}</div>
                                 <div className="text-xs text-slate-400">{r.course_code}</div>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {r.paper_time ? <span className="font-medium text-amber-700 dark:text-amber-400">{r.paper_time}</span> : <span className="text-slate-400">Not set</span>}
                               </td>
                               <td className="px-4 py-2.5 text-center">{r.credit_hours}</td>
                               <td className="px-4 py-2.5">

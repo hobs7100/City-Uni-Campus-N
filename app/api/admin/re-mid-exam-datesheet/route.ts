@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient, query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
+function validPaperTime(value: unknown) {
+  return value == null || value === "" || (typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value));
+}
+
 // GET /api/admin/re-mid-exam-datesheet?semester_id=...
 // Returns all courses for the semester that have at least one mid-absent student,
 // with existing re-mid datesheet values pre-filled.
@@ -23,6 +27,7 @@ export async function GET(request: NextRequest) {
     absent_count: number;
     datesheet_id: string | null;
     paper_date: string | null;
+    paper_time: string | null;
     bundle_received_date: string | null;
     return_date: string | null;
   }>(
@@ -38,6 +43,7 @@ export async function GET(request: NextRequest) {
        )::int                   as absent_count,
        rmd.id                   as datesheet_id,
        to_char(rmd.paper_date,           'YYYY-MM-DD') as paper_date,
+       to_char(rmd.paper_time,           'HH24:MI') as paper_time,
        to_char(rmd.bundle_received_date, 'YYYY-MM-DD') as bundle_received_date,
        to_char(rmd.return_date,          'YYYY-MM-DD') as return_date
      from semester_courses sc
@@ -72,11 +78,14 @@ export async function POST(request: NextRequest) {
 
   const { semester_id, rows, notify = false } = body as {
     semester_id: string;
-    rows: { course_id: string; paper_date?: string | null; bundle_received_date?: string | null; return_date?: string | null }[];
+    rows: { course_id: string; paper_date?: string | null; paper_time?: string | null; bundle_received_date?: string | null; return_date?: string | null }[];
     notify?: boolean;
   };
 
   if (rows.length === 0) return NextResponse.json({ saved: 0 });
+  if (rows.some((r) => !validPaperTime(r.paper_time) || (r.paper_time && !r.paper_date))) {
+    return NextResponse.json({ error: "Paper time must be valid and must have a paper date." }, { status: 400 });
+  }
 
   const client = await getClient();
   try {
@@ -86,14 +95,15 @@ export async function POST(request: NextRequest) {
     for (const r of rows) {
       await client.query(
         `insert into re_mid_exam_datesheets
-           (semester_id, course_id, paper_date, bundle_received_date, return_date, updated_at)
-         values ($1, $2, $3, $4, $5, now())
+           (semester_id, course_id, paper_date, paper_time, bundle_received_date, return_date, updated_at)
+         values ($1, $2, $3, $4, $5, $6, now())
          on conflict (semester_id, course_id) do update set
            paper_date           = excluded.paper_date,
+            paper_time           = excluded.paper_time,
            bundle_received_date = excluded.bundle_received_date,
            return_date          = excluded.return_date,
            updated_at           = now()`,
-        [semester_id, r.course_id, r.paper_date || null, r.bundle_received_date || null, r.return_date || null],
+        [semester_id, r.course_id, r.paper_date || null, r.paper_time || null, r.bundle_received_date || null, r.return_date || null],
       );
     }
 
@@ -113,10 +123,11 @@ export async function POST(request: NextRequest) {
         const semLabel = sem ? `${sem.class_name} (${sem.session}) – Semester ${sem.semester_number} ${sem.term_type}` : "active semester";
 
         // Mid-absent students for those courses
-        const studentRows = await client.query<{ student_id: string; course_title: string; paper_date: string | null }>(
+        const studentRows = await client.query<{ student_id: string; course_title: string; paper_date: string | null; paper_time: string | null }>(
           `select distinct r.student_id,
                   c.title as course_title,
-                  to_char(rmd.paper_date, 'DD Mon YYYY') as paper_date
+                   to_char(rmd.paper_date, 'DD Mon YYYY') as paper_date,
+                   to_char(rmd.paper_time, 'HH12:MI AM') as paper_time
            from results r
            join courses c on c.id = r.course_id
            left join re_mid_exam_datesheets rmd on rmd.semester_id = r.semester_id and rmd.course_id = r.course_id
@@ -154,7 +165,7 @@ export async function POST(request: NextRequest) {
           ...studentRows.rows.map((r): NRow => [
             "student",
             r.student_id,
-            `Re-Mid exam for ${r.course_title} is scheduled on ${r.paper_date ?? "TBD"}. (${semLabel})`,
+            `Re-Mid exam for ${r.course_title} is scheduled on ${r.paper_date ?? "TBD"}${r.paper_time ? ` at ${r.paper_time}` : ""}. (${semLabel})`,
           ]),
           ...teacherRows.rows.map((r): NRow => [
             "teacher",
@@ -223,24 +234,29 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "semester_id and course_id are required." }, { status: 400 });
   }
 
-  const { semester_id, course_id, paper_date, bundle_received_date, return_date } = body as {
+  const { semester_id, course_id, paper_date, paper_time, bundle_received_date, return_date } = body as {
     semester_id: string;
     course_id: string;
     paper_date?: string | null;
+    paper_time?: string | null;
     bundle_received_date?: string | null;
     return_date?: string | null;
   };
+  if (!validPaperTime(paper_time) || (paper_time && !paper_date)) {
+    return NextResponse.json({ error: "Paper time must be valid and must have a paper date." }, { status: 400 });
+  }
 
   await query(
     `insert into re_mid_exam_datesheets
-       (semester_id, course_id, paper_date, bundle_received_date, return_date, updated_at)
-     values ($1, $2, $3, $4, $5, now())
+       (semester_id, course_id, paper_date, paper_time, bundle_received_date, return_date, updated_at)
+     values ($1, $2, $3, $4, $5, $6, now())
      on conflict (semester_id, course_id) do update set
        paper_date           = excluded.paper_date,
+       paper_time           = excluded.paper_time,
        bundle_received_date = excluded.bundle_received_date,
        return_date          = excluded.return_date,
        updated_at           = now()`,
-    [semester_id, course_id, paper_date || null, bundle_received_date || null, return_date || null],
+    [semester_id, course_id, paper_date || null, paper_time || null, bundle_received_date || null, return_date || null],
   );
 
   return NextResponse.json({ ok: true });

@@ -219,6 +219,7 @@ interface TeacherRdRow {
   semester_number: number;
   term_type: string;
   paper_date: string | null;
+  paper_time: string | null;
   absent_count: number;
   bundle_received_date: string | null;
   return_date: string | null;
@@ -1695,6 +1696,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                                         <th className="px-3 py-2 text-center">Cr. Hrs</th>
                                         <th className="px-3 py-2 text-center">Absent Students</th>
                                         <th className="px-3 py-2">Re-Mid Date</th>
+                                        <th className="px-3 py-2">Paper Time</th>
                                         <th className="px-3 py-2">Bundle Received</th>
                                         <th className="px-3 py-2">Return Date</th>
                                       </tr>
@@ -1715,6 +1717,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                                           <td className="px-3 py-2">
                                             {r.paper_date ? <span className="font-medium text-amber-700 dark:text-amber-400">{formatDateOnly(r.paper_date)}</span> : <span className="text-slate-400">—</span>}
                                           </td>
+                                          <td className="px-3 py-2">{r.paper_time || <span className="text-slate-400">—</span>}</td>
                                           <td className="px-3 py-2">
                                             {r.bundle_received_date ? formatDateOnly(r.bundle_received_date) : <span className="text-slate-400">—</span>}
                                           </td>

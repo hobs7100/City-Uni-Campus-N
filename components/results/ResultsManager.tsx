@@ -136,6 +136,7 @@ interface RdRow {
   credit_hours: string;
   teacher_name: string;
   paper_date: string;
+  paper_time: string;
   absent_count: number;
   bundle_received_date: string;
   return_date: string;
@@ -630,6 +631,7 @@ export default function ResultsManager() {
         (data.rows ?? []).map((r: RdRow) => ({
           ...r,
           paper_date: r.paper_date ?? "",
+          paper_time: r.paper_time ?? "",
           bundle_received_date: r.bundle_received_date ?? "",
           return_date: r.return_date ?? "",
         })),
@@ -1856,6 +1858,7 @@ export default function ResultsManager() {
                             <th className="px-3 py-2 text-center">Cr. Hrs</th>
                             <th className="px-3 py-2 text-center">Absent Students</th>
                             <th className="px-3 py-2">Re-Mid Date</th>
+                            <th className="px-3 py-2">Paper Time</th>
                             <th className="px-3 py-2">Bundle Received</th>
                             <th className="px-3 py-2">Return Date</th>
                             <th className="px-3 py-2" />
@@ -1867,6 +1870,10 @@ export default function ResultsManager() {
                               <td className="px-3 py-1.5">
                                 <div className="font-medium">{r.course_title}</div>
                                 <div className="text-xs text-slate-400">{r.course_code}</div>
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <PaperTimeInput value={r.paper_time}
+                                  onChange={(paperTime) => setRdRows((prev) => prev.map((row) => row.course_id === r.course_id ? { ...row, paper_time: paperTime } : row))} />
                               </td>
                               <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{r.teacher_name}</td>
                               <td className="px-3 py-1.5 text-center">{r.credit_hours}</td>
@@ -1929,6 +1936,7 @@ export default function ResultsManager() {
                                           semester_id: rdSemesterId,
                                           course_id: r.course_id,
                                           paper_date: r.paper_date || null,
+                                          paper_time: r.paper_time || null,
                                           bundle_received_date: r.bundle_received_date || null,
                                           return_date: r.return_date || null,
                                         }),
@@ -1971,6 +1979,7 @@ export default function ResultsManager() {
                           rows: rdRows.map((r) => ({
                             course_id: r.course_id,
                             paper_date: r.paper_date || null,
+                            paper_time: r.paper_time || null,
                             bundle_received_date: r.bundle_received_date || null,
                             return_date: r.return_date || null,
                           })),
@@ -2001,6 +2010,7 @@ export default function ResultsManager() {
                           rows: rdRows.map((r) => ({
                             course_id: r.course_id,
                             paper_date: r.paper_date || null,
+                            paper_time: r.paper_time || null,
                             bundle_received_date: r.bundle_received_date || null,
                             return_date: r.return_date || null,
                           })),

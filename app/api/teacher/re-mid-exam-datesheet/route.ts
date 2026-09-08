@@ -21,6 +21,7 @@ export async function GET() {
     term_type: string;
     absent_count: number;
     paper_date: string | null;
+    paper_time: string | null;
     bundle_received_date: string | null;
     return_date: string | null;
   }>(
@@ -39,6 +40,7 @@ export async function GET() {
          where r.semester_id = s.id and r.course_id = als.course_id and r.mid_absent = true
        )::int                   as absent_count,
        to_char(rmd.paper_date,           'YYYY-MM-DD') as paper_date,
+       to_char(rmd.paper_time,           'HH12:MI AM') as paper_time,
        to_char(rmd.bundle_received_date, 'YYYY-MM-DD') as bundle_received_date,
        to_char(rmd.return_date,          'YYYY-MM-DD') as return_date
      from allocation_semesters als
