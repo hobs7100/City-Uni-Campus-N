@@ -299,7 +299,7 @@ const tabs = [
   { id: "students", label: "Student Attendance", icon: GraduationCap },
   { id: "search-student", label: "Search Student", icon: Search },
   { id: "report", label: "My Attendance", icon: FileDown },
-  { id: "dit-results", label: "DIT Results", icon: PenLine },
+  { id: "dit-results", label: "DIT Result", icon: PenLine },
   { id: "bills", label: "Bills", icon: Wallet },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "profile", label: "Profile", icon: User },
@@ -412,6 +412,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   interface DitStudentRow {
     student_id: string;
     name: string;
+    father_name: string | null;
     roll_no: string | null;
     obtained_marks: number | null;
     remarks: string | null;
@@ -421,6 +422,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [ditCourses, setDitCourses]         = useState<DitCourseRow[]>([]);
   const [ditCoursesLoaded, setDitCoursesLoaded] = useState(false);
   const [ditSeriesList, setDitSeriesList]   = useState<DitSeriesOption[]>([]);
+  const [ditSubTab, setDitSubTab]           = useState<"enter" | "all">("enter");
+  const [ditClassId, setDitClassId]         = useState("");
   // selectors
   const [ditAllocId, setDitAllocId]         = useState("");
   const [ditSemId, setDitSemId]             = useState("");
@@ -430,6 +433,18 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [ditStudents, setDitStudents]       = useState<DitStudentRow[]>([]);
   const [ditStudentsLoading, setDitStudentsLoading] = useState(false);
   const [ditSaving, setDitSaving]           = useState(false);
+  const [ditAllRows, setDitAllRows]         = useState<Array<Record<string, unknown>>>([]);
+  const [ditAllLoading, setDitAllLoading]   = useState(false);
+  const [ditUpdatingId, setDitUpdatingId]   = useState("");
+  interface DitResultFilterOption {
+    class_id: string; class_name: string; session: string; semester_id: string;
+    semester_number: number; term_type: string; course_id: string; course_code: string;
+    course_title: string; test_series_id: string; series_name: string; test_date: string;
+  }
+  const [ditFilterOptions, setDitFilterOptions] = useState<DitResultFilterOption[]>([]);
+  const [ditResultFilters, setDitResultFilters] = useState({
+    class_id: "", semester_id: "", course_id: "", test_series_id: "", test_date: "",
+  });
 
   const loadRdDatesheet = useCallback(async () => {
       setRdLoading(true);
@@ -456,7 +471,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const loadDitCourses = useCallback(async () => {
     const [cRes, sRes] = await Promise.all([
       fetch("/api/teacher/dit/courses"),
-      fetch("/api/admin/dit/test-series"),
+      fetch("/api/teacher/dit/test-series"),
     ]);
     const cData = await cRes.json();
     const sData = await sRes.json();
@@ -464,6 +479,45 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (sRes.ok) setDitSeriesList(sData.series ?? []);
     setDitCoursesLoaded(true);
   }, []);
+
+  const loadDitAllResults = useCallback(async () => {
+    setDitAllLoading(true);
+    try {
+      const params = new URLSearchParams();
+      Object.entries(ditResultFilters).forEach(([key, value]) => { if (value) params.set(key, value); });
+      const res = await fetch(`/api/teacher/dit/all-results?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok) {
+        setDitAllRows(data.rows ?? []);
+        setDitFilterOptions(data.filter_options ?? []);
+      }
+      else toast.error(data.error || "Could not load results.");
+    } finally {
+      setDitAllLoading(false);
+    }
+  }, [ditResultFilters]);
+
+  async function updateDitAllMark(id: string, value: string, total: unknown) {
+    const marks = Number(value);
+    if (!Number.isInteger(marks) || marks < 0 || marks > Number(total)) {
+      toast.error(`Enter a whole number from 0 to ${total}.`);
+      loadDitAllResults();
+      return;
+    }
+    setDitUpdatingId(id);
+    try {
+      const res = await fetch("/api/teacher/dit/all-results", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, obtained_marks: marks }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Could not update marks."); loadDitAllResults(); return; }
+      setDitAllRows((rows) => rows.map((row) => row.id === id ? { ...row, obtained_marks: marks } : row));
+      toast.success("Marks updated.");
+    } finally {
+      setDitUpdatingId("");
+    }
+  }
 
   const loadDitStudents = useCallback(async () => {
     if (!ditAllocId || !ditSemId) return;
@@ -820,7 +874,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
   useEffect(() => {
     loadCourses();
-  }, [loadCourses]);
+    loadDitCourses();
+  }, [loadCourses, loadDitCourses]);
 
   // search-student: student options memo + handler
   const tsStudentOptions = useMemo(
@@ -852,8 +907,13 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "notifications") loadNotifications();
     if (tab === "profile") loadProfile();
     if (tab === "dit-results" && !ditCoursesLoaded) loadDitCourses();
+    if (tab === "dit-results" && ditSubTab === "all") loadDitAllResults();
     if (tab === "bills") loadBills();
-  }, [tab, loadResRoster, loadTimetables, loadSlots, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses, loadBills]);
+  }, [tab, loadResRoster, loadTimetables, loadSlots, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses, loadDitAllResults, ditSubTab, loadBills]);
+
+  useEffect(() => {
+    if (tab === "dit-results" && ditCoursesLoaded && ditCourses.length === 0) setTab("overview");
+  }, [tab, ditCoursesLoaded, ditCourses.length]);
 
   // Reload DIT students whenever the key selectors change
   useEffect(() => {
@@ -1037,6 +1097,14 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       }),
     [groupedActive],
   );
+  const ditClasses = useMemo(() => Array.from(new Map(ditCourses.map((course) => [course.class_id, course])).values()), [ditCourses]);
+  const ditSelectedClass = ditCourses.find((course) => course.class_id === ditClassId) ?? null;
+  const ditCourseOptions = ditCourses.filter((course) => course.class_id === ditClassId && course.semester_id === ditSemId);
+  const ditFilterClasses = useMemo(() => Array.from(new Map(ditFilterOptions.map((option) => [option.class_id, option])).values()), [ditFilterOptions]);
+  const ditFilterSemesters = useMemo(() => Array.from(new Map(ditFilterOptions.filter((option) => option.class_id === ditResultFilters.class_id).map((option) => [option.semester_id, option])).values()), [ditFilterOptions, ditResultFilters.class_id]);
+  const ditFilterCourses = useMemo(() => Array.from(new Map(ditFilterOptions.filter((option) => option.class_id === ditResultFilters.class_id && option.semester_id === ditResultFilters.semester_id).map((option) => [option.course_id, option])).values()), [ditFilterOptions, ditResultFilters.class_id, ditResultFilters.semester_id]);
+  const ditFilterSeries = useMemo(() => Array.from(new Map(ditFilterOptions.filter((option) => option.class_id === ditResultFilters.class_id && option.semester_id === ditResultFilters.semester_id && option.course_id === ditResultFilters.course_id).map((option) => [option.test_series_id, option])).values()), [ditFilterOptions, ditResultFilters.class_id, ditResultFilters.semester_id, ditResultFilters.course_id]);
+  const ditFilterDates = useMemo(() => Array.from(new Set(ditFilterOptions.filter((option) => option.class_id === ditResultFilters.class_id && option.semester_id === ditResultFilters.semester_id && option.course_id === ditResultFilters.course_id && option.test_series_id === ditResultFilters.test_series_id).map((option) => option.test_date))), [ditFilterOptions, ditResultFilters]);
 
   return (
     <div>
@@ -2708,33 +2776,47 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       {/* ══════════════════ DIT RESULTS TAB ════════════════════════════════ */}
       {tab === "dit-results" && (
         <div className="space-y-4">
+          <div className="flex gap-1 rounded-lg border border-slate-200 p-1 dark:border-slate-700" role="tablist" aria-label="DIT Result sections">
+            <button role="tab" aria-selected={ditSubTab === "enter"} onClick={() => setDitSubTab("enter")} className={`rounded-md px-4 py-2 text-sm font-medium ${ditSubTab === "enter" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}>Enter Result</button>
+            <button role="tab" aria-selected={ditSubTab === "all"} onClick={() => { setDitSubTab("all"); loadDitAllResults(); }} className={`rounded-md px-4 py-2 text-sm font-medium ${ditSubTab === "all" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}>All Results</button>
+          </div>
+          {ditSubTab === "enter" && <>
           {/* Selectors */}
           <div className="card-3d p-4 space-y-4">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Select Class &amp; Test</h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {/* Class + Semester selector */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div>
-                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Class / Semester</label>
+                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Class + Session</label>
                 <select
-                  value={ditAllocId ? `${ditAllocId}|${ditSemId}` : ""}
+                  value={ditClassId}
                   onChange={(e) => {
-                    const [aId, sId] = e.target.value.split("|");
-                    setDitAllocId(aId ?? "");
-                    setDitSemId(sId ?? "");
+                    const selected = ditCourses.find((course) => course.class_id === e.target.value);
+                    setDitClassId(e.target.value);
+                    setDitSemId(selected?.semester_id ?? "");
+                    setDitAllocId("");
                     setDitStudents([]);
                   }}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="">— Select class —</option>
-                  {ditCourses.map((c) => (
-                    <option key={`${c.allocation_id}|${c.semester_id}`} value={`${c.allocation_id}|${c.semester_id}`}>
-                      {c.class_name} ({c.session}) · Sem {c.semester_number} · {c.course_code}
+                  {ditClasses.map((c) => (
+                    <option key={c.class_id} value={c.class_id}>
+                      {c.class_name} ({c.session})
                     </option>
                   ))}
                 </select>
               </div>
-
-              {/* Test series */}
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Active Semester</label>
+                <input readOnly value={ditSelectedClass ? `Semester ${ditSelectedClass.semester_number} · ${ditSelectedClass.term_type}` : ""} placeholder="Auto-filled after class selection" className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Course</label>
+                <select value={ditAllocId} disabled={!ditSemId} onChange={(e) => { setDitAllocId(e.target.value); setDitStudents([]); }} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                  <option value="">— Select course —</option>
+                  {ditCourseOptions.map((course) => <option key={course.allocation_id} value={course.allocation_id}>{course.course_code} · {course.course_title}</option>)}
+                </select>
+              </div>
               <div>
                 <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Test Series</label>
                 <select
@@ -2796,8 +2878,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     <tr>
                       <th className="px-4 py-3">#</th>
                       <th className="px-4 py-3">Student Name</th>
-                      <th className="px-4 py-3">Roll No</th>
-                      <th className="px-4 py-3 text-center">Attendance</th>
+                       <th className="px-4 py-3">Father Name</th>
                       <th className="px-4 py-3 text-center w-32">Obtained Marks</th>
                       <th className="px-4 py-3 text-center w-20">Grade</th>
                       <th className="px-4 py-3">Remarks</th>
@@ -2816,29 +2897,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                         <tr key={s.student_id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${s.result_id ? "" : ""}`}>
                           <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
                           <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{s.name}</td>
-                          <td className="px-4 py-2.5">
-                            <input
-                              value={s.roll_no ?? ""}
-                              onChange={(e) => updateDitRow(s.student_id, { roll_no: e.target.value })}
-                              placeholder="Roll No."
-                              className="w-28 rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                            />
-                          </td>
-                          <td className="px-4 py-2.5 text-center">
-                            {s.attendance_pct === null ? (
-                              <span className="text-xs text-slate-400">—</span>
-                            ) : (
-                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                s.attendance_pct >= 75
-                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                  : s.attendance_pct >= 60
-                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                                  : "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
-                              }`}>
-                                {s.attendance_pct}%
-                              </span>
-                            )}
-                          </td>
+                           <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.father_name || "—"}</td>
                           <td className="px-4 py-2.5 text-center">
                             <input
                               type="number"
@@ -2894,6 +2953,34 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           {ditAllocId && ditSemId && !ditStudentsLoading && ditStudents.length === 0 && (
             <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-400 dark:border-slate-700">
               No active students found for this class/semester.
+            </div>
+          )}
+          </>}
+          {ditSubTab === "all" && (
+            <div className="card-3d overflow-hidden">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                <h3 className="font-semibold text-slate-800 dark:text-white">My Submitted Results</h3>
+                <button onClick={loadDitAllResults} className="rounded-md px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300">Refresh</button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-6 dark:border-slate-700">
+                <div><label className="mb-1 block text-xs font-medium text-slate-500">Class + Session</label><select value={ditResultFilters.class_id} onChange={(e) => setDitResultFilters({ class_id: e.target.value, semester_id: "", course_id: "", test_series_id: "", test_date: "" })} className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"><option value="">All classes</option>{ditFilterClasses.map((option) => <option key={option.class_id} value={option.class_id}>{option.class_name} ({option.session})</option>)}</select></div>
+                <div><label className="mb-1 block text-xs font-medium text-slate-500">Semester</label><select disabled={!ditResultFilters.class_id} value={ditResultFilters.semester_id} onChange={(e) => setDitResultFilters((filters) => ({ ...filters, semester_id: e.target.value, course_id: "", test_series_id: "", test_date: "" }))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"><option value="">All semesters</option>{ditFilterSemesters.map((option) => <option key={option.semester_id} value={option.semester_id}>Sem {option.semester_number} · {option.term_type}</option>)}</select></div>
+                <div><label className="mb-1 block text-xs font-medium text-slate-500">Course</label><select disabled={!ditResultFilters.semester_id} value={ditResultFilters.course_id} onChange={(e) => setDitResultFilters((filters) => ({ ...filters, course_id: e.target.value, test_series_id: "", test_date: "" }))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"><option value="">All courses</option>{ditFilterCourses.map((option) => <option key={option.course_id} value={option.course_id}>{option.course_code} · {option.course_title}</option>)}</select></div>
+                <div><label className="mb-1 block text-xs font-medium text-slate-500">Test Series</label><select disabled={!ditResultFilters.course_id} value={ditResultFilters.test_series_id} onChange={(e) => setDitResultFilters((filters) => ({ ...filters, test_series_id: e.target.value, test_date: "" }))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"><option value="">All series</option>{ditFilterSeries.map((option) => <option key={option.test_series_id} value={option.test_series_id}>{option.series_name}</option>)}</select></div>
+                <div><label className="mb-1 block text-xs font-medium text-slate-500">Test Date</label><select disabled={!ditResultFilters.test_series_id} value={ditResultFilters.test_date} onChange={(e) => setDitResultFilters((filters) => ({ ...filters, test_date: e.target.value }))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"><option value="">All dates</option>{ditFilterDates.map((date) => <option key={date} value={date}>{date}</option>)}</select></div>
+                <div className="flex items-end"><button onClick={() => setDitResultFilters({ class_id: "", semester_id: "", course_id: "", test_series_id: "", test_date: "" })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200">Reset Filters</button></div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800"><tr><th className="px-4 py-3">Student / Father</th><th className="px-4 py-3">Class / Session</th><th className="px-4 py-3">Semester</th><th className="px-4 py-3">Course</th><th className="px-4 py-3">Series / Date</th><th className="px-4 py-3">Marks</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {ditAllLoading ? <TableLoader colSpan={6} /> : ditAllRows.map((row) => (
+                      <tr key={String(row.id)}><td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{String(row.student_name)}<span className="block text-xs font-normal text-slate-500">{String(row.father_name || "—")}</span></td><td className="px-4 py-3">{String(row.class_name)} ({String(row.session)})</td><td className="px-4 py-3">{String(row.semester_number)} · {String(row.term_type)}</td><td className="px-4 py-3">{String(row.course_code)} · {String(row.course_title)}</td><td className="px-4 py-3">{String(row.series_name)}<span className="block text-xs text-slate-500">{String(row.test_date)}</span></td><td className="px-4 py-3 font-semibold"><input aria-label={`Obtained marks for ${String(row.student_name)}`} disabled={ditUpdatingId === String(row.id)} type="number" min={0} max={Number(row.total_marks)} defaultValue={Number(row.obtained_marks)} onBlur={(e) => updateDitAllMark(String(row.id), e.target.value, row.total_marks)} className="w-16 rounded border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-800" /> / {String(row.total_marks)}</td></tr>
+                    ))}
+                    {!ditAllLoading && ditAllRows.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">No submitted results match these filters. Reset filters to view all results you submitted.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
