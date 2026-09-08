@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  ArrowRightLeft, ChevronDown, ChevronUp, FileDown, History,
+  ArrowRightLeft, ChevronDown, ChevronUp, Eye, FileDown, History,
   Layers, Pencil, Plus, Trash2, Users,
 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
@@ -90,6 +90,22 @@ interface HistoryRow {
   semesters: { semester_id: string; class_name: string; session: string; semester_number: number }[];
 }
 
+interface TeacherWorkloadDetail {
+  allocation_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  assigned_date: string;
+  classes: string[];
+}
+
+interface TeacherWorkloadSummary {
+  teacher_type: "permanent" | "visiting";
+  current_workload: string;
+  total_committed: string;
+  details: TeacherWorkloadDetail[];
+}
+
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 
 const allocationTypeOptions = [
@@ -144,10 +160,13 @@ export default function AllocationsPage() {
   const [courseId, setCourseId]                     = useState("");
   const [showAllTeachers, setShowAllTeachers]       = useState(false);
   const [teacherId, setTeacherId]                   = useState("");
-  const [allocationType, setAllocationType]         = useState<"workload" | "per_credit_hour" | "fixed">("workload");
+  const [allocationType, setAllocationType]         = useState<"workload" | "per_credit_hour" | "fixed">("per_credit_hour");
   const [rate, setRate]                             = useState("");
   const [isCombined, setIsCombined]                 = useState(false);
   const [combinedSemesterIds, setCombinedSemesterIds] = useState<string[]>([]);
+  const [teacherWorkload, setTeacherWorkload]       = useState<TeacherWorkloadSummary | null>(null);
+  const [workloadLoading, setWorkloadLoading]       = useState(false);
+  const [workloadDetailsOpen, setWorkloadDetailsOpen] = useState(false);
 
   /* ── Edit modal ───────────────────────────────────────────────────────── */
   const [editTarget, setEditTarget]       = useState<Allocation | null>(null);
@@ -212,8 +231,9 @@ export default function AllocationsPage() {
   /* ── Create ─────────────────────────────────────────────────────────── */
   function resetForm() {
     setDepartmentId(""); setSession(""); setClassId(""); setCourseId("");
-    setShowAllTeachers(false); setTeacherId(""); setAllocationType("workload");
+    setShowAllTeachers(false); setTeacherId(""); setAllocationType("per_credit_hour");
     setRate(""); setIsCombined(false); setCombinedSemesterIds([]);
+    setTeacherWorkload(null); setWorkloadDetailsOpen(false);
   }
   function openCreate() { resetForm(); setModalOpen(true); }
 
@@ -269,6 +289,65 @@ export default function AllocationsPage() {
   const allTeacherOptions = useMemo(() =>
     teachers.filter((t) => t.status === "active").map((t) => ({ value: t.id, label: `${t.name} (${t.type})` })),
     [teachers]);
+
+  const selectedCreateTeacher = useMemo(
+    () => teachers.find((teacher) => teacher.id === teacherId) ?? null,
+    [teachers, teacherId],
+  );
+
+  useEffect(() => {
+    setWorkloadDetailsOpen(false);
+    if (!teacherId || selectedCreateTeacher?.type !== "permanent") {
+      setTeacherWorkload(null);
+      setWorkloadLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setAllocationType("per_credit_hour");
+    setTeacherWorkload(null);
+    setWorkloadLoading(true);
+
+    fetch(`/api/admin/allocations/workload?teacher_id=${teacherId}`, {
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load teacher workload.");
+        setTeacherWorkload(data);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        toast.error(error instanceof Error ? error.message : "Unable to load teacher workload.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setWorkloadLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [teacherId, selectedCreateTeacher?.type]);
+
+  const workloadBanner = useMemo(() => {
+    if (!teacherWorkload || teacherWorkload.teacher_type !== "permanent") return null;
+    const current = Number(teacherWorkload.current_workload);
+    const committed = Number(teacherWorkload.total_committed);
+    if (committed <= 0) return null;
+    if (current >= committed) {
+      return {
+        label: "Overload",
+        message: `Current workload is ${current} credit hours against ${committed} committed.`,
+        className: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+      };
+    }
+    if (committed - current === 1) {
+      return {
+        label: "Underload",
+        message: `Only 1 credit hour remains (${current} of ${committed} committed).`,
+        className: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300",
+      };
+    }
+    return null;
+  }, [teacherWorkload]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -779,10 +858,51 @@ export default function AllocationsPage() {
             <SearchableSelect
               options={teacherOptions}
               value={teacherOptions.find((t) => t.value === teacherId) || null}
-              onChange={(opt) => setTeacherId(opt ? (opt as SelectOption).value : "")}
+              onChange={(opt) => {
+                setTeacherId(opt ? (opt as SelectOption).value : "");
+                setAllocationType("per_credit_hour");
+              }}
               placeholder="Search teacher..."
             />
           </div>
+          {selectedCreateTeacher?.type === "permanent" && (
+            <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-sky-50 p-4 dark:border-indigo-500/30 dark:from-indigo-500/10 dark:to-sky-500/5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="grid flex-1 grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-indigo-600 dark:text-indigo-300">Current Workload</div>
+                    <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                      {workloadLoading ? "…" : Number(teacherWorkload?.current_workload ?? 0).toLocaleString()}
+                      <span className="ml-1 text-sm font-medium text-slate-500">Cr. Hrs</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-sky-600 dark:text-sky-300">Total Committed</div>
+                    <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                      {workloadLoading ? "…" : Number(teacherWorkload?.total_committed ?? 0).toLocaleString()}
+                      <span className="ml-1 text-sm font-medium text-slate-500">Cr. Hrs</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWorkloadDetailsOpen(true)}
+                  disabled={workloadLoading || !teacherWorkload}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-500/30 dark:bg-slate-900 dark:text-indigo-300"
+                >
+                  <Eye size={14} /> View Details
+                </button>
+              </div>
+              {workloadBanner && (
+                <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${workloadBanner.className}`}>
+                  <span className="font-bold">{workloadBanner.label}:</span> {workloadBanner.message}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Counts current Workload allocations linked to Active or Mid-Term semesters only.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Allocation Type</label>
@@ -832,6 +952,51 @@ export default function AllocationsPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={workloadDetailsOpen}
+        onClose={() => setWorkloadDetailsOpen(false)}
+        title="Current Workload Details"
+        widthClass="max-w-3xl"
+      >
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="bg-indigo-600 text-xs uppercase text-white">
+              <tr>
+                <th className="px-4 py-3">Course</th>
+                <th className="px-4 py-3">Class</th>
+                <th className="px-4 py-3 text-center">Credit Hours</th>
+                <th className="px-4 py-3">Assigned Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {(teacherWorkload?.details ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-slate-400">
+                    No current workload allocations found.
+                  </td>
+                </tr>
+              ) : (
+                teacherWorkload?.details.map((detail) => (
+                  <tr key={detail.allocation_id} className="hover:bg-indigo-50/60 dark:hover:bg-indigo-500/5">
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-slate-800 dark:text-slate-100">{detail.course_code}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{detail.course_title}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{detail.classes.join(", ")}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-indigo-700 dark:text-indigo-300">
+                      {Number(detail.credit_hours).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {new Date(`${detail.assigned_date}T00:00:00`).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </Modal>
 
       {/* ══════════════════ EDIT MODAL ═════════════════════════════════════ */}
