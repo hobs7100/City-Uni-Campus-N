@@ -56,7 +56,10 @@ export async function GET(request: NextRequest) {
             c.id as course_id, c.code as course_code, c.title as course_title,
             te.id as teacher_id, te.name as teacher_name,
             te.department_id,
-            array_agg(distinct cl.class_name || ' (' || cl.session || ') - Sem ' || s.semester_number) as classes,
+            sem.semester_id, cl.id as class_id, cl.class_name, cl.session,
+            sem.semester_number,
+            to_char(sem.close_date, 'YYYY-MM-DD') as semester_closed_date,
+            array[cl.class_name || ' (' || cl.session || ') - Sem ' || sem.semester_number] as classes,
              totals.total_lectures,
              totals.fixed_month_count,
              coalesce((
@@ -73,16 +76,18 @@ export async function GET(request: NextRequest) {
      join attendance_totals totals on totals.allocation_id = al.id
      join teachers te on te.id = al.teacher_id
      join courses c on c.id = al.course_id
-     join allocation_semesters als on als.allocation_id = al.id
-     join semesters s on s.id = als.semester_id and s.status = 'closed'
-     join classes cl on cl.id = s.class_id
+     join lateral (
+       select s.id as semester_id, s.class_id, s.semester_number, s.close_date
+       from allocation_semesters als
+       join semesters s on s.id = als.semester_id
+       where als.allocation_id = al.id and s.status = 'closed'
+       order by s.semester_number
+       limit 1
+     ) sem on true
+     join classes cl on cl.id = sem.class_id
      left join chain_info ci on ci.id = al.id
      where ${conditions.join(" and ")}
-     group by al.id, al.allocation_type, al.rate, al.transfer_group_id,
-              ci.transfer_part, ci.transfer_total_parts,
-               c.id, c.code, c.title, te.id, te.name, te.department_id,
-               totals.total_lectures, totals.fixed_month_count
-     order by te.name, c.code, ci.transfer_part`,
+     order by cl.class_name, cl.session, sem.semester_number, te.name, c.code, ci.transfer_part`,
     values
   );
 

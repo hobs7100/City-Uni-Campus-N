@@ -85,6 +85,12 @@ interface VisitingPreviewItem {
   course_title: string;
   teacher_id: string;
   teacher_name: string;
+  semester_id?: string;
+  class_id?: string;
+  class_name?: string;
+  session?: string;
+  semester_number?: number;
+  semester_closed_date?: string | null;
   classes: string[];
   total_lectures: string;
   amount: number;
@@ -361,6 +367,34 @@ export default function BillingManager() {
   const [customVisPreviewKey, setCustomVisPreviewKey] = useState("");
   const [customVisDetails, setCustomVisDetails] = useState<AttendanceDetailsItem | null>(null);
   const customVisRequestId = useRef(0);
+
+  const visitingSemesterGroups = useMemo(() => {
+    const groups = new Map<string, {
+      key: string;
+      className: string;
+      session: string;
+      semesterNumber: number | null;
+      closedDate: string | null;
+      items: VisitingPreviewItem[];
+    }>();
+    for (const item of visItems) {
+      const className = item.class_name ?? "Unknown class";
+      const session = item.session ?? "Unknown session";
+      const semesterNumber = item.semester_number ?? null;
+      const key = `${item.class_id ?? className}:${session}:${semesterNumber ?? "unknown"}`;
+      const group = groups.get(key) ?? {
+        key,
+        className,
+        session,
+        semesterNumber,
+        closedDate: item.semester_closed_date ?? null,
+        items: [],
+      };
+      group.items.push(item);
+      groups.set(key, group);
+    }
+    return Array.from(groups.values());
+  }, [visItems]);
 
   const [permDepartmentId, setPermDepartmentId] = useState("");
   const [permTeacherId, setPermTeacherId] = useState("");
@@ -1202,7 +1236,6 @@ export default function BillingManager() {
                       <th className="px-4 py-3"></th>
                       <th className="px-4 py-3">Teacher</th>
                       <th className="px-4 py-3">Course</th>
-                      <th className="px-4 py-3">Class(es)</th>
                       <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Lectures</th>
                       <th className="px-4 py-3">Rate</th>
@@ -1212,17 +1245,30 @@ export default function BillingManager() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {visLoading ? (
-                      <TableLoader colSpan={9} />
+                      <TableLoader colSpan={8} />
                     ) : visItems.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                           No unbilled lectures found.
                         </td>
                       </tr>
                     ) : (
-                      visItems.map((it) => (
+                      visitingSemesterGroups.flatMap((group) => [
+                        <tr key={`${group.key}:heading`}>
+                          <td colSpan={8} className="border-y border-indigo-100 bg-gradient-to-r from-indigo-50 to-sky-50 px-4 py-3 dark:border-indigo-500/20 dark:from-indigo-500/10 dark:to-sky-500/10">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="font-bold text-indigo-900 dark:text-indigo-200">
+                                {group.className} · Session {group.session} · Semester {group.semesterNumber ?? "—"}
+                              </div>
+                              <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">
+                                Semester Closed: {group.closedDate ? formatDateOnly(group.closedDate) : "—"}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>,
+                        ...group.items.map((it) => (
                         <tr
-                          key={it.allocation_id}
+                          key={`${group.key}:${it.allocation_id}`}
                           className="hover:bg-slate-50 dark:hover:bg-slate-800/40"
                         >
                           <td className="px-4 py-3">
@@ -1249,9 +1295,6 @@ export default function BillingManager() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                            {it.classes.join(",")}
-                          </td>
-                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                             {allocTypeLabel[it.allocation_type]}
                           </td>
                           <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
@@ -1268,7 +1311,8 @@ export default function BillingManager() {
                              </button>
                            </td>
                         </tr>
-                      ))
+                        )),
+                      ])
                     )}
                   </tbody>
                 </table>
