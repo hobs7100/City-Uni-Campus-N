@@ -3,7 +3,7 @@ import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 
-const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8 };
+const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8, "BS-Bridging": 4 };
 
 const schema = z.object({
   department_id: z.string().uuid().optional(),
@@ -27,19 +27,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
   }
+  const current = await queryOne<{ class_name: string; type: string }>(
+    `select class_name, type::text from classes where id = $1`,
+    [id],
+  );
+  if (!current) return NextResponse.json({ error: "Class not found." }, { status: 404 });
+
   const d = parsed.data;
+  const effectiveName = d.class_name ?? current.class_name;
+  const normalizedType = /bridging/i.test(effectiveName) ? "BS-Bridging" : (d.type ?? current.type);
+  const normalizedData = { ...d, type: normalizedType as NonNullable<typeof d.type> };
 
   const sets: string[] = [];
   const values: unknown[] = [];
   let i = 1;
-  for (const [key, value] of Object.entries(d)) {
+  for (const [key, value] of Object.entries(normalizedData)) {
     sets.push(`${key} = $${i++}`);
     values.push(value === undefined ? null : value);
   }
-  if (d.type) {
-    sets.push(`total_semesters = $${i++}`);
-    values.push(typeToSemesters[d.type]);
-  }
+  sets.push(`total_semesters = $${i++}`);
+  values.push(typeToSemesters[normalizedType]);
   sets.push("updated_at = now()");
   values.push(id);
 

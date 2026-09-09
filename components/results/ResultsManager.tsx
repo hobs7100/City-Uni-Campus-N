@@ -125,6 +125,7 @@ interface DateSheetSummary {
   scheduled_courses: number;
   first_paper_date: string | null;
   last_paper_date: string | null;
+  created_date: string;
   updated_at: string;
 }
 
@@ -530,6 +531,7 @@ export default function ResultsManager() {
   const [allDsSemesterId, setAllDsSemesterId] = useState("");
   const [allDsRows, setAllDsRows] = useState<DateSheetSummary[]>([]);
   const [allDsLoading, setAllDsLoading] = useState(false);
+  const [allDsDeletingId, setAllDsDeletingId] = useState("");
 
   const classesForDs = useMemo(
     () => allClasses.filter((c) => !dsDeptId || c.department_id === dsDeptId),
@@ -595,6 +597,26 @@ export default function ResultsManager() {
       setAllDsLoading(false);
     }
   }, [allDsDeptId, allDsSession, allDsClassId, allDsSemesterId]);
+
+  const deleteCompleteDateSheet = useCallback(async (sheet: DateSheetSummary) => {
+    const label = `${sheet.class_name} (${sheet.session}), Semester ${sheet.semester_number}`;
+    if (!window.confirm(`Delete the complete Mid Term date sheet for ${label}? This removes every paper in this group.`)) return;
+    const groupId = `${sheet.semester_id}:${sheet.created_date}`;
+    setAllDsDeletingId(groupId);
+    try {
+      const params = new URLSearchParams({ semester_id: sheet.semester_id, created_date: sheet.created_date });
+      const res = await fetch(`/api/admin/mid-exam-datesheet?${params}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete date sheet.");
+        return;
+      }
+      toast.success(`Complete date sheet deleted (${data.deleted} papers).`);
+      await loadAllDateSheets();
+    } finally {
+      setAllDsDeletingId("");
+    }
+  }, [loadAllDateSheets]);
 
   useEffect(() => {
     if (tab === "datesheet") loadDs();
@@ -1499,21 +1521,30 @@ export default function ResultsManager() {
               <table className="w-full text-sm">
                 <thead><tr className="border-b border-slate-200 text-left dark:border-slate-800">
                   <th className="px-4 py-3">Department</th><th className="px-4 py-3">Class / Session</th>
-                  <th className="px-4 py-3">Semester</th><th className="px-4 py-3">Papers</th>
-                  <th className="px-4 py-3">Date range</th><th className="px-4 py-3" />
+                  <th className="px-4 py-3">Semester</th><th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Papers</th><th className="px-4 py-3">Date range</th><th className="px-4 py-3" />
                 </tr></thead>
-                <tbody>{allDsRows.map((sheet) => (
-                  <tr key={sheet.semester_id} className="border-b border-slate-100 dark:border-slate-800">
+                <tbody>{allDsRows.map((sheet) => {
+                  const groupId = `${sheet.semester_id}:${sheet.created_date}`;
+                  return (
+                  <tr key={groupId} className="border-b border-slate-100 dark:border-slate-800">
                     <td className="px-4 py-3">{sheet.department_name}</td>
                     <td className="px-4 py-3"><div className="font-medium">{sheet.class_name}</div><div className="text-xs text-slate-400">{sheet.session}</div></td>
                     <td className="px-4 py-3">Semester {sheet.semester_number} – {sheet.term_type}<div className="text-xs capitalize text-slate-400">{sheet.status}</div></td>
+                    <td className="px-4 py-3">{formatDateOnly(sheet.created_date)}</td>
                     <td className="px-4 py-3">{sheet.scheduled_courses}</td>
                     <td className="px-4 py-3">{sheet.first_paper_date ? `${formatDateOnly(sheet.first_paper_date)}${sheet.last_paper_date && sheet.last_paper_date !== sheet.first_paper_date ? ` – ${formatDateOnly(sheet.last_paper_date)}` : ""}` : "Dates pending"}</td>
-                    <td className="px-4 py-3"><button onClick={() => {
-                      setDsDeptId(sheet.department_id); setDsClassId(sheet.class_id); setDsSemesterId(sheet.semester_id); setTab("datesheet");
-                    }} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"><Pencil size={12} /> View / Edit</button></td>
+                    <td className="px-4 py-3"><div className="flex gap-2">
+                      <button onClick={() => {
+                        setDsDeptId(sheet.department_id); setDsClassId(sheet.class_id); setDsSemesterId(sheet.semester_id); setTab("datesheet");
+                      }} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"><Pencil size={12} /> View / Edit</button>
+                      <button onClick={() => deleteCompleteDateSheet(sheet)} disabled={allDsDeletingId === groupId}
+                        className="flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">
+                        <Trash2 size={12} /> {allDsDeletingId === groupId ? "Deleting…" : "Delete"}
+                      </button>
+                    </div></td>
                   </tr>
-                ))}</tbody>
+                )})}</tbody>
               </table>
             </div>
           )}

@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
   }
   const d = parsed.data;
-  const totalSemesters = typeToSemesters[d.type];
+  const normalizedType = /bridging/i.test(d.class_name) ? "BS-Bridging" : d.type;
+  const totalSemesters = typeToSemesters[normalizedType];
 
   const existing = await queryOne(
     `select id from classes where department_id = $1 and lower(class_name) = lower($2) and session = $3`,
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
   const created = await queryOne(
     `insert into classes (department_id, class_name, session, affiliation_id, type, total_semesters, status, scheme_of_studies_url)
      values ($1, $2, $3, $4, $5, $6, $7, $8) returning *`,
-    [d.department_id, d.class_name, d.session, d.affiliation_id || null, d.type, totalSemesters, d.status, d.scheme_of_studies_url || null]
+    [d.department_id, d.class_name, d.session, d.affiliation_id || null, normalizedType, totalSemesters, d.status, d.scheme_of_studies_url || null]
   );
   return NextResponse.json({ class: created }, { status: 201 });
 }

@@ -16,6 +16,7 @@ interface ClassOption {
   class_name: string;
   session: string;
   total_semesters: number;
+  type: "ADP" | "BS" | "DIT" | "LLB" | "BS-Bridging";
   status: string;
 }
 
@@ -217,9 +218,10 @@ export default function SemestersPage() {
   const selectedClass = classes.find((c) => c.id === classId);
   const semesterNumberOptions = useMemo(() => {
     if (!selectedClass) return [];
+    const firstSemester = selectedClass.type === "BS-Bridging" ? 5 : 1;
     return Array.from({ length: selectedClass.total_semesters }, (_, idx) => ({
-      value: String(idx + 1),
-      label: `Semester ${idx + 1}`,
+      value: String(firstSemester + idx),
+      label: `Semester ${firstSemester + idx}`,
     }));
   }, [selectedClass]);
 
@@ -250,14 +252,15 @@ export default function SemestersPage() {
           classSemesters.map((semester) => [semester.semester_number, semester]),
         );
         const runningSemester = classSemesters.find((semester) => semester.status !== "closed");
+        const firstSemester = classInfo.type === "BS-Bridging" ? 5 : 1;
         const nextSemesterNumber =
           (classSemesters.reduce(
             (highest, semester) => Math.max(highest, semester.semester_number),
-            0,
-          ) || 0) + 1;
+            firstSemester - 1,
+          ) || (firstSemester - 1)) + 1;
 
         const steps = Array.from({ length: classInfo.total_semesters }, (_, index) => {
-          const number = index + 1;
+          const number = firstSemester + index;
           const semester = semesterByNumber.get(number) ?? null;
           const isNext = number === nextSemesterNumber;
           const isReady = isNext && !runningSemester;

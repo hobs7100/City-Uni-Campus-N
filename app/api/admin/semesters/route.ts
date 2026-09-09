@@ -77,13 +77,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This class already has a running semester. Close it before starting a new one." }, { status: 409 });
   }
 
+  const classRow = await queryOne<{ total_semesters: number; type: string }>(
+    `select total_semesters, type::text from classes where id = $1 and department_id = $2`,
+    [d.class_id, d.department_id]
+  );
+  if (!classRow) return NextResponse.json({ error: "Class not found in the selected department." }, { status: 404 });
+
+  const minimumSemester = classRow.type === "BS-Bridging" ? 5 : 1;
+  const maximumSemester = classRow.type === "BS-Bridging" ? 8 : classRow.total_semesters;
   const latestSemester = await queryOne<{ latest_semester_number: number | null }>(
     `select max(semester_number)::int as latest_semester_number
      from semesters
      where class_id = $1`,
     [d.class_id]
   );
-  const expectedSemesterNumber = (latestSemester?.latest_semester_number ?? 0) + 1;
+  const expectedSemesterNumber = (latestSemester?.latest_semester_number ?? (minimumSemester - 1)) + 1;
   if (d.semester_number !== expectedSemesterNumber) {
     return NextResponse.json(
       { error: `The next semester for this class must be Semester ${expectedSemesterNumber}.` },
@@ -91,13 +99,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const classRow = await queryOne<{ total_semesters: number }>(
-    `select total_semesters from classes where id = $1`,
-    [d.class_id]
-  );
-  if (!classRow) return NextResponse.json({ error: "Class not found." }, { status: 404 });
-  if (d.semester_number > classRow.total_semesters) {
-    return NextResponse.json({ error: `This class only has ${classRow.total_semesters} semesters.` }, { status: 400 });
+  if (d.semester_number < minimumSemester || d.semester_number > maximumSemester) {
+    return NextResponse.json({
+      error: classRow.type === "BS-Bridging"
+        ? "BS-Bridging classes use Semesters 5 through 8 only."
+        : `This class only has Semesters 1 through ${classRow.total_semesters}.`,
+    }, { status: 400 });
   }
 
   const uniqueCourseIds = Array.from(new Set(d.course_ids));

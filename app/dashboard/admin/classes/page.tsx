@@ -420,7 +420,10 @@ export default function ClassesPage() {
           </div>
           <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
             This class will have <strong>{semestersByType[form.type] ?? "—"}</strong> semesters
-            (auto-calculated from type).
+            {form.type === "BS-Bridging" ? " numbered 5–8 (Post-ADP program)." : " (auto-calculated from type)."}
+            {/bridging/i.test(form.class_name) && form.type !== "BS-Bridging"
+              ? " Class names containing “Bridging” are automatically saved as BS-Bridging."
+              : ""}
           </p>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">

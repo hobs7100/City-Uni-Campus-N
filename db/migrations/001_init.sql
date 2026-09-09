@@ -60,7 +60,7 @@ create index if not exists idx_departments_coordinator on departments(coordinato
 -- ==========================================================================
 -- CLASSES
 -- ==========================================================================
-create type class_type as enum ('ADP', 'BS', 'DIT', 'LLB');
+create type class_type as enum ('ADP', 'BS', 'DIT', 'LLB', 'BS-Bridging');
 
 create table if not exists classes (
   id uuid primary key default gen_random_uuid(),

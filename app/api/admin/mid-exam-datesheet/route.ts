@@ -39,13 +39,14 @@ export async function GET(request: NextRequest) {
               count(*)::int as scheduled_courses,
               min(med.paper_date) as first_paper_date,
               max(med.paper_date) as last_paper_date,
+              med.created_at::date as created_date,
               max(med.updated_at) as updated_at
        from mid_exam_datesheets med
        join semesters s on s.id = med.semester_id
        join classes cl on cl.id = s.class_id
        join departments d on d.id = s.department_id
        ${where}
-       group by med.semester_id, s.semester_number, s.term_type, s.status,
+       group by med.semester_id, med.created_at::date, s.semester_number, s.term_type, s.status,
                 cl.id, cl.class_name, cl.session, d.id, d.name
        order by max(med.updated_at) desc`,
       values,
@@ -96,6 +97,54 @@ export async function GET(request: NextRequest) {
   );
 
   return NextResponse.json({ rows });
+}
+
+// DELETE /api/admin/mid-exam-datesheet?semester_id=...&created_date=YYYY-MM-DD
+// Deletes one complete saved Mid Term date-sheet group.
+export async function DELETE(request: NextRequest) {
+  const { response } = await requireRole("admin", "coordinator");
+  if (response) return response;
+
+  const semesterId = request.nextUrl.searchParams.get("semester_id");
+  const createdDate = request.nextUrl.searchParams.get("created_date");
+  if (!semesterId || !createdDate || !/^\d{4}-\d{2}-\d{2}$/.test(createdDate)) {
+    return NextResponse.json({ error: "semester_id and a valid created_date are required." }, { status: 400 });
+  }
+
+  const client = await getClient();
+  try {
+    await client.query("begin");
+    const semester = await client.query(
+      `select s.id, s.semester_number, cl.class_name, cl.session
+       from semesters s
+       join classes cl on cl.id = s.class_id
+       where s.id = $1
+       for update`,
+      [semesterId],
+    );
+    if (semester.rowCount !== 1) {
+      await client.query("rollback");
+      return NextResponse.json({ error: "Semester not found." }, { status: 404 });
+    }
+    const deleted = await client.query(
+      `delete from mid_exam_datesheets
+       where semester_id = $1 and created_at::date = $2::date
+       returning id`,
+      [semesterId, createdDate],
+    );
+    if (deleted.rowCount === 0) {
+      await client.query("rollback");
+      return NextResponse.json({ error: "No saved date sheet exists for this class semester." }, { status: 404 });
+    }
+    await client.query("commit");
+    return NextResponse.json({ deleted: deleted.rowCount });
+  } catch (error) {
+    await client.query("rollback");
+    console.error("mid-exam-datesheet delete error:", error);
+    return NextResponse.json({ error: "Failed to delete the complete date sheet." }, { status: 500 });
+  } finally {
+    client.release();
+  }
 }
 
 // POST /api/admin/mid-exam-datesheet

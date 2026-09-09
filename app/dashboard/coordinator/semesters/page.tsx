@@ -16,6 +16,7 @@ interface ClassOption {
   class_name: string;
   session: string;
   total_semesters: number;
+  type: "ADP" | "BS" | "DIT" | "LLB" | "BS-Bridging";
   status: string;
 }
 
@@ -163,9 +164,10 @@ export default function SemestersPage() {
   const selectedClass = classes.find((c) => c.id === classId);
   const semesterNumberOptions = useMemo(() => {
     if (!selectedClass) return [];
+    const firstSemester = selectedClass.type === "BS-Bridging" ? 5 : 1;
     return Array.from({ length: selectedClass.total_semesters }, (_, idx) => ({
-      value: String(idx + 1),
-      label: `Semester ${idx + 1}`,
+      value: String(firstSemester + idx),
+      label: `Semester ${firstSemester + idx}`,
     }));
   }, [selectedClass]);
 
