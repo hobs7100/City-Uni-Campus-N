@@ -44,12 +44,12 @@ export async function GET() {
     });
   }
 
-  // ── Validation 1: active student ────────────────────────────────────────────
-  if (student.status !== "active") {
+  // ── Validation 1: eligible enrollment status ────────────────────────────────
+  if (!["active", "permanent_leave"].includes(student.status)) {
     return NextResponse.json({
       allowed: false,
       reason: "inactive_student",
-      message: `Your enrollment status is "${student.status}". Only active students are permitted to generate a Roll Number Slip.`,
+      message: `Your enrollment status is "${student.status}". Only active students and students on permanent leave are permitted to generate a Roll Number Slip.`,
     });
   }
 
