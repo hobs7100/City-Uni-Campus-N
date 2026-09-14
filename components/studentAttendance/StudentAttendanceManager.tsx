@@ -86,7 +86,13 @@ const flagStyles: Record<string, string> = {
   low: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
 };
 
-export default function StudentAttendanceManager({ role = "admin" }: { role?: "admin" | "coordinator" }) {
+export default function StudentAttendanceManager({
+  role = "admin",
+  apiBasePath = "/api/admin/student-attendance",
+}: {
+  role?: "admin" | "coordinator";
+  apiBasePath?: string;
+}) {
   const [tab, setTab] = useState<"mark" | "report" | "short">("mark");
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [allClasses, setAllClasses] = useState<ClassOption[]>([]);
@@ -171,7 +177,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     setLoading(true);
     try {
       const params = new URLSearchParams({ class_id: classId, date });
-      const res = await fetch(`/api/admin/student-attendance/roster?${params.toString()}`, {
+      const res = await fetch(`${apiBasePath}/roster?${params.toString()}`, {
         cache: "no-store",
       });
       const data = await res.json().catch(() => null);
@@ -188,9 +194,10 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     } finally {
       setLoading(false);
     }
-  }, [classId, date]);
+  }, [apiBasePath, classId, date]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tab === "mark") loadRoster();
   }, [tab, loadRoster]);
 
@@ -202,7 +209,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     if (!semesterInfo) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/student-attendance/roster", {
+      const res = await fetch(`${apiBasePath}/roster`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -254,15 +261,16 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
       if (reportClassId) params.set("class_id", reportClassId);
       if (reportFrom) params.set("from", reportFrom);
       if (reportTo) params.set("to", reportTo);
-      const res = await fetch(`/api/admin/student-attendance/report?${params.toString()}`);
+      const res = await fetch(`${apiBasePath}/report?${params.toString()}`);
       const data = await res.json();
       if (res.ok) setReportRows(data.students);
     } finally {
       setReportLoading(false);
     }
-  }, [reportSemesterId, reportDepartmentId, reportClassId, reportFrom, reportTo]);
+  }, [apiBasePath, reportSemesterId, reportDepartmentId, reportClassId, reportFrom, reportTo]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tab === "report") loadReport();
   }, [tab, loadReport]);
 
@@ -292,16 +300,17 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
       if (shortDepartmentId) params.set("department_id", shortDepartmentId);
       if (shortClassId) params.set("class_id", shortClassId);
       if (shortSemesterId) params.set("semester_id", shortSemesterId);
-      const res = await fetch(`/api/admin/student-attendance/short?${params.toString()}`);
+      const res = await fetch(`${apiBasePath}/short?${params.toString()}`);
       const data = await res.json();
       if (res.ok) setShortRows(data.students);
       else toast.error(data.error || "Could not load short attendance.");
     } finally {
       setShortLoading(false);
     }
-  }, [shortDepartmentId, shortClassId, shortSemesterId]);
+  }, [apiBasePath, shortDepartmentId, shortClassId, shortSemesterId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tab === "short") loadShortAttendance();
   }, [tab, loadShortAttendance]);
 
@@ -310,7 +319,7 @@ export default function StudentAttendanceManager({ role = "admin" }: { role?: "a
     if (activeShortRows.length === 0) return;
     setShortStruckOffLoading(true);
     try {
-      const res = await fetch("/api/admin/student-attendance/short", {
+      const res = await fetch(`${apiBasePath}/short`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_ids: activeShortRows.map((r) => r.student_id) }),

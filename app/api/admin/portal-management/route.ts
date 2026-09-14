@@ -9,11 +9,13 @@ import {
   PORTAL_MODULES,
   type PortalManagedRole,
   type PortalModule,
+  type PortalPreset,
 } from "@/lib/portalPermissionsConfig";
 
 interface PermissionRow {
   role: PortalManagedRole;
   module: PortalModule;
+  can_view: boolean;
   can_edit: boolean;
   can_delete: boolean;
 }
@@ -21,8 +23,7 @@ interface PermissionRow {
 const updateSchema = z.object({
   role: z.string().refine(isPortalManagedRole, "Invalid role."),
   module: z.string().refine(isPortalModule, "Invalid module."),
-  action: z.enum(["edit", "delete"]),
-  allowed: z.boolean(),
+  preset: z.enum(["hidden", "read_only", "edit", "full_access"]),
 });
 
 export async function GET() {
@@ -30,7 +31,7 @@ export async function GET() {
   if (response) return response;
 
   const rows = await query<PermissionRow>(
-    `select role::text, module, can_edit, can_delete
+    `select role::text, module, can_view, can_edit, can_delete
      from portal_permissions
      where role::text = any($1::text[]) and module = any($2::text[])`,
     [
@@ -46,8 +47,9 @@ export async function GET() {
       return {
         role: role.key,
         module: module.key,
-        canEdit: row?.can_edit ?? true,
-        canDelete: row?.can_delete ?? true,
+        canView: row?.can_view ?? false,
+        canEdit: row?.can_edit ?? false,
+        canDelete: row?.can_delete ?? false,
       };
     }),
   );
@@ -72,21 +74,34 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const { role, module, action, allowed } = parsed.data;
-  const editValue = action === "edit" ? allowed : true;
-  const deleteValue = action === "delete" ? allowed : true;
+  const { role, module, preset } = parsed.data;
+  const values: Record<PortalPreset, [boolean, boolean, boolean]> = {
+    hidden: [false, false, false],
+    read_only: [true, false, false],
+    edit: [true, true, false],
+    full_access: [true, true, true],
+  };
+  const [viewValue, editValue, deleteValue] = values[preset];
 
   await query(
     `insert into portal_permissions
-       (role, module, can_edit, can_delete, updated_by)
-     values ($1, $2, $3, $4, $5)
+       (role, module, can_view, can_edit, can_delete, updated_by)
+     values ($1, $2, $3, $4, $5, $6)
      on conflict (role, module) do update set
-       can_edit = case when $6 = 'edit' then $3 else portal_permissions.can_edit end,
-       can_delete = case when $6 = 'delete' then $4 else portal_permissions.can_delete end,
-       updated_by = $5,
+       can_view = $3,
+       can_edit = $4,
+       can_delete = $5,
+       updated_by = $6,
        updated_at = now()`,
-    [role, module, editValue, deleteValue, session.userId, action],
+    [role, module, viewValue, editValue, deleteValue, session.userId],
   );
 
-  return NextResponse.json({ role, module, action, allowed });
+  return NextResponse.json({
+    role,
+    module,
+    preset,
+    canView: viewValue,
+    canEdit: editValue,
+    canDelete: deleteValue,
+  });
 }

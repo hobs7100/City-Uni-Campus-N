@@ -19,6 +19,7 @@ interface ManagedModule {
 interface Permission {
   role: string;
   module: string;
+  canView: boolean;
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -27,38 +28,6 @@ interface PortalData {
   roles: ManagedRole[];
   modules: ManagedModule[];
   permissions: Permission[];
-}
-
-function PermissionSwitch({
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  label: string;
-  onChange: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onChange}
-      className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
-        checked ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"
-      } disabled:cursor-wait disabled:opacity-60`}
-    >
-      <span
-        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition ${
-          checked ? "translate-x-6" : "translate-x-1"
-        }`}
-      />
-    </button>
-  );
 }
 
 export default function PortalManagementManager() {
@@ -84,6 +53,8 @@ export default function PortalManagementManager() {
   }, []);
 
   useEffect(() => {
+    // The initial permission request intentionally owns the loading state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
@@ -95,12 +66,15 @@ export default function PortalManagementManager() {
     return map;
   }, [data, selectedRole]);
 
-  async function togglePermission(
-    module: string,
-    action: "edit" | "delete",
-    currentValue: boolean,
-  ) {
-    const key = `${selectedRole}:${module}:${action}`;
+  function getPreset(permission: Permission | undefined) {
+    if (!permission?.canView) return "hidden";
+    if (permission.canDelete) return "full_access";
+    if (permission.canEdit) return "edit";
+    return "read_only";
+  }
+
+  async function setPreset(module: string, preset: string) {
+    const key = `${selectedRole}:${module}`;
     setSavingKey(key);
     try {
       const response = await fetch("/api/admin/portal-management", {
@@ -109,8 +83,7 @@ export default function PortalManagementManager() {
         body: JSON.stringify({
           role: selectedRole,
           module,
-          action,
-          allowed: !currentValue,
+          preset,
         }),
       });
       const result = await response.json();
@@ -127,14 +100,16 @@ export default function PortalManagementManager() {
                 permission.role === selectedRole && permission.module === module
                   ? {
                       ...permission,
-                      [action === "edit" ? "canEdit" : "canDelete"]: !currentValue,
+                      canView: preset !== "hidden",
+                      canEdit: preset === "edit" || preset === "full_access",
+                      canDelete: preset === "full_access",
                     }
                   : permission,
               ),
             }
           : current,
       );
-      toast.success(`${action === "edit" ? "Edit" : "Delete"} access ${currentValue ? "locked" : "unlocked"}.`);
+      toast.success("Portal access updated.");
     } finally {
       setSavingKey(null);
     }
@@ -157,7 +132,7 @@ export default function PortalManagementManager() {
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Portal Management</h1>
           </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Control editing and deletion inside modules for each staff role.
+            Set each module to Hidden, Read Only, Edit, or Full Access.
           </p>
         </div>
         <button
@@ -175,8 +150,8 @@ export default function PortalManagementManager() {
         <div className="flex gap-2">
           <LockKeyhole size={17} className="mt-0.5 shrink-0" />
           <p>
-            Admin access is always enabled. These switches restrict actions a role already has;
-            they do not give a role access to a module it cannot currently open.
+            Admin access is always enabled. Access presets atomically control navigation,
+            viewing, editing, and deletion for each managed role.
           </p>
         </div>
       </div>
@@ -209,15 +184,13 @@ export default function PortalManagementManager() {
             <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
                 <th className="px-5 py-3">Module</th>
-                <th className="w-40 px-5 py-3 text-center">Edit access</th>
-                <th className="w-40 px-5 py-3 text-center">Delete access</th>
+                <th className="w-52 px-5 py-3 text-center">Access level</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {data?.modules.map((module) => {
                 const permission = rolePermissions.get(module.key);
-                const canEdit = permission?.canEdit ?? true;
-                const canDelete = permission?.canDelete ?? true;
+                const preset = getPreset(permission);
                 return (
                   <tr key={module.key} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
                     <td className="px-5 py-4">
@@ -227,30 +200,18 @@ export default function PortalManagementManager() {
                       </p>
                     </td>
                     <td className="px-5 py-4 text-center">
-                      <div className="inline-flex flex-col items-center gap-1">
-                        <PermissionSwitch
-                          checked={canEdit}
-                          disabled={savingKey === `${selectedRole}:${module.key}:edit`}
-                          label={`${canEdit ? "Lock" : "Unlock"} edit access for ${module.label}`}
-                          onChange={() => togglePermission(module.key, "edit", canEdit)}
-                        />
-                        <span className={`text-[10px] font-bold ${canEdit ? "text-emerald-600" : "text-slate-400"}`}>
-                          {canEdit ? "UNLOCKED" : "LOCKED"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <div className="inline-flex flex-col items-center gap-1">
-                        <PermissionSwitch
-                          checked={canDelete}
-                          disabled={savingKey === `${selectedRole}:${module.key}:delete`}
-                          label={`${canDelete ? "Lock" : "Unlock"} delete access for ${module.label}`}
-                          onChange={() => togglePermission(module.key, "delete", canDelete)}
-                        />
-                        <span className={`text-[10px] font-bold ${canDelete ? "text-emerald-600" : "text-slate-400"}`}>
-                          {canDelete ? "UNLOCKED" : "LOCKED"}
-                        </span>
-                      </div>
+                      <select
+                        value={preset}
+                        disabled={savingKey === `${selectedRole}:${module.key}`}
+                        onChange={(event) => setPreset(module.key, event.target.value)}
+                        aria-label={`${module.label} access level`}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      >
+                        <option value="hidden">Hidden</option>
+                        <option value="read_only">Read Only</option>
+                        <option value="edit">Edit</option>
+                        <option value="full_access">Full Access</option>
+                      </select>
                     </td>
                   </tr>
                 );

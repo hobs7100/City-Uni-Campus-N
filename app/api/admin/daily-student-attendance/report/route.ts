@@ -1,0 +1,1 @@
+export { GET } from "../../student-attendance/report/route";

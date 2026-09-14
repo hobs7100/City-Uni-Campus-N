@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { PortalAccess } from "@/lib/portalPermissions";
 import type { PortalModule } from "@/lib/portalPermissionsConfig";
 
-const lockedAccess: PortalAccess = { canEdit: false, canDelete: false };
+const lockedAccess: PortalAccess = { canView: false, canEdit: false, canDelete: false };
 
 export function usePortalAccess(module: PortalModule) {
   const [access, setAccess] = useState<PortalAccess>(lockedAccess);
@@ -19,6 +19,7 @@ export function usePortalAccess(module: PortalModule) {
         const data = await response.json();
         if (!cancelled && response.ok) {
           setAccess({
+            canView: data.canView === true,
             canEdit: data.canEdit === true,
             canDelete: data.canDelete === true,
           });

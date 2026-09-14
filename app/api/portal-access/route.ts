@@ -11,14 +11,15 @@ export async function GET(request: NextRequest) {
     "teacher",
     "student",
     "finance_manager",
+    "assistant",
   );
   if (response || !session) return response;
 
-  const module = request.nextUrl.searchParams.get("module");
-  if (!module || !isPortalModule(module)) {
+  const moduleKey = request.nextUrl.searchParams.get("module");
+  if (!moduleKey || !isPortalModule(moduleKey)) {
     return NextResponse.json({ error: "Invalid module." }, { status: 400 });
   }
 
-  const access = await getPortalAccess(session.role, module);
+  const access = await getPortalAccess(session.role, moduleKey);
   return NextResponse.json(access);
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { requireExactRole } from "@/lib/requireRole";
+import { requireRole } from "@/lib/requireRole";
 
 type FineRow = {
   id: string;
@@ -32,7 +32,7 @@ function integerParam(value: string | null, name: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireExactRole("admin", "coordinator", "finance_manager");
+  const { response } = await requireRole("admin", "coordinator", "finance_manager");
   if (response) return response;
 
   const params = request.nextUrl.searchParams;

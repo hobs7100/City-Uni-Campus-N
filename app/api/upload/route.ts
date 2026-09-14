@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { getSession } from "@/lib/session";
+import { getPortalAccess } from "@/lib/portalPermissions";
+import { isPortalManagedRole, type PortalModule } from "@/lib/portalPermissionsConfig";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 
 const limitedFolders = new Set(["students", "leave-proofs"]);
+const folderModules: Record<string, PortalModule> = {
+  students: "students",
+  "leave-proofs": "leave_management",
+};
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -14,6 +20,18 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body?.file || !body?.folder) {
     return NextResponse.json({ error: "Missing file or folder." }, { status: 400 });
+  }
+  if (typeof body.folder !== "string" || !limitedFolders.has(body.folder)) {
+    return NextResponse.json({ error: "Unsupported upload folder." }, { status: 400 });
+  }
+  if (isPortalManagedRole(session.role)) {
+    const access = await getPortalAccess(session.role, folderModules[body.folder]);
+    if (!access.canView || !access.canEdit) {
+      return NextResponse.json(
+        { error: "Editing is locked by Portal Management." },
+        { status: 403 },
+      );
+    }
   }
 
   if (limitedFolders.has(body.folder)) {

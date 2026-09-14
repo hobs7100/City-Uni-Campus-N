@@ -1,10 +1,10 @@
 ---
-name: Portal permission overlay
-description: The safety and compatibility rules for role/module edit and delete controls.
+name: Portal permission capabilities
+description: The safety and compatibility rules for centralized role/module view, edit, and delete access.
 ---
 
-Portal permissions are a restrictive overlay on the existing route-role authorization. They may lock an action a role previously had, but enabling a switch must not grant access to a route that role could not already use. Admin always bypasses these locks. An absent permission row means allowed so deployments preserve existing behavior until an administrator deliberately changes a setting.
+Portal permissions are the centralized capability source for managed staff roles. View controls navigation, server-rendered page access, and GET/HEAD APIs; Edit controls POST/PUT/PATCH; Delete controls DELETE. Admin always bypasses these controls. Missing managed-role rows fail closed.
 
-**Why:** Replacing route authorization with a configurable matrix could accidentally expand privileges, while default-deny on migration would unexpectedly stop existing campus operations.
+**Why:** Navigation-only locks leave direct URLs and APIs exposed, while fail-open defaults make new modules silently accessible. Existing permission rows must be seeded visible before fail-closed behavior is enabled so current access is not lost.
 
-**How to apply:** New managed modules should keep their current role checks, add the Portal Management check after authentication, map non-destructive mutations to Edit and destructive mutations to Delete, and retain the Admin bypass and allow-on-missing default.
+**How to apply:** Add each admin module, dashboard route, and API prefix to the canonical registry. Give shared lookup APIs explicit read dependencies, keep mutations tied to the owning module, and include native role routes in the server-side resolver.

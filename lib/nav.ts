@@ -1,4 +1,6 @@
 import type { UserRole } from "./session";
+import { PORTAL_MODULES, type PortalModule } from "./portalPermissionsConfig";
+import { getPortalAccessMap } from "./portalPermissions";
 
 export type NavIconName =
   | "LayoutDashboard"
@@ -153,3 +155,50 @@ export const roleLabels: Record<UserRole, string> = {
   finance_manager: "Finance Manager",
   assistant: "Assistant",
 };
+
+const managedRoleRoutes: Partial<Record<UserRole, Partial<Record<PortalModule, string>>>> = {
+  hod: {
+    classes: "/dashboard/hod?tab=classes",
+    students: "/dashboard/hod?tab=students",
+    student_attendance: "/dashboard/hod?tab=attendance",
+    dept_attendance: "/dashboard/hod?tab=dept-attendance",
+    results: "/dashboard/hod?tab=results",
+    rollno_slips: "/dashboard/admin/rollno-slips",
+    notifications: "/dashboard/hod?tab=notifications",
+  },
+  coordinator: {
+    students: "/dashboard/coordinator/students",
+    semesters: "/dashboard/coordinator/semesters",
+    attendance: "/dashboard/coordinator/attendance",
+    student_attendance: "/dashboard/coordinator/student-attendance",
+    billing: "/dashboard/coordinator/billing",
+    fines: "/dashboard/coordinator/fines",
+  },
+};
+
+/**
+ * Builds navigation from the canonical registry and persisted portal grants.
+ * Existing role-specific routes are preferred; newly granted modules fall
+ * back to their admin page so a grant is immediately usable.
+ */
+export async function getDashboardNavigation(role: UserRole): Promise<NavItem[]> {
+  if (role === "admin") return navByRole.admin;
+  if (!["assistant", "coordinator", "hod", "finance_manager"].includes(role)) {
+    return navByRole[role];
+  }
+
+  const access = await getPortalAccessMap(role);
+  const base = navByRole[role].filter(
+    (item) => item.label === "Overview" || item.label === "Profile",
+  );
+  const roleRoutes = managedRoleRoutes[role] ?? {};
+  const granted = PORTAL_MODULES.filter((module) => access.get(module.key)?.canView === true).map(
+    (module) => ({
+      label: module.label,
+      href: roleRoutes[module.key] ?? module.adminHref,
+      icon: module.icon as NavIconName,
+    }),
+  );
+
+  return [...base.slice(0, 1), ...granted, ...base.slice(1)];
+}

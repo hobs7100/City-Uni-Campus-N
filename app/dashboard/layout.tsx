@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { navByRole, roleLabels } from "@/lib/nav";
+import { getDashboardNavigation, roleLabels } from "@/lib/nav";
 import DashboardShell from "@/components/DashboardShell";
 import TeacherShell from "@/components/TeacherShell";
+import DashboardAccessGuard from "@/components/DashboardAccessGuard";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -10,21 +11,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
-  if (session.role === "teacher" || session.role === "hod" || session.role === "student") {
+  if (session.role === "teacher" || session.role === "student") {
     return (
       <TeacherShell name={session.name} roleLabel={roleLabels[session.role]}>
-        {children}
+        <DashboardAccessGuard role={session.role}>{children}</DashboardAccessGuard>
       </TeacherShell>
     );
   }
 
+  const navigation = await getDashboardNavigation(session.role);
   return (
     <DashboardShell
-      items={navByRole[session.role]}
+      items={navigation}
       name={session.name}
       roleLabel={roleLabels[session.role]}
     >
-      {children}
+      <DashboardAccessGuard role={session.role}>{children}</DashboardAccessGuard>
     </DashboardShell>
   );
 }
