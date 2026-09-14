@@ -18,6 +18,7 @@ export async function GET() {
     class_name: string;
     session: string;
     department_name: string;
+    student_status: string;
     issue_date: string;
     reason: string | null;
     notes: string | null;
@@ -39,6 +40,7 @@ export async function GET() {
        cl.class_name,
        cl.session,
        d.name            as department_name,
+       s.status          as student_status,
        to_char(sl.issue_date, 'YYYY-MM-DD') as issue_date,
        sl.reason,
        sl.notes,

@@ -78,7 +78,7 @@ export default function StudentManagementPage({ role }: Props) {
   const canAdd    = (role === "admin" || role === "coordinator" || role === "assistant") && portalCanEdit;
   const canEdit   = (role === "admin" || role === "coordinator" || role === "hod" || role === "assistant") && portalCanEdit;
   const canDelete = (role === "admin" || role === "coordinator" || role === "assistant") && portalCanDelete;
-  const canRegen  = (role === "admin" || role === "coordinator" || role === "assistant") && portalCanEdit;
+  const canRegen  = (role === "admin" || role === "coordinator" || role === "hod" || role === "assistant") && portalCanEdit;
   const canChangeStatus = role !== "assistant";
 
   const [tab, setTab] = useState<Tab>("active");

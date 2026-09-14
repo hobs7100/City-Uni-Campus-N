@@ -22,6 +22,7 @@ export async function GET(
     class_name: string;
     session: string;
     department_name: string;
+    student_status: string;
     issue_date: string;
     reason: string | null;
     notes: string | null;
@@ -44,6 +45,7 @@ export async function GET(
        cl.class_name,
        cl.session,
        d.name            as department_name,
+       s.status          as student_status,
        to_char(sl.issue_date, 'YYYY-MM-DD') as issue_date,
        sl.reason,
        sl.notes,
@@ -102,9 +104,39 @@ export async function PUT(
     await client.query("begin");
 
     if (d.revoke) {
+      // Match the issue route's lock order (student first) so revoke and
+      // re-issue requests for the same student are safely serialized.
+      const lockedStudent = await client.query<{ status: string }>(
+        `select status from students
+         where id = $1 and deleted_at is null
+         for update`,
+        [existing.student_id],
+      );
+      if (!lockedStudent.rows[0]) {
+        await client.query("rollback");
+        return NextResponse.json({ error: "Student not found." }, { status: 404 });
+      }
+
+      const lockedLeave = await client.query<{
+        revoked_at: string | null;
+        leave_type: "permanent" | "partial" | "monthly";
+      }>(
+        `select revoked_at, leave_type
+         from student_leaves
+         where id = $1
+         for update`,
+        [id],
+      );
+      if (!lockedLeave.rows[0]) {
+        await client.query("rollback");
+        return NextResponse.json({ error: "Leave not found." }, { status: 404 });
+      }
+
       // Revoke leave; only permanent leave restores the student's status.
-      if (existing.revoked_at)
+      if (lockedLeave.rows[0].revoked_at) {
+        await client.query("rollback");
         return NextResponse.json({ error: "Leave is already revoked." }, { status: 409 });
+      }
 
       await client.query(
         `update student_leaves
@@ -112,7 +144,7 @@ export async function PUT(
          where id = $2`,
         [session!.userId, id]
       );
-      if (existing.leave_type === "permanent") {
+      if (lockedLeave.rows[0].leave_type === "permanent") {
         await client.query(
           `update students
            set status = 'active', status_changed_by_name = $1, reactivated_at = now(), updated_at = now()

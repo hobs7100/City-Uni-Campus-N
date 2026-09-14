@@ -33,6 +33,7 @@ interface LeaveRecord {
   class_name: string;
   session: string;
   department_name: string;
+  student_status: string;
   issue_date: string;
   reason: string | null;
   notes: string | null;
@@ -331,6 +332,31 @@ export default function LeaveManagementManager() {
     setSelected2(leave);
     setEditMode(false);
     setConfirmRevoke(false);
+  }
+
+  function issueLeaveAgain(leave: LeaveRecord) {
+    setSelected({
+      id: leave.student_id,
+      name: leave.student_name,
+      father_name: leave.father_name,
+      cnic: leave.cnic,
+      class_name: leave.class_name,
+      session: leave.session,
+      department_name: leave.department_name,
+      status: leave.student_status,
+    });
+    setSearchQuery(leave.student_name);
+    setIssueDate(new Date().toISOString().slice(0, 10));
+    setLeaveType(leave.leave_type);
+    setPartialDaysPerWeek(leave.partial_days_per_week === 3 ? 3 : 2);
+    setLeaveStartDate("");
+    setLeaveEndDate("");
+    setReason("");
+    setNotes("");
+    setProofFiles([]);
+    setProofPreviews([]);
+    setSelected2(null);
+    setTab("issue");
   }
 
   function enterEditMode() {
@@ -787,6 +813,7 @@ export default function LeaveManagementManager() {
                       <th className="px-4 py-3 text-left">Class / Session</th>
                       <th className="px-4 py-3 text-left">Leave Type</th>
                       <th className="px-4 py-3 text-left">Issue Date</th>
+                      <th className="px-4 py-3 text-left">Revoked Date</th>
                       <th className="px-4 py-3 text-left">Proofs</th>
                       <th className="px-4 py-3 text-left">Status</th>
                       <th className="px-4 py-3 text-left">Actions</th>
@@ -829,6 +856,9 @@ export default function LeaveManagementManager() {
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                           {formatDateOnly(l.issue_date)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {l.revoked_at ? formatDateOnly(l.revoked_at) : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex -space-x-2">
@@ -1022,6 +1052,16 @@ export default function LeaveManagementManager() {
                           </button>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {selected2.revoked_at && (
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        onClick={() => issueLeaveAgain(selected2)}
+                        className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                      >
+                        <RotateCcw size={14} /> Issue Leave Again
+                      </button>
                     </div>
                   )}
                 </>

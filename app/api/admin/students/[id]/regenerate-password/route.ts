@@ -5,7 +5,7 @@ import { requirePortalPermission } from "@/lib/portalPermissions";
 import { sendPasswordResetEmail } from "@/lib/email";
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requirePortalPermission("students", "edit", "admin", "coordinator");
+  const { response } = await requirePortalPermission("students", "edit", "admin", "hod", "coordinator");
   if (response) return response;
   const { id } = await params;
 

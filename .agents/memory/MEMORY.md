@@ -21,3 +21,4 @@
 - [Reactivation fines are atomic](reactivation-fine-integrity.md) — struck-off reactivation, protection date, status history, and fine ledger must commit together with no bulk bypass.
 - [Teacher DIT result graph validation](teacher-dit-result-integrity.md) — bulk result writes must validate teacher, allocation, active semester, DIT class, course, series, and every student as one graph.
 - [BS-Bridging semester range](bs-bridging-semesters.md) — Bridging is a four-semester Post-ADP program numbered 5–8; names containing “Bridging” force that classification.
+- [Revoked leave reissue history](revoked-leave-reissue-history.md) — reissuing leave creates a new dated row; revoked rows remain immutable history, with one active leave enforced.
