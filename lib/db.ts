@@ -1,7 +1,6 @@
 import { Pool } from "pg";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __pgPool: Pool | undefined;
 }
 
@@ -10,11 +9,25 @@ function createPool() {
   if (!connectionString) {
     throw new Error("SUPABASE_DB_URL is not set");
   }
+  const databaseUrl = new URL(connectionString);
+  // Supabase's session pooler (5432) has a small persistent-session quota.
+  // Next.js server contexts should use the transaction pooler (6543), which
+  // multiplexes short-lived queries instead of reserving one backend session
+  // per application connection.
+  if (
+    databaseUrl.hostname.endsWith(".pooler.supabase.com") &&
+    (databaseUrl.port === "" || databaseUrl.port === "5432")
+  ) {
+    databaseUrl.port = "6543";
+  }
   return new Pool({
-    connectionString,
+    connectionString: databaseUrl.toString(),
     ssl: { rejectUnauthorized: false },
-    max: 3,
-    idleTimeoutMillis: 10_000,
+    // Next.js may instantiate this module in multiple server contexts. Keep
+    // each context to one session so Supabase's session-pool limit is not
+    // exhausted; pg queues concurrent work until the connection is available.
+    max: 1,
+    idleTimeoutMillis: 5_000,
     connectionTimeoutMillis: 5_000,
   });
 }

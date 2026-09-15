@@ -6,7 +6,6 @@ import {
   PORTAL_MODULES,
   PORTAL_READ_DEPENDENCIES,
   portalModuleForRoleDashboard,
-  type PortalModule,
 } from "@/lib/portalPermissionsConfig";
 
 const roleHomePage: Record<UserRole, string> = {
@@ -57,8 +56,11 @@ function portalModuleForDashboardPath(pathname: string) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const forwardedHeaders = new Headers(request.headers);
-  // Never trust a client-supplied portal grant. Only this middleware may add it.
+  // Never trust client-supplied portal authorization context.
   forwardedHeaders.delete("x-portal-module-grant");
+  forwardedHeaders.delete("x-portal-target-module");
+  forwardedHeaders.delete("x-portal-action");
+  forwardedHeaders.delete("x-portal-read-parents");
 
   const response = NextResponse.next({ request: { headers: forwardedHeaders } });
 
@@ -125,41 +127,30 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
     }
     if (portalModule && isPortalManagedRole(session.role)) {
-      async function loadAccess(moduleKey: PortalModule) {
-        const accessResponse = await fetch(
-          new URL(`/api/portal-access?module=${encodeURIComponent(moduleKey)}`, request.url),
-          { headers: { cookie: request.headers.get("cookie") ?? "" } },
-        ).catch(() => null);
-        return accessResponse?.ok
-          ? ((await accessResponse.json().catch(() => null)) as
-              | { canView?: boolean; canEdit?: boolean; canDelete?: boolean }
-              | null)
-          : null;
-      }
-      const access = await loadAccess(portalModule.key);
       const method = request.method.toUpperCase();
-      let allowed =
+      const action =
         method === "GET" || method === "HEAD"
-          ? access?.canView === true
+          ? "view"
           : method === "DELETE"
-            ? access?.canView === true && access?.canDelete === true
+            ? "delete"
             : ["POST", "PUT", "PATCH"].includes(method)
-              ? access?.canView === true && access?.canEdit === true
-              : true;
-      if (!allowed && (method === "GET" || method === "HEAD")) {
+              ? "edit"
+              : null;
+      if (action) {
+        forwardedHeaders.set("x-portal-target-module", portalModule.key);
+        forwardedHeaders.set("x-portal-action", action);
+      }
+      if (action === "view") {
         const parents = PORTAL_MODULES.filter((candidate) =>
           PORTAL_READ_DEPENDENCIES[candidate.key]?.includes(portalModule.key),
         );
-        const parentAccess = await Promise.all(parents.map((parent) => loadAccess(parent.key)));
-        allowed = parentAccess.some((candidate) => candidate?.canView === true);
+        if (parents.length > 0) {
+          forwardedHeaders.set(
+            "x-portal-read-parents",
+            parents.map((parent) => parent.key).join(","),
+          );
+        }
       }
-      if (!allowed) {
-        return NextResponse.json(
-          { error: "Portal Management denied this module action." },
-          { status: 403 },
-        );
-      }
-      forwardedHeaders.set("x-portal-module-grant", portalModule.key);
     }
   }
 
