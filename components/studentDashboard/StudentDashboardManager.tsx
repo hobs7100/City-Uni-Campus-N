@@ -26,7 +26,10 @@ import {
   User,
   X,
 } from "lucide-react";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
+import {
+  MAX_PROFILE_IMAGE_BYTES,
+  MAX_PROFILE_IMAGE_SIZE_LABEL,
+} from "@/lib/upload-limits";
 import {
   LineChart,
   Line,
@@ -442,8 +445,8 @@ export default function StudentDashboardManager() {
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error(`Profile images must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+    if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+      toast.error(`Profile images must be ${MAX_PROFILE_IMAGE_SIZE_LABEL} or smaller.`);
       e.target.value = "";
       return;
     }
@@ -613,7 +616,7 @@ export default function StudentDashboardManager() {
 </main>
 </body></html>`;
 
-    void printHtmlDocument(html, "Roll Number Slip").catch(() => {
+    void printHtmlDocument(html, "Roll Number Slip", { waitForFrameLoad: true }).catch(() => {
       toast.error("Unable to open the print dialog. Please try again.");
     });
   }

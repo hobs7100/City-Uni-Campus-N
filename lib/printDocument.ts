@@ -1,6 +1,10 @@
 "use client";
 
-export async function printHtmlDocument(html: string, title: string) {
+export async function printHtmlDocument(
+  html: string,
+  title: string,
+  options: { waitForFrameLoad?: boolean } = {},
+) {
   const iframe = document.createElement("iframe");
   iframe.title = title;
   iframe.setAttribute("aria-hidden", "true");
@@ -23,9 +27,22 @@ export async function printHtmlDocument(html: string, title: string) {
     throw new Error("Unable to prepare the printable document.");
   }
 
+  const frameLoaded = options.waitForFrameLoad
+    ? new Promise<void>((resolve) => {
+        iframe.addEventListener("load", () => resolve(), { once: true });
+      })
+    : null;
+
   frameDocument.open();
   frameDocument.write(html);
   frameDocument.close();
+
+  if (frameLoaded) {
+    await Promise.race([
+      frameLoaded,
+      new Promise<void>((resolve) => window.setTimeout(resolve, 2_000)),
+    ]);
+  }
 
   const images = Array.from(frameDocument.images);
   await Promise.all(
@@ -68,8 +85,18 @@ export async function printHtmlDocument(html: string, title: string) {
   };
   frameWindow.addEventListener("afterprint", cleanup, { once: true });
   window.setTimeout(cleanup, 60_000);
-  frameWindow.focus();
-  frameWindow.print();
+  if (options.waitForFrameLoad) {
+    await new Promise<void>((resolve) => {
+      frameWindow.setTimeout(() => {
+        frameWindow.focus();
+        frameWindow.print();
+        resolve();
+      }, 0);
+    });
+  } else {
+    frameWindow.focus();
+    frameWindow.print();
+  }
 }
 
 export function escapePrintHtml(value: string | number | null | undefined) {

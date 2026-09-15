@@ -3,7 +3,12 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { getSession } from "@/lib/session";
 import { getPortalAccess } from "@/lib/portalPermissions";
 import { isPortalManagedRole, type PortalModule } from "@/lib/portalPermissionsConfig";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
+import {
+  MAX_PROFILE_IMAGE_BYTES,
+  MAX_PROFILE_IMAGE_SIZE_LABEL,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_SIZE_LABEL,
+} from "@/lib/upload-limits";
 
 const limitedFolders = new Set(["students", "leave-proofs"]);
 const folderModules: Record<string, PortalModule> = {
@@ -41,9 +46,12 @@ export async function POST(request: NextRequest) {
 
     const base64 = body.file.slice(body.file.indexOf(",") + 1);
     const fileSize = Buffer.from(base64, "base64").length;
-    if (fileSize === 0 || fileSize > MAX_UPLOAD_BYTES) {
+    const maxBytes = body.folder === "students" ? MAX_PROFILE_IMAGE_BYTES : MAX_UPLOAD_BYTES;
+    const maxSizeLabel =
+      body.folder === "students" ? MAX_PROFILE_IMAGE_SIZE_LABEL : MAX_UPLOAD_SIZE_LABEL;
+    if (fileSize === 0 || fileSize > maxBytes) {
       return NextResponse.json(
-        { error: `Files must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.` },
+        { error: `Files must be ${maxSizeLabel} or smaller.` },
         { status: 413 },
       );
     }

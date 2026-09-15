@@ -1,2 +1,5 @@
 export const MAX_UPLOAD_BYTES = 500 * 1024;
 export const MAX_UPLOAD_SIZE_LABEL = "500 KB";
+
+export const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_PROFILE_IMAGE_SIZE_LABEL = "5 MB";
