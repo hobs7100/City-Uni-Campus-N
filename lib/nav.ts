@@ -26,6 +26,7 @@ export type NavIconName =
   | "UserX"
   | "BookCheck"
   | "FileCheck2"
+  | "ReceiptText"
   | "ShieldCheck";
 
 export interface NavItem {
@@ -66,6 +67,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Leave Management", href: "/dashboard/admin/leave-management", icon: "UserX" },
     { label: "DIT Mock Exam", href: "/dashboard/admin/dit-mock", icon: "PenLine" },
     { label: "Roll No. Slips", href: "/dashboard/admin/rollno-slips", icon: "FileCheck2" },
+    { label: "LAT Slip", href: "/dashboard/admin/lat-slip", icon: "ReceiptText" },
     { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
   ],

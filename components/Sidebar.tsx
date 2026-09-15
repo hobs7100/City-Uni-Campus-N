@@ -26,6 +26,7 @@ import {
   UserX,
   BookCheck,
   FileCheck2,
+  ReceiptText,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const iconMap: Record<NavIconName, LucideIcon> = {
   UserX,
   BookCheck,
   FileCheck2,
+  ReceiptText,
   ShieldCheck,
 };
 

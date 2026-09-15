@@ -220,6 +220,15 @@ export const PORTAL_MODULES = [
     apiPath: "/api/admin/rollno-slips",
   },
   {
+    key: "lat_slip",
+    label: "LAT Slip",
+    description: "Generate LAT preparation charge slips",
+    icon: "ReceiptText",
+    adminHref: "/dashboard/admin/lat-slip",
+    dashboardPath: "/dashboard/admin/lat-slip",
+    apiPath: "/api/admin/lat-slip",
+  },
+  {
     key: "notifications",
     label: "Notifications",
     description: "Campus notifications and targeted announcements",
