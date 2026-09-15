@@ -23,3 +23,4 @@
 - [BS-Bridging semester range](bs-bridging-semesters.md) — Bridging is a four-semester Post-ADP program numbered 5–8; names containing “Bridging” force that classification.
 - [Revoked leave reissue history](revoked-leave-reissue-history.md) — reissuing leave creates a new dated row; revoked rows remain immutable history, with one active leave enforced.
 - [Supabase transaction pool for Next.js](supabase-transaction-pool.md) — use transaction pooling and avoid nested middleware HTTP checks to prevent session-limit backend failures.
+- [Upload limit contracts](upload-limit-contracts.md) — keep category-specific file limits aligned between UI validation and API enforcement.
