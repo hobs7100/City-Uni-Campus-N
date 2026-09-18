@@ -551,6 +551,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   }
 
   async function handleSaveDitResults() {
+    if (ditSaving) return;
     if (!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate) {
       toast.error("Select class, test series, course and test date first."); return;
     }
@@ -558,10 +559,13 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (incomplete) { toast.error("Enter marks for all present students before saving."); return; }
 
     setDitSaving(true);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30_000);
     try {
       const res = await fetch("/api/teacher/dit/results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           allocation_id:  ditAllocId,
           semester_id:    ditSemId,
@@ -579,7 +583,15 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Save failed."); return; }
       toast.success("Results saved successfully.");
+      await loadDitStudents();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        toast.error("Saving took too long. Please check your connection and try again.");
+      } else {
+        toast.error("Could not save results. Please check your connection and try again.");
+      }
     } finally {
+      window.clearTimeout(timeout);
       setDitSaving(false);
     }
   }
