@@ -85,13 +85,14 @@ export async function PATCH(
   );
   if (!day || !period) return NextResponse.json({ error: "Cell context not found." }, { status: 404 });
 
-  const clash = await queryOne<{ class_name: string; session: string }>(
-    `select cl.class_name, cl.session
+  const clash = await queryOne<{ class_name: string; session: string; semester_number: number }>(
+    `select cl.class_name, cl.session, s.semester_number
      from timetable_cells tc
      join timetable_days td on td.id = tc.day_id
      join timetable_periods tp on tp.id = tc.period_id
      join timetables tt on tt.id = tc.timetable_id
      join classes cl on cl.id = tt.class_id
+     join semesters s on s.id = tt.semester_id
      join allocations a on a.id = tc.allocation_id
      where tc.allocation_id is not null
        and tc.id != $1
@@ -128,7 +129,7 @@ export async function PATCH(
   if (clash) {
     return NextResponse.json(
       {
-        error: `Teacher clash: ${allocation.teacher_name} is already scheduled in ${clash.class_name} (${clash.session}) on ${day.day_name} at this time.`,
+        error: `Teacher clash: ${allocation.teacher_name} is already scheduled for ${clash.class_name} — Session ${clash.session}, Semester ${clash.semester_number} on ${day.day_name} at this time.`,
       },
       { status: 409 }
     );
@@ -146,13 +147,16 @@ export async function PATCH(
       end_time: string;
       class_name: string;
       session: string;
+      semester_number: number;
     }>(
-      `select td.day_name, tp.start_time, tp.end_time, cl.class_name, cl.session
+      `select td.day_name, tp.start_time, tp.end_time, cl.class_name, cl.session,
+              s.semester_number
        from timetable_cells tc
        join timetable_days td on td.id = tc.day_id
        join timetable_periods tp on tp.id = tc.period_id
        join timetables tt on tt.id = tc.timetable_id
        join classes cl on cl.id = tt.class_id
+       join semesters s on s.id = tt.semester_id
        where tc.allocation_id = $1
          and tc.id != $2
          and tc.timetable_id != $3
@@ -178,63 +182,12 @@ export async function PATCH(
     if (conflictingPlacement) {
       return NextResponse.json(
         {
-          error: `Combined lecture already placed in ${conflictingPlacement.class_name} (${conflictingPlacement.session}) on ${conflictingPlacement.day_name} at ${conflictingPlacement.start_time}–${conflictingPlacement.end_time}. Overlapping (non-consecutive) time slots are not allowed across combined classes.`,
+          error: `Combined lecture clash: it is already placed for ${conflictingPlacement.class_name} — Session ${conflictingPlacement.session}, Semester ${conflictingPlacement.semester_number} on ${conflictingPlacement.day_name} at ${conflictingPlacement.start_time}–${conflictingPlacement.end_time}. Overlapping, non-matching time slots are not allowed across combined classes.`,
         },
         { status: 409 }
       );
     }
 
-    // Check 2: if this combined allocation is already placed in other timetables,
-    // the target day must be one of the days already established — you cannot
-    // add a new day that the other combined-class timetables don't have.
-    const dayCounts = await queryOne<{ placed_count: string; day_match_count: string }>(
-      `select
-         count(tc.id)::text as placed_count,
-         count(case when td.day_name = $3 then 1 end)::text as day_match_count
-       from timetable_cells tc
-       join timetable_days td on td.id = tc.day_id
-        join timetables tt on tt.id = tc.timetable_id
-       where tc.allocation_id = $1
-         and tc.timetable_id != $2
-          and tc.id != $4
-          and not exists (
-            select 1 from allocation_semesters placed_als
-            join semester_courses sc on sc.semester_id = placed_als.semester_id
-                                    and sc.course_id = placed_als.course_id
-            where placed_als.allocation_id = tc.allocation_id
-              and placed_als.semester_id = tt.semester_id
-              and sc.syllabus_completed_at is not null
-          )`,
-      [allocation_id, id, day.day_name, cellId]
-    );
-
-    if (dayCounts && Number(dayCounts.placed_count) > 0 && Number(dayCounts.day_match_count) === 0) {
-      // Fetch the established days to show a helpful error message.
-      const existingDaysResult = await query<{ day_name: string }>(
-        `select distinct td.day_name
-         from timetable_cells tc
-         join timetable_days td on td.id = tc.day_id
-         join timetables tt on tt.id = tc.timetable_id
-         where tc.allocation_id = $1 and tc.timetable_id != $2
-           and not exists (
-             select 1 from allocation_semesters placed_als
-             join semester_courses sc on sc.semester_id = placed_als.semester_id
-                                     and sc.course_id = placed_als.course_id
-             where placed_als.allocation_id = tc.allocation_id
-               and placed_als.semester_id = tt.semester_id
-               and sc.syllabus_completed_at is not null
-           )
-         order by td.day_name`,
-        [allocation_id, id]
-      );
-      const dayList = existingDaysResult.map((r) => r.day_name).join(", ");
-      return NextResponse.json(
-        {
-          error: `Combined lecture is already scheduled on ${dayList} in the other combined class(es). You can only place it on those same days.`,
-        },
-        { status: 409 }
-      );
-    }
   }
 
   const updated = await queryOne(
