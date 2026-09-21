@@ -237,6 +237,15 @@ export const PORTAL_MODULES = [
     dashboardPath: "/dashboard/admin/notifications",
     apiPath: "/api/admin/notifications",
   },
+  {
+    key: "feedback",
+    label: "Feedback",
+    description: "Student complaints and feedback workflow",
+    icon: "MessageSquare",
+    adminHref: "/dashboard/admin/feedback",
+    dashboardPath: "/dashboard/admin/feedback",
+    apiPath: "/api/admin/feedback",
+  },
 ] as const;
 
 export type PortalModule = (typeof PORTAL_MODULES)[number]["key"];
@@ -281,6 +290,7 @@ export const PORTAL_READ_DEPENDENCIES: Partial<
   dit_mock: ["departments", "classes", "courses", "students"],
   rollno_slips: ["departments", "classes", "students"],
   notifications: ["departments", "classes"],
+  feedback: ["classes", "students"],
 };
 
 const PORTAL_ROLE_PATH_MODULES: Partial<

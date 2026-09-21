@@ -46,6 +46,7 @@ import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
 import RichTextViewer from "@/components/ui/RichTextViewer";
 import { AttendanceHistoryTable } from "@/components/studentAttendance/AttendanceHistory";
 import type { StudentAttendanceHistoryRecord } from "@/lib/student-attendance-history";
+import StudentFeedback from "@/components/feedback/StudentFeedback";
 
 /* ─── interfaces ─────────────────────────────────────────── */
 interface Profile {
@@ -160,6 +161,7 @@ const TABS = [
   { id: "rollno-slip",        label: "Roll No. Slip",       icon: Ticket },
   { id: "attendance",         label: "Attendance",          icon: Activity },
   { id: "notifications",      label: "Notifications",       icon: Bell },
+  { id: "feedback",           label: "Feedback System",     icon: ClipboardList },
   { id: "profile",            label: "Profile",             icon: User },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -1670,6 +1672,8 @@ export default function StudentDashboardManager() {
           )}
         </div>
       )}
+
+      {tab === "feedback" && <StudentFeedback />}
 
       {/* ── PROFILE ── */}
       {tab === "profile" && profile && (

@@ -28,6 +28,7 @@ import {
   FileCheck2,
   ReceiptText,
   ShieldCheck,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem, NavIconName } from "@/lib/nav";
@@ -59,6 +60,7 @@ const iconMap: Record<NavIconName, LucideIcon> = {
   FileCheck2,
   ReceiptText,
   ShieldCheck,
+  MessageSquare,
 };
 
 export default function Sidebar({

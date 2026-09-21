@@ -1,0 +1,37 @@
+"use client";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { ButtonLoader, DataFetchLoader } from "@/components/ui/Loaders";
+
+const categories = ["Administration", "Teaching Faculty", "Non-Teaching Faculty", "Coordinators", "Hygiene Issue", "Other"] as const;
+type Row = { id:string; category:string; other_issue?:string; body:string; status:string; created_at:string; updated_at:string };
+type Detail = { complaint:Row; attachments:{id:string;url:string}[]; comments:{id:string;author_role:string;body:string;created_at:string}[]; status_history:{id:string;status:string;created_at:string}[] };
+const words = (s:string) => s.trim() ? s.trim().split(/\s+/).length : 0;
+const nice = (s:string) => s.replace(/_/g, " ");
+
+export default function StudentFeedback() {
+  const [rows,setRows]=useState<Row[]>([]); const [loading,setLoading]=useState(true);
+  const [category,setCategory]=useState<typeof categories[number]>("Administration");
+  const [other,setOther]=useState(""); const [body,setBody]=useState(""); const [files,setFiles]=useState<File[]>([]);
+  const [saving,setSaving]=useState(false); const [detail,setDetail]=useState<Detail|null>(null); const [reply,setReply]=useState(""); const [replying,setReplying]=useState(false);
+  const load=async()=>{setLoading(true); try { const r=await fetch("/api/student/feedback"); if(r.ok)setRows(await r.json()); } finally {setLoading(false);} };
+  useEffect(()=>{const timer=window.setTimeout(load,0);return()=>window.clearTimeout(timer);},[]);
+  async function submit(e:React.FormEvent){e.preventDefault(); if(!body.trim()||words(body)>1000)return toast.error("Enter a complaint of up to 1000 words."); if(category==="Other"&&!other.trim())return toast.error("Please describe the issue."); setSaving(true);
+    try { const attachments:{url:string;public_id:string}[]=[]; for(const file of files){const data=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(file);}); const u=await fetch("/api/upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({file:data,folder:"feedback"})}); const ud=await u.json(); if(!u.ok)throw new Error(ud.error||"Upload failed"); attachments.push({url:ud.url,public_id:ud.publicId});}
+      const r=await fetch("/api/student/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({category,other_issue:category==="Other"?other:undefined,body,attachments})}); if(!r.ok){const d=await r.json();throw new Error(d.error?.formErrors?.join(", ")||"Unable to submit");} toast.success("Feedback submitted.");setBody("");setOther("");setFiles([]);load();
+    } catch(e){toast.error(e instanceof Error?e.message:"Unable to submit feedback.");} finally{setSaving(false);}
+  }
+  async function open(id:string){const r=await fetch(`/api/student/feedback/${id}`);if(r.ok)setDetail(await r.json());}
+  async function sendReply(){if(!reply.trim()||!detail)return;setReplying(true);try{const r=await fetch(`/api/student/feedback/${detail.complaint.id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({body:reply})});if(!r.ok)throw new Error("Unable to send reply");setReply("");toast.success("Reply sent.");open(detail.complaint.id);}catch(e){toast.error(e instanceof Error?e.message:"Unable to send reply.");}finally{setReplying(false);}}
+  return <div className="space-y-5">
+    <div className="card-3d p-5"><h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-white">Submit Feedback</h2><form onSubmit={submit} className="space-y-4">
+      <select value={category} onChange={e=>setCategory(e.target.value as typeof category)} className="input w-full">{categories.map(c=><option key={c}>{c}</option>)}</select>
+      {category==="Other"&&<input required value={other} onChange={e=>setOther(e.target.value)} placeholder="Describe the issue" className="input w-full"/>}
+      <textarea required value={body} onChange={e=>setBody(e.target.value)} rows={6} placeholder="Write your complaint..." className="input w-full resize-y"/><p className={`text-xs ${words(body)>1000?"text-red-500":"text-slate-400"}`}>{words(body)} / 1000 words</p>
+      <input type="file" accept="image/png,image/jpeg" multiple disabled={saving} onChange={e=>{const f=Array.from(e.target.files||[]);if(f.length>2)return toast.error("Maximum 2 images.");if(f.some(x=>x.size>500*1024))return toast.error("Each image must be 500 KB or smaller.");setFiles(f);}} className="text-sm"/>
+      <button disabled={saving||words(body)>1000} className="grad-primary rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving?<ButtonLoader/>:"Submit complaint"}</button>
+    </form></div>
+    <div className="card-3d p-5"><h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-white">All Feedback</h2>{loading?<DataFetchLoader label="Loading feedback…" />:rows.length===0?<p className="text-sm text-slate-400">No feedback submitted yet.</p>:<div className="space-y-2">{rows.map(r=><button key={r.id} onClick={()=>open(r.id)} className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"><span><b>{r.category}</b><span className="ml-3 text-sm text-slate-500">{r.body.slice(0,90)}{r.body.length>90?"…":""}</span></span><span className="rounded-full bg-indigo-100 px-2 py-1 text-xs capitalize text-indigo-700">{nice(r.status)}</span></button>)}</div>}</div>
+    {detail&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={()=>setDetail(null)}><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 dark:bg-slate-900" onClick={e=>e.stopPropagation()}><div className="flex justify-between"><h3 className="text-lg font-semibold">Feedback details</h3><button onClick={()=>setDetail(null)}>✕</button></div><p className="mt-4 whitespace-pre-wrap text-sm">{detail.complaint.body}</p>{detail.complaint.other_issue&&<p className="mt-2 text-sm text-slate-500">Issue: {detail.complaint.other_issue}</p>}<div className="mt-3 flex gap-2">{detail.attachments.map(a=><a key={a.id} href={a.url} target="_blank" rel="noreferrer"><img alt="Feedback attachment" src={a.url} className="h-20 w-20 rounded object-cover" /></a>)}</div><p className="mt-4 font-medium">Status: <span className="capitalize">{nice(detail.complaint.status)}</span></p><div className="mt-4 space-y-2">{detail.status_history.map(h=><p key={h.id} className="text-xs text-slate-500">{new Date(h.created_at).toLocaleString()} — {nice(h.status)}</p>)}{detail.comments.map(c=><div key={c.id} className={`rounded-lg p-3 text-sm ${c.author_role==="student"?"bg-indigo-50 dark:bg-indigo-500/10":"bg-slate-100 dark:bg-slate-800"}`}><b>{c.author_role==="student"?"You":"Admin"}</b><p>{c.body}</p><small>{new Date(c.created_at).toLocaleString()}</small></div>)}</div><div className="mt-4 flex gap-2"><textarea value={reply} onChange={e=>setReply(e.target.value)} placeholder="Reply to admin…" className="input min-h-20 flex-1"/><button disabled={replying||!reply.trim()} onClick={sendReply} className="grad-primary self-end rounded px-3 py-2 text-sm text-white">{replying?<ButtonLoader/>:"Reply"}</button></div></div></div>}
+  </div>;
+}

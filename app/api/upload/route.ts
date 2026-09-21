@@ -10,7 +10,7 @@ import {
   MAX_UPLOAD_SIZE_LABEL,
 } from "@/lib/upload-limits";
 
-const limitedFolders = new Set(["students", "leave-proofs"]);
+const limitedFolders = new Set(["students", "leave-proofs", "feedback"]);
 const folderModules: Record<string, PortalModule> = {
   students: "students",
   "leave-proofs": "leave_management",
@@ -28,6 +28,19 @@ export async function POST(request: NextRequest) {
   }
   if (typeof body.folder !== "string" || !limitedFolders.has(body.folder)) {
     return NextResponse.json({ error: "Unsupported upload folder." }, { status: 400 });
+  }
+  if (body.folder === "feedback") {
+    if (session.role !== "student") return NextResponse.json({ error: "Only students may upload feedback attachments." }, { status: 403 });
+    if (typeof body.file !== "string" || !/^data:image\/(png|jpeg);base64,/i.test(body.file)) {
+      return NextResponse.json({ error: "Only PNG or JPEG images are accepted." }, { status: 400 });
+    }
+    const base64 = body.file.slice(body.file.indexOf(",") + 1);
+    const bytes = Buffer.from(base64, "base64");
+    const png = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    const jpeg = bytes.length >= 3 && bytes.subarray(0, 3).equals(Buffer.from([255,216,255]));
+    if ((!png && !jpeg) || bytes.length === 0 || bytes.length > 500 * 1024) {
+      return NextResponse.json({ error: "PNG/JPEG files must decode to 500 KB or smaller." }, { status: 413 });
+    }
   }
   if (isPortalManagedRole(session.role)) {
     const access = await getPortalAccess(session.role, folderModules[body.folder]);
