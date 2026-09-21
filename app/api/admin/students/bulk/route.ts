@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query, queryOne } from "@/lib/db";
+import { query, queryOne, getClient } from "@/lib/db";
+import { allocateDitRollNumber } from "@/lib/dit-roll-number";
 import { generateRandomPassword, hashPassword } from "@/lib/auth";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 import { sendWelcomeEmail } from "@/lib/email";
@@ -76,12 +77,16 @@ export async function POST(request: NextRequest) {
       ? row["status"]
       : "active") as string;
 
+    let client: Awaited<ReturnType<typeof getClient>> | null = null;
     try {
-      await query(
+      client = await getClient();
+      await client.query("begin");
+      const rollNo = await allocateDitRollNumber(client, classId, session);
+      await client.query(
         `insert into students
            (name, father_name, cnic, contact, address, email, password_hash,
-            department_id, session, class_id, status)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+             department_id, session, class_id, status, roll_no)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           name,
           String(row["father_name"] || "").trim() || null,
@@ -94,11 +99,19 @@ export async function POST(request: NextRequest) {
           session,
           classId,
           status,
+           rollNo,
         ]
       );
+      await client.query("commit");
+      client.release();
+      client = null;
       created++;
       sendWelcomeEmail({ to: email, name, password }).catch(() => {});
     } catch (e) {
+      if (client) {
+        await client.query("rollback").catch(() => {});
+        client.release();
+      }
       errors.push(`Row ${rowNum}: DB error — ${(e as Error).message}`);
     }
   }

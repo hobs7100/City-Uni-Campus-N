@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { query, queryOne } from "@/lib/db";
+import { query, queryOne, getClient } from "@/lib/db";
+import { allocateDitRollNumber } from "@/lib/dit-roll-number";
 import { generateRandomPassword, hashPassword } from "@/lib/auth";
 import { requireRole } from "@/lib/requireRole";
 import { requirePortalPermission } from "@/lib/portalPermissions";
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   const students = await query(
     `select s.id, s.name, s.father_name, s.cnic, s.contact, s.address, s.email,
-            s.department_id, d.name as department_name, s.session, s.class_id, c.class_name,
+            s.department_id, d.name as department_name, s.session, s.class_id, c.class_name, s.roll_no,
             s.profile_image_url, s.status, s.status_change_date, s.status_change_semester,
             s.status_changed_by_name, s.created_at
      from students s
@@ -65,6 +66,17 @@ export async function POST(request: NextRequest) {
   }
   const d = parsed.data;
 
+  const selectedClass = await queryOne<{ session: string }>(
+    `select session from classes where id = $1`,
+    [d.class_id],
+  );
+  if (!selectedClass || selectedClass.session.trim() !== d.session.trim()) {
+    return NextResponse.json(
+      { error: "The selected class does not belong to the selected session." },
+      { status: 400 },
+    );
+  }
+
   const [cnicExists, emailExists] = await Promise.all([
     queryOne(`select id from students where cnic = $1`, [d.cnic]),
     queryOne(`select id from students where email = $1`, [d.email.toLowerCase()]),
@@ -76,20 +88,32 @@ export async function POST(request: NextRequest) {
   const passwordHash = await hashPassword(generatedPassword);
   const needsStatusFields = ["left", "dropped", "freezed"].includes(d.status);
 
-  const student = await queryOne(
+  const client = await getClient();
+  let student;
+  try {
+    await client.query("begin");
+    const rollNo = await allocateDitRollNumber(client, d.class_id, d.session);
+    student = (await client.query(
     `insert into students
       (name, father_name, cnic, contact, address, email, password_hash, department_id, session, class_id,
-       profile_image_url, status, status_change_date, status_change_semester)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-     returning id, name, email, status`,
+       profile_image_url, status, status_change_date, status_change_semester, roll_no)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     returning id, name, email, status, roll_no`,
     [
       d.name, d.father_name || null, d.cnic, d.contact || null, d.address || null,
       d.email.toLowerCase(), passwordHash, d.department_id, d.session, d.class_id,
       d.profile_image_url || null, d.status,
       needsStatusFields ? d.status_change_date || null : null,
-      needsStatusFields ? d.status_change_semester ?? null : null,
+      needsStatusFields ? d.status_change_semester ?? null : null, rollNo,
     ]
-  );
+    )).rows[0];
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 
   const emailResult = await sendWelcomeEmail({
     to: (student as { email: string }).email,
