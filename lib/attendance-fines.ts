@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import type { PoolClient } from "pg";
 
 export type AttendanceFineAdjustmentType = "discount" | "waive";
 
@@ -79,13 +80,15 @@ type FineRow = {
   adjusted_at: string | null;
 };
 
-export async function getCurrentAttendanceFineAssessments(studentId?: string) {
+export async function getCurrentAttendanceFineAssessments(
+  studentId?: string,
+  client?: PoolClient,
+) {
   const values: unknown[] = [];
   const studentFilter = studentId ? "and st.id = $1" : "";
   if (studentId) values.push(studentId);
 
-  const rows = await query<FineRow>(
-    `select
+  const sql = `select
        st.id as student_id, st.name, st.father_name, st.roll_no,
        st.status::text as status, st.department_id, d.name as department_name,
        st.class_id, cl.class_name, cl.session, sem.id as semester_id,
@@ -145,9 +148,10 @@ export async function getCurrentAttendanceFineAssessments(studentId?: string) {
        sem.id, sem.semester_number, st.attendance_fine_cycle_started_at,
        active_leave.leave_type, afa.adjustment_type, afa.discount_amount,
        afa.reason, u.name, afa.created_at
-     order by d.name, cl.class_name, st.name`,
-    values,
-  );
+      order by d.name, cl.class_name, st.name`;
+  const rows = client
+    ? (await client.query(sql, values)).rows as FineRow[]
+    : await query<FineRow>(sql, values);
 
   return rows.flatMap<AttendanceFineAssessment>((row) => {
     const rawPercentage = row.evaluable_days > 0
@@ -205,6 +209,6 @@ export async function getCurrentAttendanceFineAssessments(studentId?: string) {
   });
 }
 
-export async function getCurrentAttendanceFine(studentId: string) {
-  return (await getCurrentAttendanceFineAssessments(studentId))[0] ?? null;
+export async function getCurrentAttendanceFine(studentId: string, client?: PoolClient) {
+  return (await getCurrentAttendanceFineAssessments(studentId, client))[0] ?? null;
 }

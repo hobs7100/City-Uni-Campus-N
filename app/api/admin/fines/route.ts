@@ -10,6 +10,9 @@ type FineRow = {
   class_id: string;
   semester_id: string;
   amount: string;
+  gross_amount: string;
+  discount_amount: string;
+  adjustment_type: "discount" | "waive" | null;
   fid: string;
   paid_date: string | null;
   reactivated_on: string | null;
@@ -101,8 +104,9 @@ export async function GET(request: NextRequest) {
 
   const [transactions, statsRows, struckOffRows, monthlyTotals, yearlyTotals, allAttendanceFines] = await Promise.all([
     query<FineRow>(
-      `select f.id, f.student_id, f.department_id, f.class_id, f.semester_id,
-              f.amount, f.fid, f.paid_date, f.reactivated_on, f.created_by_name,
+       `select f.id, f.student_id, f.department_id, f.class_id, f.semester_id,
+               f.amount, f.gross_amount, f.discount_amount, f.adjustment_type,
+               f.fid, f.paid_date, f.reactivated_on, f.created_by_name,
               f.created_at, f.updated_at,
               to_char(coalesce(f.paid_date, f.created_at::date), 'YYYY-MM-DD') as transaction_date,
               st.name as student_name, st.father_name,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { requirePortalPermission } from "@/lib/portalPermissions";
+import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
 
 const schema = z.object({
   name: z.string().min(2).optional(),
@@ -19,9 +20,18 @@ const schema = z.object({
   status: z.enum(["active", "struck_off", "left", "dropped", "freezed", "permanent_leave"]).optional(),
   status_change_date: z.string().optional().nullable(),
   status_change_semester: z.coerce.number().optional().nullable(),
-  fine_amount: z.coerce.number().positive().optional(),
   fid: z.string().trim().min(1).max(100).optional(),
   reactivation_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  assessment_cycle_id: z.string().uuid().optional(),
+  fine_quote: z.object({
+    presents: z.number().int().nonnegative(),
+    evaluable_days: z.number().int().nonnegative(),
+    gross_amount: z.number().nonnegative(),
+    discount_amount: z.number().nonnegative(),
+    net_amount: z.number().nonnegative(),
+    adjustment_type: z.enum(["discount", "waive"]).nullable(),
+    adjusted_at: z.string().nullable(),
+  }).optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -92,10 +102,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         { status: 409 },
       );
     }
-    if (isReactivation && (!d.fine_amount || !d.fid || !d.reactivation_date)) {
+    if (isReactivation && (!d.fid || !d.reactivation_date || !d.assessment_cycle_id || !d.fine_quote)) {
       await evalClient.query("rollback");
       return NextResponse.json(
-        { error: "Fine Amount, FID, and activation date are required to reactivate a struck-off student." },
+        { error: "Current fine assessment, FID, and activation date are required to reactivate a struck-off student." },
         { status: 400 },
       );
     }
@@ -107,7 +117,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
     }
 
-    const { password, fine_amount, fid, reactivation_date, ...rest } = d;
+    const currentFine = isReactivation
+      ? await getCurrentAttendanceFine(id, evalClient)
+      : null;
+    if (
+      isReactivation
+      && (
+        !currentFine
+        || currentFine.status !== "struck_off"
+        || currentFine.semester_id !== current.semester_id
+        || currentFine.assessment_cycle_id !== d.assessment_cycle_id
+        || currentFine.presents !== d.fine_quote!.presents
+        || currentFine.evaluable_days !== d.fine_quote!.evaluable_days
+        || currentFine.gross_amount !== d.fine_quote!.gross_amount
+        || currentFine.discount_amount !== d.fine_quote!.discount_amount
+        || currentFine.net_amount !== d.fine_quote!.net_amount
+        || currentFine.adjustment_type !== d.fine_quote!.adjustment_type
+        || currentFine.adjusted_at !== d.fine_quote!.adjusted_at
+      )
+    ) {
+      await evalClient.query("rollback");
+      return NextResponse.json(
+        { error: "The student's attendance fine changed. Refresh and try again." },
+        { status: 409 },
+      );
+    }
+
+    const { password, fid, reactivation_date, assessment_cycle_id, ...rest } = d;
+    delete rest.fine_quote;
     const sets: string[] = [];
     const values: unknown[] = [];
     let i = 1;
@@ -178,17 +215,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       await evalClient.query(
         `insert into student_fines
            (student_id, department_id, class_id, semester_id, amount, fid,
-            paid_date, reactivated_on, created_by_name)
-         values ($1, $2, $3, $4, $5, $6, $7::date, $7::date, $8)`,
+             paid_date, reactivated_on, created_by_name, gross_amount,
+             discount_amount, adjustment_type, assessment_cycle_id)
+          values ($1, $2, $3, $4, $5, $6, $7::date, $7::date, $8,
+                  $9, $10, $11, $12)`,
         [
           id,
           current.department_id,
           current.class_id,
           current.semester_id,
-          fine_amount,
+          currentFine!.net_amount,
           fid,
           reactivation_date,
           session!.name,
+          currentFine!.gross_amount,
+          currentFine!.discount_amount,
+          currentFine!.adjustment_type,
+          assessment_cycle_id,
         ],
       );
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   BadgeDollarSign, CalendarDays, GraduationCap, KeyRound, Pencil, Plus, ReceiptText, Search, ShieldCheck, Trash2, Upload, User, Users, UserCheck, UserX,
@@ -39,6 +39,21 @@ interface ClassOption {
   class_name: string;
   session: string;
   total_semesters: number;
+}
+
+interface ReactivationFine {
+  semester_id: string;
+  semester_number: number;
+  assessment_cycle_id: string;
+  attendance_percentage: number;
+  evaluable_days: number;
+  presents: number;
+  gross_amount: number;
+  adjustment_type: "discount" | "waive" | null;
+  discount_amount: number;
+  adjustment_reason: string | null;
+  adjusted_at: string | null;
+  net_amount: number;
 }
 
 const statusOptions = [
@@ -105,8 +120,11 @@ export default function StudentManagementPage({ role }: Props) {
   const [uploading, setUploading] = useState(false);
   const [reactivationTarget, setReactivationTarget] = useState<Student | null>(null);
   const [reactivationSaving, setReactivationSaving] = useState(false);
+  const [reactivationFine, setReactivationFine] = useState<ReactivationFine | null>(null);
+  const [reactivationFineLoading, setReactivationFineLoading] = useState(false);
+  const [reactivationFineError, setReactivationFineError] = useState("");
+  const reactivationFineRequestId = useRef(0);
   const [reactivationForm, setReactivationForm] = useState({
-    fine_amount: "",
     fid: "",
     reactivation_date: new Date().toISOString().slice(0, 10),
   });
@@ -212,12 +230,33 @@ export default function StudentManagementPage({ role }: Props) {
 
   function openEdit(item: Student) {
     if (item.status === "struck_off" && canChangeStatus) {
+      const requestId = ++reactivationFineRequestId.current;
       setReactivationTarget(item);
+      setReactivationFine(null);
+      setReactivationFineError("");
       setReactivationForm({
-        fine_amount: "",
         fid: "",
         reactivation_date: new Date().toISOString().slice(0, 10),
       });
+      setReactivationFineLoading(true);
+      fetch(`/api/admin/students/${item.id}/fine`, { cache: "no-store" })
+        .then(async (response) => {
+          const data = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(data?.error || "Could not load the current fine.");
+          if (requestId !== reactivationFineRequestId.current) return;
+          setReactivationFine(data.attendance_fine);
+        })
+        .catch((error) => {
+          if (requestId !== reactivationFineRequestId.current) return;
+          setReactivationFineError(
+            error instanceof Error ? error.message : "Could not load the current fine.",
+          );
+        })
+        .finally(() => {
+          if (requestId === reactivationFineRequestId.current) {
+            setReactivationFineLoading(false);
+          }
+        });
       return;
     }
     setForm({
@@ -243,6 +282,10 @@ export default function StudentManagementPage({ role }: Props) {
   async function handleReactivation(e: React.FormEvent) {
     e.preventDefault();
     if (!reactivationTarget) return;
+    if (!reactivationFine) {
+      toast.error("The current attendance fine has not loaded.");
+      return;
+    }
     setReactivationSaving(true);
     try {
       const res = await fetch(`/api/admin/students/${reactivationTarget.id}`, {
@@ -250,9 +293,18 @@ export default function StudentManagementPage({ role }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: "active",
-          fine_amount: Number(reactivationForm.fine_amount),
           fid: reactivationForm.fid.trim(),
           reactivation_date: reactivationForm.reactivation_date,
+          assessment_cycle_id: reactivationFine.assessment_cycle_id,
+          fine_quote: {
+            presents: reactivationFine.presents,
+            evaluable_days: reactivationFine.evaluable_days,
+            gross_amount: reactivationFine.gross_amount,
+            discount_amount: reactivationFine.discount_amount,
+            net_amount: reactivationFine.net_amount,
+            adjustment_type: reactivationFine.adjustment_type,
+            adjusted_at: reactivationFine.adjusted_at,
+          },
         }),
       });
       const data = await res.json();
@@ -261,11 +313,19 @@ export default function StudentManagementPage({ role }: Props) {
         return;
       }
       toast.success("Student reactivated and fine transaction recorded.");
-      setReactivationTarget(null);
+       closeReactivation();
       await load();
     } finally {
       setReactivationSaving(false);
     }
+  }
+
+  function closeReactivation() {
+    reactivationFineRequestId.current += 1;
+    setReactivationTarget(null);
+    setReactivationFine(null);
+    setReactivationFineError("");
+    setReactivationFineLoading(false);
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -702,7 +762,7 @@ export default function StudentManagementPage({ role }: Props) {
 
       <Modal
         open={!!reactivationTarget}
-        onClose={() => setReactivationTarget(null)}
+        onClose={closeReactivation}
         title="Reactivate Student & Record Fine"
         widthClass="max-w-xl"
       >
@@ -724,23 +784,48 @@ export default function StudentManagementPage({ role }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-              <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                <BadgeDollarSign size={17} /> Fine Amount
-              </span>
-              <input
-                required
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={reactivationForm.fine_amount}
-                onChange={(e) => setReactivationForm((current) => ({ ...current, fine_amount: e.target.value }))}
-                placeholder="0.00"
-                className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-emerald-500/30 dark:bg-slate-900 dark:text-white"
-              />
-            </label>
+          {reactivationFineLoading ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/60">
+              Fetching current attendance fine…
+            </div>
+          ) : reactivationFineError ? (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+              {reactivationFineError}
+            </div>
+          ) : reactivationFine ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                  <BadgeDollarSign size={17} /> Current Attendance Fine
+                </span>
+                <span className="text-xl font-black text-emerald-800 dark:text-emerald-300">
+                  PKR {reactivationFine.net_amount.toLocaleString("en-PK")}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-4">
+                <div><span className="block text-slate-400">Attendance</span><strong>{reactivationFine.attendance_percentage.toFixed(2)}%</strong></div>
+                <div><span className="block text-slate-400">Semester</span><strong>{reactivationFine.semester_number}</strong></div>
+                <div><span className="block text-slate-400">Gross</span><strong>PKR {reactivationFine.gross_amount.toLocaleString("en-PK")}</strong></div>
+                <div>
+                  <span className="block text-slate-400">Adjustment</span>
+                  <strong>
+                    {reactivationFine.adjustment_type === "waive"
+                      ? "Waived"
+                      : reactivationFine.discount_amount > 0
+                        ? `− PKR ${reactivationFine.discount_amount.toLocaleString("en-PK")}`
+                        : "None"}
+                  </strong>
+                </div>
+              </div>
+              {reactivationFine.adjustment_reason && (
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Reason: {reactivationFine.adjustment_reason}
+                </p>
+              )}
+            </div>
+          ) : null}
 
+          <div className="grid gap-4 sm:grid-cols-2">
             <label className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
               <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
                 <ReceiptText size={17} /> FID
@@ -777,13 +862,17 @@ export default function StudentManagementPage({ role }: Props) {
           </div>
 
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setReactivationTarget(null)}
+            <button type="button" onClick={closeReactivation}
               className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
               Cancel
             </button>
-            <button type="submit" disabled={reactivationSaving}
+            <button type="submit" disabled={reactivationSaving || reactivationFineLoading || !reactivationFine}
               className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60">
-              {reactivationSaving ? "Activating…" : "Record Fine & Activate"}
+              {reactivationSaving
+                ? "Activating…"
+                : reactivationFine?.net_amount === 0
+                  ? "Record Waiver & Activate"
+                  : "Record Payment & Activate"}
             </button>
           </div>
         </form>

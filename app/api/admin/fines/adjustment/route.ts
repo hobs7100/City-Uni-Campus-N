@@ -38,18 +38,7 @@ export async function POST(request: NextRequest) {
     );
   }
   const data = parsed.data;
-  const fine = await getCurrentAttendanceFine(data.student_id);
-  if (!fine || fine.semester_id !== data.semester_id || fine.gross_amount <= 0) {
-    return NextResponse.json({ error: "No current attendance fine was found." }, { status: 404 });
-  }
-
   const amount = data.action === "discount" ? data.amount : 0;
-  if (data.action === "discount" && amount >= fine.gross_amount) {
-    return NextResponse.json(
-      { error: "Use waive-off when the full fine should be removed." },
-      { status: 400 },
-    );
-  }
   const client = await getClient();
   try {
     await client.query("begin");
@@ -65,11 +54,27 @@ export async function POST(request: NextRequest) {
       [data.student_id],
     );
     const currentCycle = locked.rows[0];
-    if (!currentCycle || currentCycle.attendance_fine_cycle_id !== fine.assessment_cycle_id) {
+    if (!currentCycle) {
+      await client.query("rollback");
+      return NextResponse.json({ error: "Student not found." }, { status: 404 });
+    }
+    const fine = await getCurrentAttendanceFine(data.student_id, client);
+    if (!fine || fine.semester_id !== data.semester_id || fine.gross_amount <= 0) {
+      await client.query("rollback");
+      return NextResponse.json({ error: "No current attendance fine was found." }, { status: 404 });
+    }
+    if (currentCycle.attendance_fine_cycle_id !== fine.assessment_cycle_id) {
       await client.query("rollback");
       return NextResponse.json(
         { error: "The student's fine cycle changed. Refresh and try again." },
         { status: 409 },
+      );
+    }
+    if (data.action === "discount" && amount >= fine.gross_amount) {
+      await client.query("rollback");
+      return NextResponse.json(
+        { error: "Use waive-off when the full fine should be removed." },
+        { status: 400 },
       );
     }
     await client.query(
