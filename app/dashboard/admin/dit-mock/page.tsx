@@ -9,6 +9,7 @@ import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { TableLoader } from "@/components/ui/Loaders";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import DitAnalytics from "./DitAnalytics";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 interface TestSeries {
@@ -68,7 +69,7 @@ function calcGrade(obtained: number, total: number, passing: number, isAbsent = 
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function DitMockPage() {
-  const [activeTab, setActiveTab] = useState<"series" | "view" | "all">("series");
+  const [activeTab, setActiveTab] = useState<"series" | "view" | "all" | "analytics">("series");
 
   /* ── Test Series ─────────────────────────────────────────────────────── */
   const [series, setSeries]       = useState<TestSeries[]>([]);
@@ -308,7 +309,7 @@ export default function DitMockPage() {
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
       <div className="mb-6 flex gap-1 border-b border-slate-200 dark:border-slate-700 print:hidden">
-        {(["series", "view", "all"] as const).map((t) => (
+        {(["series", "view", "all", "analytics"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
@@ -318,7 +319,7 @@ export default function DitMockPage() {
                 : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400"
             }`}
           >
-            {t === "series" ? "Create Test Series" : t === "view" ? "View Results" : "All Results"}
+            {t === "series" ? "Create Test Series" : t === "view" ? "View Results" : t === "all" ? "All Results" : "Analytics & Reports"}
           </button>
         ))}
       </div>
@@ -686,6 +687,8 @@ export default function DitMockPage() {
           </div>
         </div>
       )}
+
+      {activeTab === "analytics" && <DitAnalytics />}
 
       {/* ══ Test Series Modal ═══════════════════════════════════════════════ */}
       <Modal open={seriesModalOpen} onClose={() => setSeriesModalOpen(false)} title={editSeries ? "Edit Test Series" : "New Test Series"} widthClass="max-w-md">
