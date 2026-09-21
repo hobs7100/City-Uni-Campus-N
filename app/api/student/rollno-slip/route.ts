@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import { getRollNumberSlipThreshold, type StudentLeaveType } from "@/lib/attendance-policy";
+import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
 
 export async function GET() {
   const { session, response } = await requireRole("student");
@@ -166,6 +167,7 @@ export async function GET() {
       att_percentage: parseFloat((attMap.get(r.course_id) ?? 100).toFixed(2)),
     }));
 
+  const attendanceFine = await getCurrentAttendanceFine(studentId);
   return NextResponse.json({
     allowed: true,
     student: {
@@ -184,6 +186,7 @@ export async function GET() {
     },
     overall_attendance: parseFloat(overallPct.toFixed(2)),
     roll_number_slip_threshold: rollNumberSlipThreshold,
+    attendance_fine: attendanceFine?.semester_id === semester.id ? attendanceFine : null,
     rows,
   });
 }

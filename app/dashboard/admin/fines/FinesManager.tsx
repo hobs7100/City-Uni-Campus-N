@@ -16,7 +16,10 @@ import {
   ShieldCheck,
   Users,
   Wallet,
+  BadgePercent,
+  Ban,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 type Transaction = {
   id: string;
@@ -36,10 +39,12 @@ type Transaction = {
 
 type FineData = {
   transactions: Transaction[];
+  current_attendance_fines: AttendanceFine[];
   stats: {
     total_fine_amount: string;
     current_month_fine_amount: string;
     current_struck_off_students: number;
+    current_attendance_fine_amount: number;
   };
   monthly_totals: { year: number; month: number; total_amount: string }[];
   yearly_totals: { year: number; total_amount: string }[];
@@ -52,6 +57,30 @@ type FineData = {
     months: number[];
     fids: string[];
   };
+  permissions: { can_adjust: boolean };
+};
+
+type AttendanceFine = {
+  student_id: string;
+  name: string;
+  father_name: string | null;
+  roll_no: string | null;
+  status: "active" | "struck_off";
+  department_name: string;
+  class_name: string;
+  session: string;
+  semester_id: string;
+  semester_number: number;
+  attendance_percentage: number;
+  evaluable_days: number;
+  is_protected: boolean;
+  protection_days_completed: number;
+  protection_days_required: number;
+  gross_amount: number;
+  adjustment_type: "discount" | "waive" | null;
+  discount_amount: number;
+  adjustment_reason: string | null;
+  net_amount: number;
 };
 
 type Filters = {
@@ -167,6 +196,7 @@ export default function FinesManager() {
   const [data, setData] = useState<FineData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [adjusting, setAdjusting] = useState("");
 
   const updateFilter = (key: keyof Filters, value: string) =>
     setFilters((current) => ({ ...current, [key]: value, ...(key === "department_id" ? { class_id: "" } : {}) }));
@@ -199,6 +229,54 @@ export default function FinesManager() {
   );
   const clearFilters = () => setFilters(initialFilters);
   const hasFilters = Object.values(filters).some(Boolean);
+  const adjustFine = async (fine: AttendanceFine, action: "discount" | "waive" | "clear") => {
+    let amount: number | undefined;
+    let reason: string | undefined;
+    if (action === "discount") {
+      const entered = window.prompt(`Discount amount (less than ${money(fine.gross_amount)}):`);
+      if (entered === null) return;
+      amount = Number(entered);
+      if (!Number.isFinite(amount) || amount <= 0 || amount >= fine.gross_amount) {
+        toast.error("Enter a positive discount smaller than the gross fine.");
+        return;
+      }
+    }
+    if (action !== "clear") {
+      reason = window.prompt(action === "waive" ? "Reason for waiving this fine:" : "Reason for this discount:")?.trim();
+      if (!reason || reason.length < 3) {
+        toast.error("A reason of at least 3 characters is required.");
+        return;
+      }
+    } else {
+      reason = window.prompt("Reason for removing the current adjustment:")?.trim();
+      if (!reason || reason.length < 3) {
+        toast.error("A reason of at least 3 characters is required.");
+        return;
+      }
+    }
+    setAdjusting(fine.student_id);
+    try {
+      const response = await fetch("/api/admin/fines/adjustment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          student_id: fine.student_id,
+          semester_id: fine.semester_id,
+          ...(amount !== undefined ? { amount } : {}),
+          ...(reason ? { reason } : {}),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to update the fine.");
+      toast.success(action === "clear" ? "Adjustment removed." : action === "waive" ? "Fine waived off." : "Discount applied.");
+      await loadFines();
+    } catch (requestError) {
+      toast.error(requestError instanceof Error ? requestError.message : "Unable to update the fine.");
+    } finally {
+      setAdjusting("");
+    }
+  };
 
   return (
     <main className="min-h-[100dvh] bg-[#f6f8f7] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
@@ -232,10 +310,11 @@ export default function FinesManager() {
           </div>
         ) : null}
 
-        <section className="mb-7 grid gap-4 md:grid-cols-3">
+        <section className="mb-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Total recovered" value={loading ? "—" : money(data?.stats.total_fine_amount ?? 0)} detail="Across the selected ledger view" icon={CircleDollarSign} tone="teal" trend="All time" />
           <StatCard label="This month" value={loading ? "—" : money(data?.stats.current_month_fine_amount ?? 0)} detail="Current-month reactivation payments" icon={ArrowUpRight} tone="coral" trend="Live" />
           <StatCard label="Students awaiting recovery" value={loading ? "—" : Number(data?.stats.current_struck_off_students ?? 0).toLocaleString()} detail="Currently marked struck off" icon={Users} tone="violet" trend="Attention" />
+          <StatCard label="Current attendance fines" value={loading ? "—" : money(data?.stats.current_attendance_fine_amount ?? 0)} detail="After discounts and waivers" icon={BadgePercent} tone="coral" trend="Live" />
         </section>
 
         <section className="mb-7 rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,0.05)] sm:p-5">
@@ -258,6 +337,30 @@ export default function FinesManager() {
             <SelectField label="Year" value={filters.year} onChange={(value) => updateFilter("year", value)}><option value="">All years</option>{data?.filter_options.years.map((item) => <option key={item}>{item}</option>)}</SelectField>
             <SelectField label="Month" value={filters.month} onChange={(value) => updateFilter("month", value)}><option value="">All months</option>{data?.filter_options.months.map((item) => <option key={item} value={item}>{monthLabel(item)}</option>)}</SelectField>
             <SelectField label="Fine ID" value={filters.fid} onChange={(value) => updateFilter("fid", value)}><option value="">All FIDs</option>{data?.filter_options.fids.map((item) => <option key={item}>{item}</option>)}</SelectField>
+          </div>
+        </section>
+
+        <section className="mb-7 min-w-0 rounded-[24px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div><h2 className="text-base font-extrabold">Current attendance fines</h2><p className="mt-0.5 text-xs text-slate-400">Automatically calculated from active-semester attendance</p></div>
+            <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">{data?.current_attendance_fines.length ?? 0} students</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1050px] text-left text-sm">
+              <thead className="bg-[#f8faf9] text-[10px] uppercase tracking-[0.12em] text-slate-500"><tr><th className="px-5 py-3">Student</th><th className="px-4 py-3">Placement</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Attendance</th><th className="px-4 py-3 text-right">Gross</th><th className="px-4 py-3 text-right">Adjustment</th><th className="px-4 py-3 text-right">Payable</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">Calculating attendance fines…</td></tr> : data?.current_attendance_fines.length ? data.current_attendance_fines.map((fine) => <tr key={`${fine.student_id}-${fine.semester_id}`} className="hover:bg-amber-50/20">
+                  <td className="px-5 py-4"><p className="font-bold text-slate-800">{fine.name}</p><p className="text-xs text-slate-400">{fine.roll_no || "No roll number"} · {fine.father_name || "Father not listed"}</p></td>
+                  <td className="px-4 py-4"><p className="font-semibold text-slate-700">{fine.class_name}</p><p className="text-xs text-slate-400">{fine.department_name} · {fine.session} · Sem {fine.semester_number}</p></td>
+                  <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${fine.is_protected ? "bg-emerald-100 text-emerald-700" : fine.status === "struck_off" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{fine.is_protected ? `Protected ${fine.protection_days_completed}/${fine.protection_days_required}` : fine.status === "struck_off" ? "Struck off" : "Active · low attendance"}</span></td>
+                  <td className="px-4 py-4"><p className="font-black text-slate-800">{fine.attendance_percentage.toFixed(2)}%</p><p className="text-xs text-slate-400">{fine.evaluable_days} evaluable days</p></td>
+                  <td className="px-4 py-4 text-right font-bold">{money(fine.gross_amount)}</td>
+                  <td className="px-4 py-4 text-right">{fine.adjustment_type === "waive" ? <span className="font-bold text-emerald-700">Waived</span> : fine.discount_amount > 0 ? <span className="font-bold text-indigo-700">− {money(fine.discount_amount)}</span> : "—"}{fine.adjustment_reason && <p className="max-w-[180px] truncate text-xs text-slate-400" title={fine.adjustment_reason}>{fine.adjustment_reason}</p>}</td>
+                  <td className="px-4 py-4 text-right font-black text-rose-700">{money(fine.net_amount)}</td>
+                  <td className="px-5 py-4"><div className="flex justify-end gap-1.5">{data.permissions.can_adjust && !fine.is_protected ? <><button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "discount")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Discount</button><button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "waive")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"><Ban className="mr-1 inline h-3 w-3" />Waive</button>{fine.adjustment_type && <button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "clear")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Reset</button>}</> : <span className="text-xs text-slate-400">Read only</span>}</div></td>
+                </tr>) : <tr><td colSpan={8} className="px-5 py-12 text-center text-slate-400">No current attendance fines match these filters.</td></tr>}
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -290,7 +393,7 @@ export default function FinesManager() {
             </section>
           </aside>
         </div>
-        <footer className="mt-7 flex items-center gap-2 text-xs text-slate-400"><ShieldCheck className="h-4 w-4 text-teal-600" /> Fine records are read-only here and sourced from the campus finance ledger.</footer>
+        <footer className="mt-7 flex items-center gap-2 text-xs text-slate-400"><ShieldCheck className="h-4 w-4 text-teal-600" /> Payment records remain read-only; attendance-fine adjustments are audited separately.</footer>
       </div>
     </main>
   );

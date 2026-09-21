@@ -76,6 +76,13 @@ interface AdminSlipData {
   };
   semester: { semester_number: number; term_type: string };
   overall_attendance: number;
+  attendance_fine: {
+    gross_amount: number;
+    discount_amount: number;
+    adjustment_type: "discount" | "waive" | null;
+    net_amount: number;
+    is_protected: boolean;
+  } | null;
   rows: Array<{
     course_id: string;
     course_code: string;
@@ -418,6 +425,15 @@ export default function RollnoSlipsPage() {
           </tr>`,
         )
         .join("");
+      const fine = data.attendance_fine;
+      const fineHtml = fine && !fine.is_protected && (fine.gross_amount > 0 || fine.adjustment_type === "waive")
+        ? `<div class="fine">
+             <strong>Attendance Fine:</strong>
+             ${fine.adjustment_type === "waive"
+               ? `<span>Waived off — Payable PKR 0</span>`
+               : `<span>PKR ${escapePrintHtml(fine.net_amount.toLocaleString("en-PK"))}${fine.discount_amount > 0 ? ` (Gross PKR ${escapePrintHtml(fine.gross_amount.toLocaleString("en-PK"))}, Discount PKR ${escapePrintHtml(fine.discount_amount.toLocaleString("en-PK"))})` : ""}</span>`}
+           </div>`
+        : "";
       const html = `<!doctype html><html><head><meta charset="utf-8"/>
         <title>Roll Number Slip</title>
         <style>
@@ -435,6 +451,7 @@ export default function RollnoSlipsPage() {
           th{background:#3730a3;color:#fff;text-align:left}
           th,td{border:1px solid #cbd5e1;padding:7px 9px}
           .center{text-align:center}
+           .fine{margin:0 20px 18px;border:2px solid #e11d48;background:#fff1f2;color:#9f1239;padding:11px 14px;border-radius:7px;display:flex;justify-content:space-between;gap:16px;font-size:12px}
           footer{background:#3730a3;color:#c7d2fe;padding:9px 20px;font-size:9px;text-align:center}
         </style></head><body><section class="slip">
           <header><img src="${window.location.origin}/images/logo.png" alt="City College"/>
@@ -451,6 +468,7 @@ export default function RollnoSlipsPage() {
             <div><strong>Attendance:</strong> ${escapePrintHtml(data.overall_attendance.toFixed(1))}%</div>
             <div><strong>Issue Date:</strong> ${escapePrintHtml(new Date().toLocaleDateString("en-PK"))}</div>
           </div>
+          ${fineHtml}
           <main><table><thead><tr><th>Course Code</th><th>Course Title</th><th class="center">Attendance</th><th class="center">Paper Date</th></tr></thead>
             <tbody>${rows}</tbody></table></main>
           <footer>This is a computer-generated slip and does not require a signature.</footer>

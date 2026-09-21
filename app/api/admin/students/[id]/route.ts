@@ -127,6 +127,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (isReactivation) {
       sets.push(`reactivated_at = $${i++}::date`);
       values.push(reactivation_date);
+      sets.push("attendance_fine_cycle_id = gen_random_uuid()");
+      sets.push(`attendance_fine_cycle_started_at = $${i++}::date`);
+      values.push(reactivation_date);
       sets.push("status_change_date = NULL");
       sets.push("status_change_semester = NULL");
     } else if (d.status && d.status !== "active") {

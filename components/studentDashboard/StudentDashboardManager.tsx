@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  CircleDollarSign,
   Eye,
   FileDown,
   FileText,
@@ -61,6 +62,16 @@ interface Profile {
   scheme_of_studies_url: string | null;
   active_leave_type: "permanent" | "partial" | null;
   partial_days_per_week: number | null;
+  attendance_fine: {
+    attendance_percentage: number;
+    gross_amount: number;
+    discount_amount: number;
+    adjustment_type: "discount" | "waive" | null;
+    adjustment_reason: string | null;
+    net_amount: number;
+    is_protected: boolean;
+    status: "active" | "struck_off";
+  } | null;
 }
 
 interface DitMockResult {
@@ -769,6 +780,35 @@ export default function StudentDashboardManager() {
       {/* ── OVERVIEW ── */}
       {tab === "overview" && (
         <div className="space-y-6">
+
+          {profile?.attendance_fine && !profile.attendance_fine.is_protected && (
+            <div className="rounded-2xl border-2 border-rose-300 bg-gradient-to-r from-rose-50 to-amber-50 p-5 shadow-sm dark:border-rose-500/40 dark:from-rose-500/10 dark:to-amber-500/10">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">
+                    <CircleDollarSign size={22} />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-rose-500">Attendance fine</p>
+                    <h2 className="mt-0.5 text-lg font-extrabold text-rose-800 dark:text-rose-200">
+                      {profile.attendance_fine.adjustment_type === "waive"
+                        ? "Fine waived off"
+                        : `Payable: PKR ${profile.attendance_fine.net_amount.toLocaleString("en-PK")}`}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                      Attendance {profile.attendance_fine.attendance_percentage.toFixed(2)}%
+                      {profile.attendance_fine.status === "struck_off" ? " · Struck-off minimum applies" : " · Low-attendance schedule applies"}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right text-sm">
+                  <p className="font-bold text-slate-700 dark:text-slate-200">Gross PKR {profile.attendance_fine.gross_amount.toLocaleString("en-PK")}</p>
+                  {profile.attendance_fine.discount_amount > 0 && <p className="font-semibold text-indigo-700 dark:text-indigo-300">Discount − PKR {profile.attendance_fine.discount_amount.toLocaleString("en-PK")}</p>}
+                  {profile.attendance_fine.adjustment_reason && <p className="mt-1 max-w-xs text-xs text-slate-500">{profile.attendance_fine.adjustment_reason}</p>}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Personal attendance notice card ── */}
           {(() => {

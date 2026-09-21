@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getCurrentAttendanceFineAssessments } from "@/lib/attendance-fines";
 
 type FineRow = {
   id: string;
@@ -32,7 +33,7 @@ function integerParam(value: string | null, name: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireRole("admin", "coordinator", "finance_manager");
+  const { session: authSession, response } = await requireRole("admin", "coordinator", "finance_manager");
   if (response) return response;
 
   const params = request.nextUrl.searchParams;
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
   if (session) addOrganization("c.session = ?", session);
   if (semesterNumberParam.value !== null) addOrganization("sem.semester_number = ?", semesterNumberParam.value);
 
-  const [transactions, statsRows, struckOffRows, monthlyTotals, yearlyTotals] = await Promise.all([
+  const [transactions, statsRows, struckOffRows, monthlyTotals, yearlyTotals, allAttendanceFines] = await Promise.all([
     query<FineRow>(
       `select f.id, f.student_id, f.department_id, f.class_id, f.semester_id,
               f.amount, f.fid, f.paid_date, f.reactivated_on, f.created_by_name,
@@ -149,21 +150,33 @@ export async function GET(request: NextRequest) {
        order by 1 desc`,
       values,
     ),
+    getCurrentAttendanceFineAssessments(),
   ]);
 
+  const normalizedSearch = search?.toLowerCase() ?? "";
+  const attendanceFines = allAttendanceFines.filter((fine) =>
+    !fine.is_protected
+    && (!departmentId || fine.department_id === departmentId)
+    && (!classId || fine.class_id === classId)
+    && (!session || fine.session === session)
+    && (semesterNumberParam.value === null || fine.semester_number === semesterNumberParam.value)
+    && (!normalizedSearch
+      || fine.name.toLowerCase().includes(normalizedSearch)
+      || (fine.father_name ?? "").toLowerCase().includes(normalizedSearch)
+      || (fine.roll_no ?? "").toLowerCase().includes(normalizedSearch))
+  );
+
   const filterOptions = {
-    departments: [...new Map(transactions.map((fine) => [fine.department_id, {
-      id: fine.department_id,
-      name: fine.department_name,
-    }])).values()],
-    classes: [...new Map(transactions.map((fine) => [fine.class_id, {
-      id: fine.class_id,
-      name: fine.class_name,
-      session: fine.session,
-      department_id: fine.department_id,
-    }])).values()],
-    sessions: [...new Set(transactions.map((fine) => fine.session))].sort(),
-    semester_numbers: [...new Set(transactions.map((fine) => fine.semester_number))].sort((a, b) => a - b),
+    departments: [...new Map([
+      ...transactions.map((fine) => [fine.department_id, { id: fine.department_id, name: fine.department_name }] as const),
+      ...allAttendanceFines.map((fine) => [fine.department_id, { id: fine.department_id, name: fine.department_name }] as const),
+    ]).values()],
+    classes: [...new Map([
+      ...transactions.map((fine) => [fine.class_id, { id: fine.class_id, name: fine.class_name, session: fine.session, department_id: fine.department_id }] as const),
+      ...allAttendanceFines.map((fine) => [fine.class_id, { id: fine.class_id, name: fine.class_name, session: fine.session, department_id: fine.department_id }] as const),
+    ]).values()],
+    sessions: [...new Set([...transactions.map((fine) => fine.session), ...allAttendanceFines.map((fine) => fine.session)])].sort(),
+    semester_numbers: [...new Set([...transactions.map((fine) => fine.semester_number), ...allAttendanceFines.map((fine) => fine.semester_number)])].sort((a, b) => a - b),
     years: [...new Set(transactions.map((fine) => Number(fine.transaction_date.slice(0, 4))))].sort((a, b) => b - a),
     months: [...new Set(transactions.map((fine) => Number(fine.transaction_date.slice(5, 7))))].sort((a, b) => a - b),
     fids: [...new Set(transactions.map((fine) => fine.fid))].sort(),
@@ -171,13 +184,16 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     transactions,
+    current_attendance_fines: attendanceFines,
     filter_options: filterOptions,
     stats: {
       total_fine_amount: statsRows[0]?.total_fine_amount ?? "0",
       current_month_fine_amount: statsRows[0]?.current_month_fine_amount ?? "0",
       current_struck_off_students: Number(struckOffRows[0]?.current_struck_off_students ?? 0),
+      current_attendance_fine_amount: attendanceFines.reduce((sum, fine) => sum + fine.net_amount, 0),
     },
     monthly_totals: monthlyTotals,
     yearly_totals: yearlyTotals,
+    permissions: { can_adjust: authSession!.role === "admin" },
   });
 }

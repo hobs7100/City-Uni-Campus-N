@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
 
 export async function GET(_request: NextRequest) {
   const { session, response } = await requireRole("student");
@@ -30,7 +31,8 @@ export async function GET(_request: NextRequest) {
     [session!.userId]
   );
   if (!student) return NextResponse.json({ error: "Student not found." }, { status: 404 });
-  return NextResponse.json({ student });
+  const attendanceFine = await getCurrentAttendanceFine(session!.userId);
+  return NextResponse.json({ student: { ...student, attendance_fine: attendanceFine } });
 }
 
 const patchSchema = z.object({

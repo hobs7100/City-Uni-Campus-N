@@ -7,4 +7,8 @@ A struck-off student may be reactivated only through the individual fine workflo
 
 **Why:** Separate writes or bulk activation can produce active students with no fine record, while concurrent requests can create duplicate fines and history. The selected date must be the source of truth for the fresh attendance protection window.
 
-**How to apply:** Any future reactivation path must require the financial reference and effective date, use row locking plus a conditional status update, preserve exact-role restrictions, and either commit every related record or roll back all of them.
+Attendance-fine discounts and waivers are append-only audit events scoped to a durable assessment-cycle ID. Paid reactivation rotates that ID atomically; later strike-off must not reuse an earlier cycle's adjustment.
+
+**Why:** A mutable adjustment row loses financial audit history, while scoping by a timestamp that strike-off clears can resurrect an old waiver or discount in a later cycle.
+
+**How to apply:** Any future reactivation path must require the financial reference and effective date, use row locking plus a conditional status update, rotate the fine cycle in the same transaction, preserve exact-role restrictions, and either commit every related record or roll back all of them. Adjustment writes must lock and verify the expected cycle before appending.

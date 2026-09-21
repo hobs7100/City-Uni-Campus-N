@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
 
 export async function GET(
   _request: NextRequest,
@@ -23,8 +24,9 @@ export async function GET(
     session: string;
     department_name: string;
     profile_image_url: string | null;
+    status: string;
   }>(
-    `select st.id, st.name, st.father_name, st.roll_no, st.class_id,
+     `select st.id, st.name, st.father_name, st.roll_no, st.class_id, st.status,
             cl.class_name, st.session, d.name as department_name,
             st.profile_image_url
      from students st
@@ -118,6 +120,7 @@ export async function GET(
     }),
   );
 
+  const attendanceFine = await getCurrentAttendanceFine(studentId);
   return NextResponse.json({
     student: {
       id: student.id,
@@ -131,6 +134,9 @@ export async function GET(
     },
     semester,
     overall_attendance: Number(overallAttendance.toFixed(2)),
+    attendance_fine: student.status === "active" && attendanceFine?.semester_id === semester.id
+      ? attendanceFine
+      : null,
     rows: datedRows.map((row) => ({
       ...row,
       att_percentage: Number((attendanceMap.get(row.course_id) ?? 100).toFixed(2)),
