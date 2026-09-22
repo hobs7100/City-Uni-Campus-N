@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
      where sem.id = $2
        and s.status      = 'active'
         and s.deleted_at  is null
-     order by s.name asc`,
+      order by s.roll_no asc nulls last, s.name asc`,
     [allocationId, semesterId, testSeriesId ?? null, testDate ?? null, session!.userId]
   );
 
