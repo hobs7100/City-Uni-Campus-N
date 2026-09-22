@@ -8,6 +8,7 @@ import {
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { TableLoader } from "@/components/ui/Loaders";
+import { calculateDitGrade, ditGradeFromPercentage } from "@/lib/dit-grades";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import DitAnalytics from "./DitAnalytics";
 
@@ -53,18 +54,6 @@ interface DitStudent {
   father_name: string | null;
   session: string;
   class_name: string;
-}
-
-/* ─── Grade helper ───────────────────────────────────────────────────────── */
-function calcGrade(obtained: number, total: number, passing: number, isAbsent = false): string {
-  if (isAbsent) return "Absent";
-  const pct = total > 0 ? (obtained / total) * 100 : 0;
-  if (obtained < passing) return "F";
-  if (pct >= 90) return "A+";
-  if (pct >= 80) return "A";
-  if (pct >= 70) return "B";
-  if (pct >= 60) return "C";
-  return "D";
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -282,13 +271,18 @@ export default function DitMockPage() {
   /* ─── Summary for View Results ───────────────────────────────────────── */
   const vrSummary = useMemo(() => {
     if (vrResults.length === 0) return null;
-    const scored = vrResults.filter((r) => !r.is_absent);
-    const totalObtained = scored.reduce((s, r) => s + r.obtained_marks, 0);
-    const totalMax      = scored.reduce((s, r) => s + r.total_marks, 0);
-    const pct = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : "0.0";
-    const firstPassing  = vrResults[0]?.passing_marks ?? 0;
-    const grade = scored.length ? calcGrade(totalObtained / scored.length, totalMax / scored.length, firstPassing) : "—";
-    return { totalObtained, totalMax, pct, grade, absentCount: vrResults.length - scored.length };
+    const totalObtained = vrResults.reduce((sum, result) => (
+      sum + (result.is_absent ? 0 : result.obtained_marks)
+    ), 0);
+    const totalMax = vrResults.reduce((sum, result) => sum + result.total_marks, 0);
+    const percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
+    return {
+      totalObtained,
+      totalMax,
+      pct: percentage.toFixed(1),
+      grade: ditGradeFromPercentage(percentage),
+      absentCount: vrResults.filter((result) => result.is_absent).length,
+    };
   }, [vrResults]);
 
   /* ─── Print-only info ────────────────────────────────────────────────── */
@@ -476,7 +470,7 @@ export default function DitMockPage() {
                     <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No results found for the selected filters.</td></tr>
                   ) : (
                     vrResults.map((r) => {
-                      const grade = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks, r.is_absent);
+                      const grade = calculateDitGrade(r.obtained_marks, r.total_marks, r.is_absent);
                       return (
                         <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                           <td className="px-3 py-3">
@@ -582,7 +576,7 @@ export default function DitMockPage() {
                 </thead>
                 <tbody>
                   {vrResults.map((r, idx) => {
-                    const g = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks, r.is_absent);
+                    const g = calculateDitGrade(r.obtained_marks, r.total_marks, r.is_absent);
                     return (
                       <tr key={r.id} className={idx % 2 === 0 ? "bg-indigo-50" : "bg-white"}>
                         <td className="border border-indigo-100 px-3 py-2">{idx + 1}</td>
@@ -645,7 +639,7 @@ export default function DitMockPage() {
                   <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400">No DIT mock results yet.</td></tr>
                 ) : (
                   allResults.map((r) => {
-                    const grade = calcGrade(r.obtained_marks, r.total_marks, r.passing_marks, r.is_absent);
+                    const grade = calculateDitGrade(r.obtained_marks, r.total_marks, r.is_absent);
                     return (
                       <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                         <td className="px-3 py-3">
