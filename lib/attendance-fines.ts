@@ -115,8 +115,35 @@ export async function getCurrentAttendanceFineAssessments(
      join lateral (
        select s.id, s.semester_number
        from semesters s
-       where s.class_id = st.class_id and s.status in ('active', 'mid_term')
-       order by case s.status when 'mid_term' then 0 else 1 end
+        where s.class_id = st.class_id
+          and (
+            s.status in ('active', 'mid_term')
+            or st.status = 'struck_off'
+          )
+        order by
+          case
+            when s.status = 'mid_term' then 0
+            when s.status = 'active' then 1
+            when s.id = (
+              select ssh.semester_id
+              from student_status_history ssh
+              where ssh.student_id = st.id
+                and ssh.new_status = 'struck_off'
+                and ssh.semester_id is not null
+              order by ssh.changed_at desc, ssh.id desc
+              limit 1
+            ) then 2
+            when s.semester_number = st.status_change_semester then 3
+            when exists (
+              select 1
+              from student_attendance_records student_sar
+              where student_sar.student_id = st.id
+                and student_sar.semester_id = s.id
+            ) then 4
+            else 5
+          end,
+          s.semester_number desc,
+          s.created_at desc
        limit 1
      ) sem on true
      left join student_attendance_records sar

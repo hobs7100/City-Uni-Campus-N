@@ -18,3 +18,9 @@ Payment confirmation must bind to the exact fine quote shown to the operator, no
 **Why:** Attendance or an adjustment can change gross/net amounts without rotating the cycle; silently charging the refreshed amount can make the collected payment disagree with the ledger.
 
 **How to apply:** Submit the displayed attendance counts, gross, discount/waiver version, and net amount. After locking the student, recompute on the same transaction connection and return a stale-quote conflict if any value differs.
+
+A struck-off student's fine must remain retrievable after the relevant semester is closed. Prefer an active/mid-term semester when one exists; otherwise use the semester recorded on the latest strike-off history, then legacy status-change metadata, then attendance-backed history.
+
+**Why:** Students can remain struck off after semester closure. Restricting assessments to active/mid-term semesters makes their mandatory reactivation fine disappear.
+
+**How to apply:** Keep fine display and transactional revalidation on the same ordered semester-selection rule. Record `semester_id` on every manual status-history entry so new strike-off cycles do not depend on inference.

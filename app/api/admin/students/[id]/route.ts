@@ -75,15 +75,41 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       semester_id: string | null;
     }>(
       `select st.status, st.class_id, st.department_id,
-              coalesce(
-                (select s.id from semesters s
-                 where s.class_id = st.class_id and s.status in ('active', 'mid_term')
-                 order by case s.status when 'mid_term' then 0 else 1 end limit 1),
-                (select s.id from semesters s
+               (
+                 select s.id
+                 from semesters s
                  where s.class_id = st.class_id
-                   and s.semester_number = st.status_change_semester
-                 order by s.created_at desc limit 1)
-              ) as semester_id
+                   and (
+                     s.status in ('active', 'mid_term')
+                     or s.semester_number = st.status_change_semester
+                     or st.status = 'struck_off'
+                   )
+                 order by
+                   case
+                     when s.status = 'mid_term' then 0
+                     when s.status = 'active' then 1
+                     when s.id = (
+                       select ssh.semester_id
+                       from student_status_history ssh
+                       where ssh.student_id = st.id
+                         and ssh.new_status = 'struck_off'
+                         and ssh.semester_id is not null
+                       order by ssh.changed_at desc, ssh.id desc
+                       limit 1
+                     ) then 2
+                     when s.semester_number = st.status_change_semester then 3
+                     when exists (
+                       select 1
+                       from student_attendance_records sar
+                       where sar.student_id = st.id
+                         and sar.semester_id = s.id
+                     ) then 4
+                     else 5
+                   end,
+                   s.semester_number desc,
+                   s.created_at desc
+                 limit 1
+               ) as semester_id
        from students st where st.id = $1 and st.deleted_at is null
        for update`,
       [id],
@@ -198,8 +224,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         : "ADMIN";
       await evalClient.query(
         `insert into student_status_history
-           (student_id, previous_status, new_status, reason, triggered_by)
-         values ($1, $2, $3, $4, $5)`,
+           (student_id, previous_status, new_status, reason, triggered_by, semester_id)
+         values ($1, $2, $3, $4, $5, $6)`,
         [
           id,
           current.status,
@@ -208,6 +234,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             ? `Manually reactivated from ${reactivation_date} — new 15-working-day protection window started`
             : `Status manually changed to ${d.status}`,
           actorRole,
+          current.semester_id,
         ]
       );
     }
