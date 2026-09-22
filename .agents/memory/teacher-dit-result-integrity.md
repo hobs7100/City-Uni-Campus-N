@@ -19,4 +19,4 @@ DIT result ownership follows the active allocation across an official teacher tr
 
 **Why:** Transfers create a new allocation ID. Leaving results on the closed allocation strands them from the new teacher and can produce duplicate logical results when the replacement teacher saves.
 
-**How to apply:** Move the result allocation and submitter inside the same transfer transaction. Result roster reads must use an exact allocation, semester, series, and date, and stale browser responses must not replace a newer selection.
+**How to apply:** Treat transfer-chain results as one logical assessment owned through the current active allocation; a transfer must preserve history without stranding or duplicating results.

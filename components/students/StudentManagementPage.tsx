@@ -12,6 +12,7 @@ import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect
 import { TableLoader } from "@/components/ui/Loaders";
 import { usePortalAccess } from "@/lib/usePortalAccess";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
+import PrintListsPanel from "@/components/students/PrintListsPanel";
 
 interface Student {
   id: string;
@@ -81,7 +82,7 @@ const emptyForm = {
   status_change_semester: "",
 };
 
-type Tab = "active" | "struck_off";
+type Tab = "active" | "struck_off" | "print_lists";
 
 interface Props {
   /** "admin" | "coordinator" | "hod" | "assistant" | "readonly" — controls which action buttons appear */
@@ -530,7 +531,7 @@ export default function StudentManagementPage({ role }: Props) {
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60 w-fit">
+      <div className="mb-4 flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60 sm:w-fit">
         <button
           onClick={() => setTab("active")}
           className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
@@ -559,10 +560,25 @@ export default function StudentManagementPage({ role }: Props) {
             tab === "struck_off" ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400" : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
           }`}>{struckOffCount}</span>
         </button>
+        <button
+          onClick={() => setTab("print_lists")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+            tab === "print_lists"
+              ? "bg-white text-indigo-700 shadow dark:bg-slate-700 dark:text-indigo-400"
+              : "text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+          }`}
+        >
+          <ReceiptText size={15} />
+          Print Lists
+        </button>
       </div>
 
       {/* Filter Bar — rendered as a variable, not a component, to preserve input focus */}
-      {filterBar}
+      {tab !== "print_lists" && filterBar}
+
+      {tab === "print_lists" && (
+        <PrintListsPanel departments={departments} classes={classes} />
+      )}
 
       {/* ── Active Tab ─────────────────────────────────────────────────── */}
       {tab === "active" && (
