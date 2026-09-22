@@ -6,8 +6,7 @@ import { requireRole } from "@/lib/requireRole";
 // ── GET /api/teacher/dit/results ─────────────────────────────────────────────
 // Returns active students for a DIT class+semester, with any saved marks for
 // the selected test_series + allocation + test_date.
-// Required: allocation_id, semester_id
-// Optional: test_series_id, test_date  (used to pre-populate saved results)
+// Required: allocation_id, semester_id, test_series_id, test_date.
 export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("teacher");
   if (response) return response;
@@ -18,8 +17,11 @@ export async function GET(request: NextRequest) {
   const testSeriesId  = sp.get("test_series_id");
   const testDate      = sp.get("test_date");
 
-  if (!allocationId || !semesterId)
-    return NextResponse.json({ error: "allocation_id and semester_id are required." }, { status: 400 });
+  if (!allocationId || !semesterId || !testSeriesId || !testDate)
+    return NextResponse.json(
+      { error: "Allocation, semester, test series, and test date are required." },
+      { status: 400 },
+    );
 
   // The allocation, its semester link, the semester and the DIT class are one
   // authorization graph; do not authorize an allocation independently.
@@ -72,9 +74,8 @@ export async function GET(request: NextRequest) {
        on  dmr.student_id    = s.id
        and dmr.allocation_id = $1
        and dmr.semester_id   = $2
-        and dmr.submitted_by  = $5
-       and ($3::uuid is null or dmr.test_series_id = $3::uuid)
-       and ($4::date is null or dmr.test_date      = $4::date)
+        and dmr.test_series_id = $3::uuid
+        and dmr.test_date      = $4::date
      where sem.id = $2
        and s.status      = 'active'
         and s.deleted_at  is null
@@ -162,12 +163,16 @@ export async function POST(request: NextRequest) {
         select $1, $2, $3, r.student_id, $4, case when r.is_absent then 0 else r.obtained_marks end, r.is_absent, r.remarks, $5
         from jsonb_to_recordset($6::jsonb) as r(student_id uuid, obtained_marks integer, is_absent boolean, remarks text)
        on conflict (test_series_id, allocation_id, semester_id, student_id, test_date)
-        do update set obtained_marks = excluded.obtained_marks, is_absent = excluded.is_absent, remarks = excluded.remarks, updated_at = now()
-       where dit_mock_results.submitted_by = $5`,
+         do update set obtained_marks = excluded.obtained_marks,
+                       is_absent = excluded.is_absent,
+                       remarks = excluded.remarks,
+                       submitted_by = excluded.submitted_by,
+                       updated_at = now()`,
       [d.test_series_id, d.allocation_id, d.semester_id, d.test_date, session!.userId,
          JSON.stringify(d.rows.map(({ student_id, obtained_marks, is_absent, remarks }) => ({ student_id, obtained_marks: is_absent ? 0 : obtained_marks, is_absent, remarks: remarks ?? null })))]
     );
-    // An existing row authored by somebody else is never overwritten.
+    // The current active allocation owner becomes the result owner. This keeps
+    // saving functional after an allocation is transferred to another teacher.
     const changed = await client.query<{ count: string }>(
       `select count(*)::text as count from dit_mock_results
        where test_series_id=$1 and allocation_id=$2 and semester_id=$3 and test_date=$4

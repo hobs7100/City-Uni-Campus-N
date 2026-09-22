@@ -226,7 +226,17 @@ export async function POST(
       );
     }
 
-    // 10d. Re-point all timetable_cells from old allocation to new allocation
+    // 10d. Keep DIT results attached to the active course allocation. Results
+    // describe the class/course assessment, so a teacher transfer must not
+    // strand them under the closed allocation or create duplicate submissions.
+    await client.query(
+      `update dit_mock_results
+       set allocation_id = $1, submitted_by = $2, updated_at = now()
+       where allocation_id = $3`,
+      [newAllocId, d.new_teacher_id, id],
+    );
+
+    // 10e. Re-point all timetable_cells from old allocation to new allocation
     await client.query(
       `update timetable_cells set allocation_id = $1 where allocation_id = $2`,
       [newAllocId, id],

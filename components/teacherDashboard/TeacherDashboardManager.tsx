@@ -26,6 +26,7 @@ import { TableLoader, ButtonLoader, DataFetchLoader } from "@/components/ui/Load
 import RichTextViewer from "@/components/ui/RichTextViewer";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import type { SingleValue } from "react-select";
+import { calculateDitGrade } from "@/lib/dit-grades";
 
 interface CourseRow {
   allocation_id: string;
@@ -433,6 +434,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   // student table
   const [ditStudents, setDitStudents]       = useState<DitStudentRow[]>([]);
   const [ditStudentsLoading, setDitStudentsLoading] = useState(false);
+  const ditStudentsRequestId = useRef(0);
   const [ditSaving, setDitSaving]           = useState(false);
   const [ditAllRows, setDitAllRows]         = useState<Array<Record<string, unknown>>>([]);
   const [ditAllLoading, setDitAllLoading]   = useState(false);
@@ -521,14 +523,23 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   }
 
   const loadDitStudents = useCallback(async () => {
-    if (!ditAllocId || !ditSemId) return;
+    const requestId = ++ditStudentsRequestId.current;
+    if (!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate) {
+      setDitStudents([]);
+      setDitStudentsLoading(false);
+      return;
+    }
     setDitStudentsLoading(true);
     try {
-      const params = new URLSearchParams({ allocation_id: ditAllocId, semester_id: ditSemId });
-      if (ditSeriesId) params.set("test_series_id", ditSeriesId);
-      if (ditTestDate) params.set("test_date", ditTestDate);
+      const params = new URLSearchParams({
+        allocation_id: ditAllocId,
+        semester_id: ditSemId,
+        test_series_id: ditSeriesId,
+        test_date: ditTestDate,
+      });
       const res  = await fetch(`/api/teacher/dit/results?${params}`);
       const data = await res.json();
+      if (requestId !== ditStudentsRequestId.current) return;
       if (res.ok) {
         setDitStudents(
           (data.students ?? []).map((s: DitStudentRow) => ({
@@ -542,7 +553,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         toast.error(data.error || "Could not load students.");
       }
     } finally {
-      setDitStudentsLoading(false);
+      if (requestId === ditStudentsRequestId.current) setDitStudentsLoading(false);
     }
   }, [ditAllocId, ditSemId, ditSeriesId, ditTestDate]);
 
@@ -932,7 +943,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
   // Reload DIT students whenever the key selectors change
   useEffect(() => {
-    if (tab === "dit-results" && ditAllocId && ditSemId) loadDitStudents();
+    if (tab === "dit-results") loadDitStudents();
   }, [tab, ditAllocId, ditSemId, ditSeriesId, ditTestDate, loadDitStudents]);
 
   function updateRosterRow(studentId: string, patch: Partial<RosterRow>) {
@@ -2861,7 +2872,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               <div className="flex items-end">
                 <button
                   onClick={loadDitStudents}
-                  disabled={!ditAllocId || !ditSemId || ditStudentsLoading}
+                  disabled={!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate || ditStudentsLoading}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {ditStudentsLoading ? <ButtonLoader /> : <Search size={15} />}
@@ -2891,7 +2902,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 <table className="w-full min-w-[660px] border-collapse text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
                     <tr>
-                      <th className="px-4 py-3">#</th>
+                      <th className="px-4 py-3">Roll No</th>
                       <th className="px-4 py-3">Student Name</th>
                        <th className="px-4 py-3">Father Name</th>
                        <th className="px-4 py-3 text-center w-32">Obtained Marks</th>
@@ -2901,17 +2912,15 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {ditStudents.map((s, idx) => {
+                    {ditStudents.map((s) => {
                       const series = ditSeriesList.find((x) => x.id === ditSeriesId);
                       const total   = series?.total_marks ?? 0;
-                      const passing = series?.passing_marks ?? 0;
-                      const pct  = total > 0 && s.obtained_marks !== null ? (s.obtained_marks / total) * 100 : null;
-                       const grade = s.is_absent ? "Absent" : s.obtained_marks === null ? "—"
-                        : s.obtained_marks < passing ? "F"
-                        : pct! >= 90 ? "A+" : pct! >= 80 ? "A" : pct! >= 70 ? "B" : pct! >= 60 ? "C" : "D";
+                      const grade = s.obtained_marks === null && !s.is_absent
+                        ? "—"
+                        : calculateDitGrade(s.obtained_marks ?? 0, total, s.is_absent);
                       return (
                         <tr key={s.student_id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${s.result_id ? "" : ""}`}>
-                          <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                          <td className="px-4 py-2.5 font-semibold text-slate-600 dark:text-slate-300">{s.roll_no || "—"}</td>
                           <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{s.name}</td>
                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.father_name || "—"}</td>
                           <td className="px-4 py-2.5 text-center">
@@ -2996,12 +3005,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px] text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800"><tr><th className="px-4 py-3">Student / Father</th><th className="px-4 py-3">Class / Session</th><th className="px-4 py-3">Semester</th><th className="px-4 py-3">Course</th><th className="px-4 py-3">Series / Date</th><th className="px-4 py-3">Marks</th></tr></thead>
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800"><tr><th className="px-4 py-3">Roll No</th><th className="px-4 py-3">Student / Father</th><th className="px-4 py-3">Class / Session</th><th className="px-4 py-3">Semester</th><th className="px-4 py-3">Course</th><th className="px-4 py-3">Series / Date</th><th className="px-4 py-3">Marks</th></tr></thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {ditAllLoading ? <TableLoader colSpan={6} /> : ditAllRows.map((row) => (
-                      <tr key={String(row.id)}><td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{String(row.student_name)}<span className="block text-xs font-normal text-slate-500">{String(row.father_name || "—")}</span></td><td className="px-4 py-3">{String(row.class_name)} ({String(row.session)})</td><td className="px-4 py-3">{String(row.semester_number)} · {String(row.term_type)}</td><td className="px-4 py-3">{String(row.course_code)} · {String(row.course_title)}</td><td className="px-4 py-3">{String(row.series_name)}<span className="block text-xs text-slate-500">{String(row.test_date)}</span></td><td className="px-4 py-3 font-semibold">{Boolean(row.is_absent) ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Absent</span> : <><input aria-label={`Obtained marks for ${String(row.student_name)}`} disabled={ditUpdatingId === String(row.id)} type="number" min={0} max={Number(row.total_marks)} defaultValue={Number(row.obtained_marks)} onBlur={(e) => updateDitAllMark(String(row.id), e.target.value, row.total_marks)} className="w-16 rounded border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-800" /> / {String(row.total_marks)}</>} <label className="ml-2 inline-flex items-center gap-1 text-xs"><input aria-label={`Mark ${String(row.student_name)} absent`} type="checkbox" checked={Boolean(row.is_absent)} disabled={ditUpdatingId === String(row.id)} onChange={(e) => updateDitAllMark(String(row.id), String(row.obtained_marks ?? 0), row.total_marks, e.target.checked)} /> Absent</label></td></tr>
+                    {ditAllLoading ? <TableLoader colSpan={7} /> : ditAllRows.map((row) => (
+                      <tr key={String(row.id)}><td className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">{String(row.roll_no || "—")}</td><td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{String(row.student_name)}<span className="block text-xs font-normal text-slate-500">{String(row.father_name || "—")}</span></td><td className="px-4 py-3">{String(row.class_name)} ({String(row.session)})</td><td className="px-4 py-3">{String(row.semester_number)} · {String(row.term_type)}</td><td className="px-4 py-3">{String(row.course_code)} · {String(row.course_title)}</td><td className="px-4 py-3">{String(row.series_name)}<span className="block text-xs text-slate-500">{String(row.test_date)}</span></td><td className="px-4 py-3 font-semibold">{Boolean(row.is_absent) ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Absent</span> : <><input aria-label={`Obtained marks for ${String(row.student_name)}`} disabled={ditUpdatingId === String(row.id)} type="number" min={0} max={Number(row.total_marks)} defaultValue={Number(row.obtained_marks)} onBlur={(e) => updateDitAllMark(String(row.id), e.target.value, row.total_marks)} className="w-16 rounded border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-800" /> / {String(row.total_marks)}</>} <label className="ml-2 inline-flex items-center gap-1 text-xs"><input aria-label={`Mark ${String(row.student_name)} absent`} type="checkbox" checked={Boolean(row.is_absent)} disabled={ditUpdatingId === String(row.id)} onChange={(e) => updateDitAllMark(String(row.id), String(row.obtained_marks ?? 0), row.total_marks, e.target.checked)} /> Absent</label></td></tr>
                     ))}
-                    {!ditAllLoading && ditAllRows.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">No submitted results match these filters. Reset filters to view all results you submitted.</td></tr>}
+                    {!ditAllLoading && ditAllRows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">No submitted results match these filters. Reset filters to view all results you submitted.</td></tr>}
                   </tbody>
                 </table>
               </div>
