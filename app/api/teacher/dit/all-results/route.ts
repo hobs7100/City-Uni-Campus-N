@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const rows = await query(
     `select dmr.id, dmr.student_id, dmr.allocation_id, dmr.semester_id, dmr.test_series_id,
-             dmr.test_date::text, dmr.obtained_marks, dmr.is_absent, dmr.remarks,
+             dmr.test_date::text, dmr.created_at as submitted_at, dmr.obtained_marks, dmr.is_absent, dmr.remarks,
             s.name as student_name, s.father_name, s.roll_no,
             cl.id as class_id, cl.class_name, cl.session, sem.semester_number, sem.term_type,
             co.id as course_id, co.code as course_code, co.title as course_title,
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
        and ($4::uuid is null or co.id = $4)
        and ($5::uuid is null or ts.id = $5)
        and ($6::date is null or dmr.test_date = $6)
-     order by dmr.test_date desc, cl.class_name, sem.semester_number, co.title, s.name`,
+     order by dmr.created_at desc, dmr.id desc`,
     [session!.userId, ...values]
   );
   const options = await query(
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
      join courses co on co.id = a.course_id
      join dit_test_series ts on ts.id = dmr.test_series_id
      where dmr.submitted_by = $1
-     order by cl.class_name, sem.semester_number, co.title, ts.name, dmr.test_date desc`,
+     order by cl.class_name, sem.semester_number, co.title, ts.name, test_date desc`,
     [session!.userId]
   );
   return NextResponse.json({ rows, filter_options: options });

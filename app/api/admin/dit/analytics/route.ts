@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const obtained=rs.reduce((n,r)=>n+r.obtained_marks,0), total=rs.reduce((n,r)=>n+r.total_marks,0);
     const zones={toppers:0,good:0,average:0,warning:0,danger:0}; students.forEach(x=>zones[zone(x.total?x.obtained/x.total*100:0)]++);
     const r=rs[0]; const distinct_test_count=new Set(rs.map(x=>`${x.test_date}:${x.test_series_id}`)).size;
-    return { course_id:r.course_id, title:r.course_title, code:r.course_code, distinct_test_count, test_count:distinct_test_count,
+    return { course_id:r.course_id, title:r.course_title, code:r.course_code, course_title:r.course_title, course_code:r.course_code, distinct_test_count, test_count:distinct_test_count,
       student_count:students.size, total_attempted_result_rows:rs.length, passing_percentage:rs.length?rs.filter(x=>!x.is_absent&&x.obtained_marks>=x.passing_marks).length/rs.length*100:0,
       normalized_average_percentage:total?obtained/total*100:0, average_percentage:total?obtained/total*100:0, zone_counts:zones, zones };
   });

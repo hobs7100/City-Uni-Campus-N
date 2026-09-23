@@ -7,10 +7,7 @@ export const scopeSchema = z.enum(["subject", "overall"]);
 export type Zone = z.infer<typeof zoneSchema>;
 
 export function dates(from?: string | null, to?: string | null) {
-  const now = new Date();
-  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-  return { from: from || first, to: to || last };
+  return { from: from || "1900-01-01", to: to || "9999-12-31" };
 }
 export function validDateRange(from: string, to: string) { return from <= to; }
 export function zone(pct: number): Zone {
@@ -36,7 +33,7 @@ export async function resultRows(p: {
   const args: unknown[] = [p.from, p.to]; const where = ["cl.type='DIT'", "s.deleted_at is null", "dmr.test_date >= $1", "dmr.test_date <= $2"];
   const add = (value: unknown, sql: string) => { if (value) { args.push(value); where.push(sql.replace("?", `$${args.length}`)); } };
   add(p.testSeriesId, "dmr.test_series_id = ?"); add(p.classId, "cl.id = ?"); add(p.semesterId, "dmr.semester_id = ?");
-  add(p.courseId, "co.id = ?"); add(p.studentId, "dmr.student_id = ?"); add(p.session, "s.session = ?");
+  add(p.courseId, "co.id = ?"); add(p.studentId, "dmr.student_id = ?"); add(p.session, "cl.session = ?");
   return query<ResultRow>(`select dmr.id, s.id student_id, s.name student_name, s.father_name, s.roll_no,
     cl.id class_id, cl.class_name, cl.session, sem.id semester_id, sem.semester_number, sem.term_type,
     co.id course_id, co.code course_code, co.title course_title, ts.id test_series_id, ts.name series_name,

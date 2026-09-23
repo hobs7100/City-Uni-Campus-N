@@ -90,6 +90,7 @@ export default function DitMockPage() {
   /* ── All Results ─────────────────────────────────────────────────────── */
   const [allResults,     setAllResults]     = useState<DitResult[]>([]);
   const [allLoading,     setAllLoading]     = useState(false);
+  const [allError,       setAllError]       = useState("");
   const [deleteResultTarget, setDeleteResultTarget] = useState<DitResult | null>(null);
   const [deletingResult,     setDeletingResult]     = useState(false);
   const [editResultTarget,   setEditResultTarget]   = useState<DitResult | null>(null);
@@ -126,10 +127,15 @@ export default function DitMockPage() {
 
   const loadAllResults = useCallback(async () => {
     setAllLoading(true);
+    setAllError("");
     try {
-      const res  = await fetch("/api/admin/dit/results");
+      const res  = await fetch("/api/admin/dit/results", { cache: "no-store" });
       const data = await res.json();
-      if (res.ok) setAllResults(data.results ?? []);
+      if (!res.ok) throw new Error(data.error || "Failed to load DIT results.");
+      setAllResults(data.results ?? []);
+    } catch (error) {
+      setAllResults([]);
+      setAllError(error instanceof Error ? error.message : "Failed to load DIT results.");
     } finally { setAllLoading(false); }
   }, []);
 
@@ -224,6 +230,24 @@ export default function DitMockPage() {
       else toast.error(data.error || "Failed to load results.");
     } finally { setVrLoading(false); }
   }
+
+  useEffect(() => {
+    if (activeTab !== "view" || vrSearched) return;
+    const controller = new AbortController();
+    fetch("/api/admin/dit/results", { signal: controller.signal, cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load results.");
+        setVrResults(data.results ?? []);
+        setVrSearched(true);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) toast.error(error instanceof Error ? error.message : "Failed to load results.");
+      });
+    return () => controller.abort();
+    // Only auto-load on tab entry; applying filters uses handleViewResults.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   /* ─── PDF Report ─────────────────────────────────────────────────────── */
   function exportReport() {
@@ -635,6 +659,8 @@ export default function DitMockPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {allLoading ? (
                   <TableLoader colSpan={11} />
+                ) : allError ? (
+                  <tr><td colSpan={11} className="px-4 py-10 text-center text-red-600">{allError}</td></tr>
                 ) : allResults.length === 0 ? (
                   <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400">No DIT mock results yet.</td></tr>
                 ) : (
