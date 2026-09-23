@@ -18,14 +18,14 @@ export async function GET(request: NextRequest) {
     .map((key) => p.get(key));
 
   const rows = await query(
-    `select dmr.id, dmr.student_id, dmr.allocation_id, dmr.semester_id, dmr.test_series_id,
-             dmr.test_date::text, dmr.created_at as submitted_at, dmr.obtained_marks, dmr.is_absent, dmr.remarks,
-            s.name as student_name, s.father_name, s.roll_no,
+    `select dmr.allocation_id, dmr.semester_id, dmr.test_series_id,
+            dmr.test_date::text as test_date, max(dmr.created_at) as submitted_at,
             cl.id as class_id, cl.class_name, cl.session, sem.semester_number, sem.term_type,
             co.id as course_id, co.code as course_code, co.title as course_title,
-            ts.name as series_name, ts.total_marks, ts.passing_marks
+            ts.name as series_name, ts.total_marks,
+            count(*)::int as total_students,
+            count(*) filter (where not dmr.is_absent)::int as students_appeared
      from dit_mock_results dmr
-     join students s on s.id = dmr.student_id
      join semesters sem on sem.id = dmr.semester_id
      join classes cl on cl.id = sem.class_id
      join allocations a on a.id = dmr.allocation_id
@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
        and ($4::uuid is null or co.id = $4)
        and ($5::uuid is null or ts.id = $5)
        and ($6::date is null or dmr.test_date = $6)
-     order by dmr.created_at desc, dmr.id desc`,
+     group by dmr.allocation_id, dmr.semester_id, dmr.test_series_id, dmr.test_date,
+              cl.id, sem.semester_number, sem.term_type,
+              co.id, ts.id
+     order by submitted_at desc, dmr.test_date desc, co.title`,
     [session!.userId, ...values]
   );
   const options = await query(

@@ -436,9 +436,15 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [ditStudentsLoading, setDitStudentsLoading] = useState(false);
   const ditStudentsRequestId = useRef(0);
   const [ditSaving, setDitSaving]           = useState(false);
-  const [ditAllRows, setDitAllRows]         = useState<Array<Record<string, unknown>>>([]);
+  interface DitResultSummary {
+    allocation_id: string; semester_id: string; test_series_id: string;
+    test_date: string; submitted_at: string; class_name: string; session: string;
+    semester_number: number; term_type: string; course_code: string; course_title: string;
+    series_name: string; total_marks: number; total_students: number; students_appeared: number;
+  }
+  const [ditAllRows, setDitAllRows]         = useState<DitResultSummary[]>([]);
   const [ditAllLoading, setDitAllLoading]   = useState(false);
-  const [ditUpdatingId, setDitUpdatingId]   = useState("");
+  const ditAllRequestId = useRef(0);
   interface DitResultFilterOption {
     class_id: string; class_name: string; session: string; semester_id: string;
     semester_number: number; term_type: string; course_id: string; course_code: string;
@@ -484,43 +490,25 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   }, []);
 
   const loadDitAllResults = useCallback(async () => {
+    const requestId = ++ditAllRequestId.current;
     setDitAllLoading(true);
     try {
       const params = new URLSearchParams();
       Object.entries(ditResultFilters).forEach(([key, value]) => { if (value) params.set(key, value); });
-      const res = await fetch(`/api/teacher/dit/all-results?${params.toString()}`);
+      const res = await fetch(`/api/teacher/dit/all-results?${params.toString()}`, { cache: "no-store" });
       const data = await res.json();
+      if (requestId !== ditAllRequestId.current) return;
       if (res.ok) {
         setDitAllRows(data.rows ?? []);
         setDitFilterOptions(data.filter_options ?? []);
       }
       else toast.error(data.error || "Could not load results.");
+    } catch {
+      if (requestId === ditAllRequestId.current) toast.error("Could not load results.");
     } finally {
-      setDitAllLoading(false);
+      if (requestId === ditAllRequestId.current) setDitAllLoading(false);
     }
   }, [ditResultFilters]);
-
-  async function updateDitAllMark(id: string, value: string, total: unknown, isAbsent = false) {
-    const marks = Number(value);
-    if (!isAbsent && (!Number.isInteger(marks) || marks < 0 || marks > Number(total))) {
-      toast.error(`Enter a whole number from 0 to ${total}.`);
-      loadDitAllResults();
-      return;
-    }
-    setDitUpdatingId(id);
-    try {
-      const res = await fetch("/api/teacher/dit/all-results", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, obtained_marks: isAbsent ? 0 : marks, is_absent: isAbsent }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Could not update marks."); loadDitAllResults(); return; }
-      setDitAllRows((rows) => rows.map((row) => row.id === id ? { ...row, obtained_marks: isAbsent ? 0 : marks, is_absent: isAbsent } : row));
-      toast.success(isAbsent ? "Student marked absent." : "Marks updated.");
-    } finally {
-      setDitUpdatingId("");
-    }
-  }
 
   const loadDitStudents = useCallback(async () => {
     const requestId = ++ditStudentsRequestId.current;
@@ -2992,7 +2980,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           {ditSubTab === "all" && (
             <div className="card-3d overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
-                <h3 className="font-semibold text-slate-800 dark:text-white">My Submitted Results</h3>
+                <h3 className="font-semibold text-slate-800 dark:text-white">My Submitted Tests</h3>
                 <button onClick={loadDitAllResults} className="rounded-md px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300">Refresh</button>
               </div>
               <div className="grid grid-cols-1 gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-6 dark:border-slate-700">
@@ -3005,15 +2993,25 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px] text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800"><tr><th className="px-4 py-3">Roll No</th><th className="px-4 py-3">Student / Father</th><th className="px-4 py-3">Class / Session</th><th className="px-4 py-3">Semester</th><th className="px-4 py-3">Course</th><th className="px-4 py-3">Series / Test Date</th><th className="px-4 py-3">Submitted</th><th className="px-4 py-3">Marks</th></tr></thead>
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800"><tr><th className="px-4 py-3">Test Date</th><th className="px-4 py-3">Submitted Date</th><th className="px-4 py-3">Test Series Name</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Class + Session + Semester</th><th className="px-4 py-3 text-center">Total Marks</th><th className="px-4 py-3 text-center">Total Students</th><th className="px-4 py-3 text-center">Students Appeared</th></tr></thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {ditAllLoading ? <TableLoader colSpan={8} /> : ditAllRows.map((row) => (
-                      <tr key={String(row.id)}><td className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">{String(row.roll_no || "—")}</td><td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{String(row.student_name)}<span className="block text-xs font-normal text-slate-500">{String(row.father_name || "—")}</span></td><td className="px-4 py-3">{String(row.class_name)} ({String(row.session)})</td><td className="px-4 py-3">{String(row.semester_number)} · {String(row.term_type)}</td><td className="px-4 py-3">{String(row.course_code)} · {String(row.course_title)}</td><td className="px-4 py-3">{String(row.series_name)}<span className="block text-xs text-slate-500">{String(row.test_date)}</span></td><td className="px-4 py-3 whitespace-nowrap text-xs">{new Date(String(row.submitted_at)).toLocaleString()}</td><td className="px-4 py-3 font-semibold">{Boolean(row.is_absent) ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Absent</span> : <><input aria-label={`Obtained marks for ${String(row.student_name)}`} disabled={ditUpdatingId === String(row.id)} type="number" min={0} max={Number(row.total_marks)} defaultValue={Number(row.obtained_marks)} onBlur={(e) => updateDitAllMark(String(row.id), e.target.value, row.total_marks)} className="w-16 rounded border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-800" /> / {String(row.total_marks)}</>} <label className="ml-2 inline-flex items-center gap-1 text-xs"><input aria-label={`Mark ${String(row.student_name)} absent`} type="checkbox" checked={Boolean(row.is_absent)} disabled={ditUpdatingId === String(row.id)} onChange={(e) => updateDitAllMark(String(row.id), String(row.obtained_marks ?? 0), row.total_marks, e.target.checked)} /> Absent</label></td></tr>
+                      <tr key={`${row.allocation_id}-${row.semester_id}-${row.test_series_id}-${row.test_date}`}>
+                        <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-600 dark:text-slate-300">{row.test_date}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{new Date(row.submitted_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">{row.series_name}</td>
+                        <td className="px-4 py-3">{row.course_code} · {row.course_title}</td>
+                        <td className="px-4 py-3">{row.class_name} ({row.session}) · Sem {row.semester_number} {row.term_type}</td>
+                        <td className="px-4 py-3 text-center">{row.total_marks}</td>
+                        <td className="px-4 py-3 text-center">{row.total_students}</td>
+                        <td className="px-4 py-3 text-center font-semibold">{row.students_appeared}</td>
+                      </tr>
                     ))}
-                    {!ditAllLoading && ditAllRows.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">No submitted results match these filters. Reset filters to view all results you submitted.</td></tr>}
+                    {!ditAllLoading && ditAllRows.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">No submitted tests match these filters. Reset filters to view all submitted tests.</td></tr>}
                   </tbody>
                 </table>
               </div>
+              <p className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">Total Students counts recorded results, including absences. Students Appeared excludes students marked absent. Submitted Date is the latest submission for that test.</p>
             </div>
           )}
         </div>
