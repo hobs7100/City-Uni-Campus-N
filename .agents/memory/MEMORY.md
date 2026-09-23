@@ -24,3 +24,5 @@
 - [Revoked leave reissue history](revoked-leave-reissue-history.md) — reissuing leave creates a new dated row; revoked rows remain immutable history, with one active leave enforced.
 - [Supabase transaction pool for Next.js](supabase-transaction-pool.md) — use transaction pooling and avoid nested middleware HTTP checks to prevent session-limit backend failures.
 - [Upload limit contracts](upload-limit-contracts.md) — keep category-specific file limits aligned between UI validation and API enforcement.
+- [Feedback unread identity](feedback-unread-identity.md) — track exactly which messages were shown; timestamps can silently swallow concurrent replies.
+- [Migration backlog scope](migration-backlog-scope.md) — check the migration ledger before running all pending files for a small schema change.
