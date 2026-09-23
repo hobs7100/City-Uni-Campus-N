@@ -71,6 +71,7 @@ interface Profile {
     net_amount: number;
     is_protected: boolean;
     status: "active" | "struck_off";
+    struck_off_minimum_applies: boolean;
   } | null;
 }
 
@@ -797,7 +798,7 @@ export default function StudentDashboardManager() {
                     </h2>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                       Attendance {profile.attendance_fine.attendance_percentage.toFixed(2)}%
-                      {profile.attendance_fine.status === "struck_off" ? " · Struck-off minimum applies" : " · Low-attendance schedule applies"}
+                      {profile.attendance_fine.struck_off_minimum_applies ? " · Struck-off minimum applies" : " · Coordinator/admin attendance schedule applies"}
                     </p>
                   </div>
                 </div>

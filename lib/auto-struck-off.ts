@@ -1,29 +1,9 @@
 /**
  * Centralized auto-struck-off evaluation service.
  *
- * Called from the coordinator attendance POST, teacher attendance POST, and the
- * admin manual short-attendance page so the logic is identical regardless of
- * who submits attendance.
- *
- * Attendance source selection
- * ───────────────────────────
- * Two attendance sources exist in the system:
- *   1. student_attendance_records  — coordinator marks class-wide attendance daily
- *   2. student_course_attendance   — teachers mark per-course attendance
- *
- * The service detects which source has reached the 15-distinct-working-day threshold
- * and uses that source for evaluation.  Coordinator records are checked first
- * because they are the canonical school-day source; if fewer than 15 coordinator
- * days are recorded for the class/semester the service falls back to teacher
- * course records (aggregated per student per day).
- *
- * Day aggregation for teacher records
- * ─────────────────────────────────────
- * A student's status for a given day is derived from all their course records on
- * that day:
- *   - "present" day  → at least one course record is 'present'
- *   - "evaluable" day → at least one course record is 'present' or 'absent'
- *   - "leave" day    → all course records are 'leave' → excluded from denominator
+ * Called after coordinator/admin class-wide attendance is saved.
+ * Only student_attendance_records are used for standing decisions; teacher
+ * course attendance must not produce a struck-off status or a fine.
  *
  * Reactivation protection window
  * ───────────────────────────────
@@ -36,7 +16,7 @@
 
 import type { PoolClient } from "pg";
 
-export type TriggeredBy = "COORDINATOR" | "TEACHER" | "ADMIN" | "HOD" | "SYSTEM";
+export type TriggeredBy = "COORDINATOR" | "ADMIN" | "HOD" | "SYSTEM";
 
 export interface RunAutoStruckOffParams {
   /** IDs of students to evaluate (may be a subset of the class). */
@@ -55,8 +35,6 @@ const MIN_ATTENDANCE_DAYS = 15;
 const REGULAR_STRUCK_OFF_THRESHOLD = 0.6;
 const PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD = 0.3;
 
-type AttendanceSource = "coordinator" | "teacher" | "none";
-
 /** Count distinct school days from coordinator records for the class/semester. */
 async function countCoordinatorClassDays(
   client: PoolClient,
@@ -70,26 +48,6 @@ async function countCoordinatorClassDays(
      WHERE  sar.semester_id = $1
        AND  st.class_id     = ANY($2::uuid[])
        AND  st.deleted_at   IS NULL`,
-    [semesterId, classIds]
-  );
-  return res.rows[0]?.days ?? 0;
-}
-
-/** Count distinct school days from teacher course attendance for the class/semester. */
-async function countTeacherClassDays(
-  client: PoolClient,
-  semesterId: string,
-  classIds: string[]
-): Promise<number> {
-  const res = await client.query<{ days: number }>(
-    `SELECT COUNT(DISTINCT sca.attendance_date)::int AS days
-     FROM   student_course_attendance sca
-     JOIN   allocation_semesters als
-               ON  als.allocation_id = sca.allocation_id
-               AND als.semester_id   = $1
-     JOIN   students st ON st.id = sca.student_id
-     WHERE  st.class_id   = ANY($2::uuid[])
-       AND  st.deleted_at IS NULL`,
     [semesterId, classIds]
   );
   return res.rows[0]?.days ?? 0;
@@ -173,88 +131,6 @@ async function findCandidatesFromCoordinator(
   return res.rows;
 }
 
-/**
- * Return candidates to be struck off from teacher course attendance records.
- *
- * Day aggregation:
- *   "present" day  = at least one course record on that day is 'present'
- *   "evaluable" day = at least one course record on that day is 'present' or 'absent'
- *
- * This correctly handles days where a student attends some courses but misses others
- * (counted as "present") and all-leave days (excluded from the denominator).
- */
-async function findCandidatesFromTeacher(
-  client: PoolClient,
-  semesterId: string,
-  studentIds: string[]
-) {
-  const res = await client.query<{
-    id: string;
-    window_days: number;
-    presents: number;
-    evaluable: number;
-     leave_type: "permanent" | "partial";
-  }>(
-    `SELECT
-       st.id,
-       CASE WHEN EXISTS (
-         SELECT 1 FROM student_leaves sl
-         WHERE sl.student_id = st.id
-           AND sl.revoked_at IS NULL
-           AND sl.leave_type = 'partial'
-       ) THEN 'partial'::varchar ELSE 'permanent'::varchar END AS leave_type,
-       -- window_days = distinct evaluable (present/absent) days for this student.
-       -- Days where all course records are 'leave' do not count toward the threshold
-       -- so a student cannot be struck off on a sample of leave-only records.
-       COUNT(DISTINCT sca.attendance_date) FILTER (
-         WHERE sca.status IN ('present','absent')
-           AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)
-       )::int  AS window_days,
-       -- "Present" days: at least one course record is 'present' that day
-       COUNT(DISTINCT sca.attendance_date) FILTER (
-         WHERE sca.status = 'present'
-           AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)
-       )::int  AS presents,
-       -- "Evaluable" days = window_days (same expression, alias reused for clarity)
-       COUNT(DISTINCT sca.attendance_date) FILTER (
-         WHERE sca.status IN ('present','absent')
-           AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)
-       )::int  AS evaluable
-     FROM   students st
-     JOIN   student_course_attendance sca ON sca.student_id = st.id
-     JOIN   allocation_semesters als
-               ON  als.allocation_id = sca.allocation_id
-               AND als.semester_id   = $1
-     WHERE  st.id         = ANY($2::uuid[])
-       AND  st.status     = 'active'
-       AND  st.deleted_at IS NULL
-     GROUP  BY st.id, st.reactivated_at
-     HAVING
-       -- Require ≥ 15 personally evaluable days before the student can be struck off.
-       COUNT(DISTINCT sca.attendance_date) FILTER (
-         WHERE sca.status IN ('present','absent')
-           AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)
-       ) >= $3
-       AND (
-         COUNT(DISTINCT sca.attendance_date) FILTER (
-           WHERE sca.status = 'present'
-             AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)
-         )::float
-         / NULLIF(COUNT(DISTINCT sca.attendance_date) FILTER (
-           WHERE sca.status IN ('present','absent')
-             AND (st.reactivated_at IS NULL OR sca.attendance_date > st.reactivated_at::date)
-         ), 0)
-        ) < CASE WHEN EXISTS (
-          SELECT 1 FROM student_leaves sl
-          WHERE sl.student_id = st.id
-            AND sl.revoked_at IS NULL
-            AND sl.leave_type = 'partial'
-        ) THEN $4 ELSE $5 END`,
-     [semesterId, studentIds, MIN_ATTENDANCE_DAYS, PARTIAL_LEAVE_STRUCK_OFF_THRESHOLD, REGULAR_STRUCK_OFF_THRESHOLD]
-  );
-  return res.rows;
-}
-
 export async function runAutoStruckOff({
   studentIds,
   semesterId,
@@ -264,28 +140,15 @@ export async function runAutoStruckOff({
 }: RunAutoStruckOffParams): Promise<void> {
   if (!studentIds.length || !classIds.length) return;
 
-  // ── Step 1: Determine which attendance source is in use ──────────────────
-  // Coordinator records are the canonical source; fall back to teacher records
-  // for classes that only use teacher-level attendance (no coordinator).
-  let source: AttendanceSource = "none";
+  // Coordinator/admin daily attendance is the only standing source.
   const coordDays = await countCoordinatorClassDays(client, semesterId, classIds);
-  if (coordDays >= MIN_ATTENDANCE_DAYS) {
-    source = "coordinator";
-  } else {
-    const teacherDays = await countTeacherClassDays(client, semesterId, classIds);
-    if (teacherDays >= MIN_ATTENDANCE_DAYS) source = "teacher";
-  }
-  if (source === "none") return; // Threshold not reached from either source
+  if (coordDays < MIN_ATTENDANCE_DAYS) return;
 
-  // ── Step 2: Find candidates using the appropriate source ─────────────────
-  const candidates =
-    source === "coordinator"
-      ? await findCandidatesFromCoordinator(client, semesterId, studentIds)
-      : await findCandidatesFromTeacher(client, semesterId, studentIds);
+  const candidates = await findCandidatesFromCoordinator(client, semesterId, studentIds);
 
   if (!candidates.length) return;
 
-  // ── Step 3: Strike off each candidate and log to audit history ───────────
+  // Strike off each candidate and log to audit history.
   for (const c of candidates) {
     const pct = c.evaluable > 0 ? (c.presents / c.evaluable) * 100 : 0;
     const attendancePct = Math.round(pct * 100) / 100;
@@ -313,7 +176,7 @@ export async function runAutoStruckOff({
         c.id,
         `Auto Struck Off — Attendance ${attendancePct.toFixed(2)}% ` +
           `(${c.presents} present / ${c.evaluable} evaluable over ${c.window_days} days) ` +
-          `[threshold: below ${threshold}%; leave type: ${c.leave_type}; source: ${source}]`,
+           `[threshold: below ${threshold}%; leave type: ${c.leave_type}; source: coordinator]`,
         triggeredBy,
         semesterId,
         attendancePct,

@@ -122,6 +122,7 @@ export default function StudentManagementPage({ role }: Props) {
   const [reactivationTarget, setReactivationTarget] = useState<Student | null>(null);
   const [reactivationSaving, setReactivationSaving] = useState(false);
   const [reactivationFine, setReactivationFine] = useState<ReactivationFine | null>(null);
+  const [noFineReactivation, setNoFineReactivation] = useState(false);
   const [reactivationFineLoading, setReactivationFineLoading] = useState(false);
   const [reactivationFineError, setReactivationFineError] = useState("");
   const reactivationFineRequestId = useRef(0);
@@ -149,7 +150,10 @@ export default function StudentManagementPage({ role }: Props) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   // ── Class+Session dropdown options (for filter) ──────────────────────────
   const classSessionOptions: SelectOption[] = useMemo(() => {
@@ -234,6 +238,7 @@ export default function StudentManagementPage({ role }: Props) {
       const requestId = ++reactivationFineRequestId.current;
       setReactivationTarget(item);
       setReactivationFine(null);
+      setNoFineReactivation(false);
       setReactivationFineError("");
       setReactivationForm({
         fid: "",
@@ -246,6 +251,7 @@ export default function StudentManagementPage({ role }: Props) {
           if (!response.ok) throw new Error(data?.error || "Could not load the current fine.");
           if (requestId !== reactivationFineRequestId.current) return;
           setReactivationFine(data.attendance_fine);
+          setNoFineReactivation(data.no_fine_reactivation === true);
         })
         .catch((error) => {
           if (requestId !== reactivationFineRequestId.current) return;
@@ -283,7 +289,7 @@ export default function StudentManagementPage({ role }: Props) {
   async function handleReactivation(e: React.FormEvent) {
     e.preventDefault();
     if (!reactivationTarget) return;
-    if (!reactivationFine) {
+    if (!reactivationFine && !noFineReactivation) {
       toast.error("The current attendance fine has not loaded.");
       return;
     }
@@ -292,28 +298,30 @@ export default function StudentManagementPage({ role }: Props) {
       const res = await fetch(`/api/admin/students/${reactivationTarget.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "active",
-          fid: reactivationForm.fid.trim(),
-          reactivation_date: reactivationForm.reactivation_date,
-          assessment_cycle_id: reactivationFine.assessment_cycle_id,
-          fine_quote: {
-            presents: reactivationFine.presents,
-            evaluable_days: reactivationFine.evaluable_days,
-            gross_amount: reactivationFine.gross_amount,
-            discount_amount: reactivationFine.discount_amount,
-            net_amount: reactivationFine.net_amount,
-            adjustment_type: reactivationFine.adjustment_type,
-            adjusted_at: reactivationFine.adjusted_at,
-          },
-        }),
+        body: JSON.stringify(noFineReactivation
+          ? { status: "active", reactivation_date: reactivationForm.reactivation_date }
+          : {
+              status: "active",
+              fid: reactivationForm.fid.trim(),
+              reactivation_date: reactivationForm.reactivation_date,
+              assessment_cycle_id: reactivationFine!.assessment_cycle_id,
+              fine_quote: {
+                presents: reactivationFine!.presents,
+                evaluable_days: reactivationFine!.evaluable_days,
+                gross_amount: reactivationFine!.gross_amount,
+                discount_amount: reactivationFine!.discount_amount,
+                net_amount: reactivationFine!.net_amount,
+                adjustment_type: reactivationFine!.adjustment_type,
+                adjusted_at: reactivationFine!.adjusted_at,
+              },
+            }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Failed to reactivate student.");
         return;
       }
-      toast.success("Student reactivated and fine transaction recorded.");
+      toast.success(noFineReactivation ? "Student reactivated without a fine." : "Student reactivated and fine transaction recorded.");
        closeReactivation();
       await load();
     } finally {
@@ -325,6 +333,7 @@ export default function StudentManagementPage({ role }: Props) {
     reactivationFineRequestId.current += 1;
     setReactivationTarget(null);
     setReactivationFine(null);
+    setNoFineReactivation(false);
     setReactivationFineError("");
     setReactivationFineLoading(false);
   }
@@ -779,7 +788,7 @@ export default function StudentManagementPage({ role }: Props) {
       <Modal
         open={!!reactivationTarget}
         onClose={closeReactivation}
-        title="Reactivate Student & Record Fine"
+        title={noFineReactivation ? "Reactivate Student without Fine" : "Reactivate Student & Record Fine"}
         widthClass="max-w-xl"
       >
         <form onSubmit={handleReactivation} className="space-y-5">
@@ -807,6 +816,10 @@ export default function StudentManagementPage({ role }: Props) {
           ) : reactivationFineError ? (
             <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
               {reactivationFineError}
+            </div>
+          ) : noFineReactivation ? (
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800">
+              No fine is due from coordinator/admin attendance. Reactivate without a fine receipt.
             </div>
           ) : reactivationFine ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
@@ -841,7 +854,7 @@ export default function StudentManagementPage({ role }: Props) {
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {!noFineReactivation && <div className="grid gap-4 sm:grid-cols-2">
             <label className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
               <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
                 <ReceiptText size={17} /> FID
@@ -854,7 +867,7 @@ export default function StudentManagementPage({ role }: Props) {
                 className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-500/30 dark:bg-slate-900 dark:text-white"
               />
             </label>
-          </div>
+          </div>}
 
           <label className="block rounded-xl border border-sky-200 bg-sky-50/80 p-3 dark:border-sky-500/30 dark:bg-sky-500/10">
             <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
@@ -882,11 +895,13 @@ export default function StudentManagementPage({ role }: Props) {
               className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
               Cancel
             </button>
-            <button type="submit" disabled={reactivationSaving || reactivationFineLoading || !reactivationFine}
+            <button type="submit" disabled={reactivationSaving || reactivationFineLoading || (!reactivationFine && !noFineReactivation)}
               className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60">
               {reactivationSaving
                 ? "Activating…"
-                : reactivationFine?.net_amount === 0
+                : noFineReactivation
+                  ? "Activate without Fine"
+                  : reactivationFine?.net_amount === 0
                   ? "Record Waiver & Activate"
                   : "Record Payment & Activate"}
             </button>

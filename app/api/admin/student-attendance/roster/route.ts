@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
 
   // Attendance must remain saved even if the follow-up standing evaluation
   // encounters a separate data problem.
-  if (isCoordinator) {
+  if (session?.role === "coordinator" || session?.role === "admin") {
     const strikeClient = await pool.connect();
     try {
       await strikeClient.query("begin");
@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
         studentIds,
         semesterId: d.semester_id,
         classIds: [classId],
-        triggeredBy: "COORDINATOR",
+        triggeredBy: isCoordinator ? "COORDINATOR" : "ADMIN",
         client: strikeClient,
       });
       await strikeClient.query("commit");

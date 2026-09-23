@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
-import { runAutoStruckOff } from "@/lib/auto-struck-off";
 
 function dayNameFor(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -331,48 +330,6 @@ export async function POST(request: NextRequest) {
     throw err;
   } finally {
     client.release();
-  }
-
-  // ── Auto struck-off evaluation (teacher path) ────────────────────────────
-  // Runs in a separate transaction AFTER the attendance is committed so that
-  // a struck-off evaluation failure never causes attendance data to be lost.
-  //
-  // Combined allocations span multiple active semesters (each a different
-  // class).  We must evaluate each semester independently: attendance records
-  // in student_attendance_records are scoped to a specific semester_id, so
-  // passing all classIds under a single semesterId would leave every student
-  // in the non-primary semesters with zero matching records and skip them.
-  try {
-    for (const sem of activeSemsWithClass) {
-      const studentsInSem = await query<{ id: string }>(
-        `select id from students
-         where class_id  = $1
-           and deleted_at is null
-           and status    = 'active'`,
-        [sem.class_id]
-      );
-      if (!studentsInSem.length) continue;
-
-      const evalClient = await pool.connect();
-      try {
-        await evalClient.query("begin");
-        await runAutoStruckOff({
-          studentIds: studentsInSem.map((s) => s.id),
-          semesterId: sem.id,
-          classIds:   [sem.class_id],
-          triggeredBy: "TEACHER",
-          client: evalClient,
-        });
-        await evalClient.query("commit");
-      } catch {
-        await evalClient.query("rollback");
-        // Non-fatal: attendance is already saved
-      } finally {
-        evalClient.release();
-      }
-    }
-  } catch {
-    // Never let evaluation failure surface as an API error
   }
 
   return NextResponse.json({ success: true });

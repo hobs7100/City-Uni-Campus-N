@@ -3,7 +3,7 @@ import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { requirePortalPermission } from "@/lib/portalPermissions";
-import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
+import { getCurrentAttendanceFine, wasLastStruckOffFromTeacher } from "@/lib/attendance-fines";
 
 const schema = z.object({
   name: z.string().min(2).optional(),
@@ -128,10 +128,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         { status: 409 },
       );
     }
-    if (isReactivation && (!d.fid || !d.reactivation_date || !d.assessment_cycle_id || !d.fine_quote)) {
+    if (isReactivation && !d.reactivation_date) {
       await evalClient.query("rollback");
       return NextResponse.json(
-        { error: "Current fine assessment, FID, and activation date are required to reactivate a struck-off student." },
+        { error: "Activation date is required to reactivate a struck-off student." },
         { status: 400 },
       );
     }
@@ -146,8 +146,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const currentFine = isReactivation
       ? await getCurrentAttendanceFine(id, evalClient)
       : null;
+    const noFineReactivation = isReactivation
+      && !currentFine
+      && await wasLastStruckOffFromTeacher(id, evalClient);
+    if (isReactivation && !noFineReactivation && (!d.fid || !d.assessment_cycle_id || !d.fine_quote)) {
+      await evalClient.query("rollback");
+      return NextResponse.json(
+        { error: "Current fine assessment and FID are required to reactivate this student." },
+        { status: 400 },
+      );
+    }
+    if (noFineReactivation && (d.fid || d.assessment_cycle_id || d.fine_quote)) {
+      await evalClient.query("rollback");
+      return NextResponse.json(
+        { error: "No attendance fine is due. Reactivate without a fine receipt." },
+        { status: 400 },
+      );
+    }
     if (
-      isReactivation
+      isReactivation && !noFineReactivation
       && (
         !currentFine
         || currentFine.status !== "struck_off"
@@ -231,14 +248,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           current.status,
           d.status,
           isReactivation
-            ? `Manually reactivated from ${reactivation_date} — new 15-working-day protection window started`
+            ? noFineReactivation
+              ? `Manually reactivated without attendance fine from ${reactivation_date} — no coordinator/admin attendance fine due`
+              : `Manually reactivated from ${reactivation_date} — new 15-working-day protection window started`
             : `Status manually changed to ${d.status}`,
           actorRole,
           current.semester_id,
         ]
       );
     }
-    if (isReactivation) {
+    if (isReactivation && !noFineReactivation) {
       await evalClient.query(
         `insert into student_fines
            (student_id, department_id, class_id, semester_id, amount, fid,

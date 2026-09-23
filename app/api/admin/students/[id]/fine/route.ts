@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
+import { getCurrentAttendanceFine, wasLastStruckOffFromTeacher } from "@/lib/attendance-fines";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 
 export async function GET(
@@ -17,6 +17,9 @@ export async function GET(
 
   const { id } = await params;
   const fine = await getCurrentAttendanceFine(id);
+  if (!fine && await wasLastStruckOffFromTeacher(id)) {
+    return NextResponse.json({ attendance_fine: null, no_fine_reactivation: true });
+  }
   if (!fine || fine.status !== "struck_off") {
     return NextResponse.json(
       { error: "No current reactivation fine was found for this student." },

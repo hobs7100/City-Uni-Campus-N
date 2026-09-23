@@ -9,6 +9,7 @@ export type AttendanceFineAssessment = {
   father_name: string | null;
   roll_no: string | null;
   status: "active" | "struck_off";
+  struck_off_minimum_applies: boolean;
   department_id: string;
   department_name: string;
   class_id: string;
@@ -71,6 +72,7 @@ type FineRow = {
   assessment_cycle_id: string;
   fine_cycle_started_at: string | null;
   leave_type: "partial" | null;
+  teacher_strike_off: boolean;
   presents: number;
   evaluable_days: number;
   adjustment_type: AttendanceFineAdjustmentType | "clear" | null;
@@ -96,6 +98,7 @@ export async function getCurrentAttendanceFineAssessments(
        st.attendance_fine_cycle_id::text as assessment_cycle_id,
        st.attendance_fine_cycle_started_at::text as fine_cycle_started_at,
        active_leave.leave_type,
+        (st.status = 'struck_off' and latest_strike.reason like '%source: teacher%') as teacher_strike_off,
        count(distinct sar.attendance_date) filter (
          where sar.status = 'present'
            and (st.attendance_fine_cycle_started_at is null
@@ -148,6 +151,13 @@ export async function getCurrentAttendanceFineAssessments(
      ) sem on true
      left join student_attendance_records sar
        on sar.student_id = st.id and sar.semester_id = sem.id
+      left join lateral (
+        select ssh.reason
+        from student_status_history ssh
+        where ssh.student_id = st.id and ssh.new_status = 'struck_off'
+        order by ssh.changed_at desc, ssh.id desc
+        limit 1
+      ) latest_strike on true
      left join lateral (
        select 'partial'::varchar as leave_type
        from student_leaves sl
@@ -173,7 +183,7 @@ export async function getCurrentAttendanceFineAssessments(
      group by st.id, st.name, st.father_name, st.roll_no, st.status,
        st.department_id, d.name, st.class_id, cl.class_name, cl.session,
        sem.id, sem.semester_number, st.attendance_fine_cycle_started_at,
-       active_leave.leave_type, afa.adjustment_type, afa.discount_amount,
+        active_leave.leave_type, latest_strike.reason, afa.adjustment_type, afa.discount_amount,
        afa.reason, u.name, afa.created_at
       order by d.name, cl.class_name, st.name`;
   const rows = client
@@ -188,9 +198,14 @@ export async function getCurrentAttendanceFineAssessments(
     const isProtected = row.status === "active"
       && row.fine_cycle_started_at !== null
       && row.evaluable_days < PROTECTION_DAYS;
+    // A historical teacher-triggered strike-off cannot impose the struck-off
+    // minimum. Any remaining fine must come from coordinator/admin daily marks.
+    const fineStatus = row.teacher_strike_off ? "active" : row.status;
     const grossAmount = isProtected
       ? 0
-      : calculateAttendanceFineAmount(rawPercentage, row.status, row.leave_type);
+      : row.evaluable_days === 0
+        ? 0
+        : calculateAttendanceFineAmount(rawPercentage, fineStatus, row.leave_type);
 
     if (grossAmount === 0 && !isProtected) return [];
 
@@ -208,6 +223,7 @@ export async function getCurrentAttendanceFineAssessments(
       father_name: row.father_name,
       roll_no: row.roll_no,
       status: row.status,
+      struck_off_minimum_applies: row.status === "struck_off" && !row.teacher_strike_off,
       department_id: row.department_id,
       department_name: row.department_name,
       class_id: row.class_id,
@@ -238,4 +254,27 @@ export async function getCurrentAttendanceFineAssessments(
 
 export async function getCurrentAttendanceFine(studentId: string, client?: PoolClient) {
   return (await getCurrentAttendanceFineAssessments(studentId, client))[0] ?? null;
+}
+
+/** Legacy teacher-triggered strike-offs do not create a reactivation fine. */
+export async function wasLastStruckOffFromTeacher(studentId: string, client?: PoolClient) {
+  const sql = `select exists (
+    select 1
+    from students st
+    join lateral (
+      select ssh.reason
+      from student_status_history ssh
+      where ssh.student_id = st.id
+        and ssh.new_status = 'struck_off'
+      order by ssh.changed_at desc, ssh.id desc
+      limit 1
+    ) latest on true
+    where st.id = $1
+      and st.status = 'struck_off'
+      and latest.reason like '%source: teacher%'
+  ) as teacher_strike_off`;
+  const rows = client
+    ? (await client.query<{ teacher_strike_off: boolean }>(sql, [studentId])).rows
+    : await query<{ teacher_strike_off: boolean }>(sql, [studentId]);
+  return rows[0]?.teacher_strike_off === true;
 }

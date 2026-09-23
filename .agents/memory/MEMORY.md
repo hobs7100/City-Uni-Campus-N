@@ -26,3 +26,4 @@
 - [Upload limit contracts](upload-limit-contracts.md) — keep category-specific file limits aligned between UI validation and API enforcement.
 - [Feedback unread identity](feedback-unread-identity.md) — track exactly which messages were shown; timestamps can silently swallow concurrent replies.
 - [Migration backlog scope](migration-backlog-scope.md) — check the migration ledger before running all pending files for a small schema change.
+- [Fine attendance source](fine-attendance-source.md) — fines and automatic standing decisions use coordinator/admin daily attendance, never teacher course attendance.
