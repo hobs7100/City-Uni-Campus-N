@@ -17,10 +17,27 @@ const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).pa
 const options = (v: any): { value: string; label: string }[] => (Array.isArray(v) ? v : []).map((x: any) => typeof x === "string" ? { value: x, label: x } : { value: String(x.id ?? x.value ?? x.course_id ?? ""), label: String(x.name ?? x.label ?? x.title ?? x.course_title ?? x.id ?? "") + (x.session ? ` (${x.session})` : "") }).filter((x: { value: string }) => x.value);
 const testKey = (t: AnyRecord) => `${t.date ?? t.test_date}|${t.test_number ?? t.test_series_id ?? t.series_name}|${t.course_code ?? t.course_id}`;
 
-function printTable(title: string, columns: string[], rows: string[][], header = "", footer = "") {
+function printTable(title: string, columns: string[], rows: string[][], header = "", footer = "", landscapeSinglePage = false) {
   const h = columns.map((x) => `<th>${escapePrintHtml(x)}</th>`).join("");
   const b = rows.map((r) => `<tr>${r.map((x) => `<td>${escapePrintHtml(String(x ?? "—"))}</td>`).join("")}</tr>`).join("");
-  void printHtmlDocument(`<html><head><title>${escapePrintHtml(title)}</title><style>body{font:12px Arial;color:#172033;padding:24px}h1{color:#3730a3}table{border-collapse:collapse;width:100%;margin-top:18px}th{background:#3730a3;color:#fff}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left}.report-chart,.report-signatures{break-inside:avoid;page-break-inside:avoid}.report-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media print{body{padding:0}.report-charts{display:block}.report-chart{margin-bottom:14px}}</style></head><body>${header}<h1>${escapePrintHtml(title)}</h1><table><thead><tr>${h}</tr></thead><tbody>${b}</tbody></table>${footer}</body></html>`, title);
+  const content = `${header}<h1>${escapePrintHtml(title)}</h1><table><thead><tr>${h}</tr></thead><tbody>${b}</tbody></table>${footer}`;
+  const page = landscapeSinglePage
+    ? `<main data-fit-single-page data-print-width-mm="279" data-print-height-mm="180" style="width:279mm">${content}</main>`
+    : content;
+  const layout = landscapeSinglePage
+    ? `@page{size:A4 landscape;margin:0}body{width:279mm;padding:8mm;margin:0;box-sizing:content-box;font-size:11px}
+       h1{margin:8px 0}h2,p{margin:4px 0}table{margin-top:8px}th,td{padding:1px 5px}
+       .report-charts{grid-template-columns:repeat(2,minmax(0,1fr))!important;overflow:visible!important}
+       .report-charts{margin-top:10px!important}.report-chart{min-width:0;padding:8px!important}
+       .report-signatures{margin-top:18px!important}`
+    : `@media print{body{padding:0}}`;
+  void printHtmlDocument(`<html><head><title>${escapePrintHtml(title)}</title><style>
+    body{font:12px Arial;color:#172033;padding:24px}h1{color:#3730a3}
+    table{border-collapse:collapse;width:100%;margin-top:18px}
+    th{background:#3730a3;color:#fff}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left}
+    .report-chart,.report-signatures{break-inside:avoid;page-break-inside:avoid}
+    ${layout}</style></head><body>${page}</body></html>`, title,
+    landscapeSinglePage ? { waitForFrameLoad: true, frameWidthMm: 297, frameHeightMm: 210 } : {});
 }
 
 export default function DitAnalytics() {
@@ -75,7 +92,7 @@ function ReportTable({ report }: { report: AnyRecord }) {
     const header = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><img src="/images/logo.png" style="height:64px" /><div style="flex:1"><h2>Result Report</h2><p><b>Student:</b> ${escapePrintHtml(student.name ?? "")} · <b>Roll No:</b> ${escapePrintHtml(student.roll_no ?? "")}</p><p><b>Class:</b> ${escapePrintHtml(cls.name ?? "")} · <b>Session:</b> ${escapePrintHtml(cls.session ?? "")} · <b>Section:</b> ${escapePrintHtml(cls.section ?? "")}</p><p><b>Date:</b> ${escapePrintHtml(report.from_date ?? report.effective_filters?.from_date ?? "")} to ${escapePrintHtml(report.to_date ?? report.effective_filters?.to_date ?? "")} · <b>Report date:</b> ${localDate(new Date())}</p></div>${photo}</div>`;
     const printRows = rows.map((t) => [t.test_number ?? "—", t.date ?? t.test_date, `${t.course_code ?? ""} ${t.course_title ?? ""}`, t.is_absent ? "Absent (0)" : obtained(t), total(t), `${Number(t.percentage ?? 0).toFixed(1)}%`, t.grade ?? (t.is_absent ? "Absent" : "F")]);
     printRows.push(["", "Overall", "", totals.obtained ?? totals.obtained_marks ?? 0, totals.total ?? totals.total_marks ?? 0, `${Number(totals.percentage ?? 0).toFixed(1)}%`, totals.grade ?? "F"]);
-    printTable("Result Report", ["Test #", "Date", "Subject", "Obtained Marks", "Total Marks", "Percentage", "Grade"], printRows, header, charts + reportSignaturesHtml);
+    printTable("Result Report", ["Test #", "Date", "Subject", "Obtained Marks", "Total Marks", "Percentage", "Grade"], printRows, header, charts + reportSignaturesHtml, true);
   };
   return <div className="overflow-auto rounded-xl border bg-white p-4">
     <div className="flex flex-wrap items-start justify-between gap-4">

@@ -3,7 +3,7 @@
 export async function printHtmlDocument(
   html: string,
   title: string,
-  options: { waitForFrameLoad?: boolean } = {},
+  options: { waitForFrameLoad?: boolean; frameWidthMm?: number; frameHeightMm?: number } = {},
 ) {
   const iframe = document.createElement("iframe");
   iframe.title = title;
@@ -12,8 +12,8 @@ export async function printHtmlDocument(
     position: "fixed",
     left: "-10000px",
     top: "0",
-    width: "210mm",
-    height: "297mm",
+    width: `${options.frameWidthMm ?? 210}mm`,
+    height: `${options.frameHeightMm ?? 297}mm`,
     border: "0",
     opacity: "0",
     pointerEvents: "none",
