@@ -1,4 +1,5 @@
 import { escapePrintHtml } from "@/lib/printDocument";
+import { formatReportDate } from "./reportDate";
 
 type AttendanceWeek = { month: string; week: number; presents: number; absents: number; leaves: number };
 type SubjectResult = { course_title: string; course_code: string; obtained_marks: number; total_marks: number };
@@ -129,7 +130,7 @@ export function reportChartsHtml(report: DitReportChartData): string {
   const absent = attendance.reduce((sum, m) => sum + safeNumber(m.absents), 0);
   const obtained = results.reduce((sum, m) => sum + safeNumber(m.obtained_marks), 0);
   const total = results.reduce((sum, m) => sum + safeNumber(m.total_marks), 0);
-  const range = `${escapePrintHtml(report.from_date)} to ${escapePrintHtml(report.to_date)}`;
+  const range = `${escapePrintHtml(formatReportDate(report.from_date))} to ${escapePrintHtml(formatReportDate(report.to_date))}`;
   return `<div class="report-charts" style="display:grid;grid-template-columns:repeat(2,minmax(420px,1fr));gap:12px;margin-top:18px;overflow-x:auto">
     <section class="report-chart" style="border:1px solid #cbd5e1;border-radius:9px;padding:12px;background:white">
       <h3 style="font-size:14px;font-weight:700;color:#312e81;margin:0">Attendance performance</h3>

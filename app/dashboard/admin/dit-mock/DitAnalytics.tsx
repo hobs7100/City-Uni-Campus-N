@@ -6,6 +6,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import toast from "react-hot-toast";
 import { escapePrintHtml, printHtmlDocument } from "@/lib/printDocument";
 import { reportChartsHtml, reportSignaturesHtml, type DitReportChartData } from "./ReportCharts";
+import { formatReportDate, localReportDate } from "./reportDate";
+import { printResultReports } from "./ReportPrint";
 
 type Zone = "toppers" | "good" | "average" | "warning" | "danger";
 const zones: Zone[] = ["toppers", "good", "average", "warning", "danger"];
@@ -66,7 +68,7 @@ export default function DitAnalytics() {
   return <div className="space-y-5">
     <div className="flex flex-wrap gap-2 border-b">{([["subjects", "Subject Analytics"], ["result", "Overall Result"], ["zones", "Overall Zones"]] as const).map(([v, l]) => <button key={v} onClick={() => setTab(v)} className={`border-b-2 px-3 py-2 text-sm font-semibold ${tab === v ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500"}`}>{l}</button>)}</div>
     {tab === "subjects" && <><DateFilters from={from} to={to} setFrom={setFrom} setTo={setTo} /><div className="flex flex-wrap gap-2 rounded-xl border bg-white p-4">{filterFields.map(([k, l]) => <Select key={k} label={l} value={filters[k] ?? ""} values={options(optionsData[k] ?? optionsData[k.replace("_id", "s")])} onChange={(v: string) => setFilters({ ...filters, [k]: v })} />)}<button onClick={() => void loadSubjects()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">{loading ? "Loading…" : "Apply filters"}</button></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[["Subjects", subjects.length], ["Tests", subjects.reduce((n, s) => n + Number(s.test_count ?? 0), 0)], ["Students", summary.unique_student_count ?? 0], ["Passing", `${subjects.length ? (subjects.reduce((n, s) => n + Number(s.passing_percentage ?? 0), 0) / subjects.length).toFixed(1) : "0.0"}%`]].map(([l, v]) => <div key={String(l)} className="rounded-xl border bg-white p-4"><div className="text-xs text-slate-500">{l}</div><div className="text-2xl font-bold">{v}</div></div>)}</div><SubjectChart subjects={subjects} /><SubjectCards subjects={subjects} onZone={loadSubjectZone} /></>}
-    {tab === "result" && <ResultScreen from={from} to={to} setFrom={setFrom} setTo={setTo} studentQ={studentQ} setStudentQ={setStudentQ} students={students} setStudentId={setStudentId} setStudents={setStudents} loadReport={loadReport} report={report} />}
+    {tab === "result" && <><ResultScreen from={from} to={to} setFrom={setFrom} setTo={setTo} studentQ={studentQ} setStudentQ={setStudentQ} students={students} setStudentId={setStudentId} setStudents={setStudents} loadReport={loadReport} report={report} /><BulkResultScreen /></>}
     {tab === "zones" && <ZonesScreen from={zoneFrom} to={zoneTo} setFrom={setZoneFrom} setTo={setZoneTo} filters={zoneFilters} setFilters={setZoneFilters} optionsData={zoneOptionsData} selected={selectedZone} load={loadZones} data={zoneData} loading={zoneLoading} detail={detail} setDetail={setDetail} />}
     {detail && tab === "subjects" && <SubjectDetail detail={detail} close={() => setDetail(null)} />}
   </div>;
@@ -79,7 +81,51 @@ function SubjectCards({ subjects, onZone }: { subjects: AnyRecord[]; onZone: (zo
 function SubjectDetail({ detail, close }: { detail: AnyRecord; close: () => void }) { const rows = detail.rows ?? detail.selected_zone_rows ?? [], columns = detail.columns ?? []; const printColumns = ["Student", "Father Name", "Roll No", "Class + Session", "Semester", ...columns.map((c: AnyRecord) => `${c.date ?? c.label} / ${c.total_marks}`), "Percentage"]; const printRows = rows.map((r: AnyRecord) => [r.name, r.father_name ?? "—", r.roll_no ?? "—", `${r.class_name} (${r.session})`, r.semester_number, ...columns.map((c: AnyRecord) => r.cells?.[c.key] ?? "—"), `${Number(r.percentage ?? 0).toFixed(1)}%`]); const print = () => printTable("Subject zone details", printColumns, printRows); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true"><div className="max-h-[90vh] w-full max-w-6xl overflow-auto rounded-xl bg-white p-5"><div className="mb-3 flex justify-between"><h2 className="font-bold">Subject zone details</h2><div><button onClick={print} className="mr-2 rounded border px-3 py-1"><Printer className="mr-1 inline h-4 w-4" />Print</button><button onClick={close} aria-label="Close"><X /></button></div></div><table className="w-full min-w-[900px] text-left text-xs"><thead><tr className="bg-indigo-50"><th className="p-2">Student</th><th className="p-2">Father Name</th><th className="p-2">Roll No</th><th className="p-2">Class + Session</th><th className="p-2">Semester</th>{columns.map((c: AnyRecord) => <th key={c.key} className="p-2">{c.date ?? c.label}<br />/{c.total_marks}</th>)}<th className="p-2">Percentage</th></tr></thead><tbody>{rows.map((r: AnyRecord) => <tr key={r.student_id} className="border-t"><td className="p-2">{r.name}</td><td className="p-2">{r.father_name ?? "—"}</td><td className="p-2">{r.roll_no ?? "—"}</td><td className="p-2">{r.class_name} ({r.session})</td><td className="p-2">{r.semester_number}</td>{columns.map((c: AnyRecord) => <td key={c.key} className="p-2">{r.cells?.[c.key] ?? "—"}</td>)}<td className="p-2">{Number(r.percentage ?? 0).toFixed(1)}%</td></tr>)}</tbody></table></div></div>; }
 
 function ResultScreen({ from, to, setFrom, setTo, studentQ, setStudentQ, students, setStudentId, setStudents, loadReport, report }: any) {
-  return <div className="space-y-4"><DateFilters from={from} to={to} setFrom={setFrom} setTo={setTo} /><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={studentQ} onChange={(e) => setStudentQ(e.target.value)} placeholder="Search student name or roll number…" className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm" />{students.length > 0 && <div className="absolute z-10 mt-1 w-full rounded border bg-white shadow">{students.map((s: AnyRecord) => <button key={s.id ?? s.student_id} onClick={() => { setStudentId(s.id ?? s.student_id); setStudentQ(`${s.name} · ${s.roll_no ?? ""}`); setStudents([]); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-indigo-50">{s.name} · {s.roll_no ?? "—"}</button>)}</div>}</div><button onClick={() => void loadReport()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Load report</button>{report && <ReportTable report={report} />}</div>;
+  return <div className="space-y-4"><h2 className="text-lg font-bold">Individual report</h2><DateFilters from={from} to={to} setFrom={setFrom} setTo={setTo} /><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={studentQ} onChange={(e) => setStudentQ(e.target.value)} placeholder="Search student name or roll number…" className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm" />{students.length > 0 && <div className="absolute z-10 mt-1 w-full rounded border bg-white shadow">{students.map((s: AnyRecord) => <button key={s.id ?? s.student_id} onClick={() => { setStudentId(s.id ?? s.student_id); setStudentQ(`${s.name} · ${s.roll_no ?? ""}`); setStudents([]); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-indigo-50">{s.name} · {s.roll_no ?? "—"}</button>)}</div>}</div><button onClick={() => void loadReport()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Load report</button>{report && <ReportTable report={report} />}</div>;
+}
+
+function BulkResultScreen() {
+  const [from, setFrom] = useState(""), [to, setTo] = useState("");
+  const [classId, setClassId] = useState(""), [session, setSession] = useState(""), [semesterId, setSemesterId] = useState("");
+  const [choices, setChoices] = useState<{ classes: { id: string; name: string; session: string }[]; sessions: string[]; semesters: { id: string; name: string; class_id: string }[] }>({ classes: [], sessions: [], semesters: [] });
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/dit/analytics/bulk-report?options=1").then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to load DIT classes.");
+      if (!cancelled) setChoices(data);
+    }).catch((error) => { if (!cancelled) toast.error(error instanceof Error ? error.message : "Unable to load classes."); });
+    return () => { cancelled = true; };
+  }, []);
+  async function printClass() {
+    if (!from || !to || !classId || !session || !semesterId) return toast.error("Select both dates, class, session, and semester.");
+    if (from > to) return toast.error("From date must not be after to date.");
+    setLoading(true);
+    try {
+      const search = new URLSearchParams({ from_date: from, to_date: to, class_id: classId, session, semester_id: semesterId });
+      const response = await fetch(`/api/admin/dit/analytics/bulk-report?${search}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to generate class reports.");
+      if (!Array.isArray(data.reports) || !data.reports.length) throw new Error("No students found for this class.");
+      await printResultReports(data.reports);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to print class reports.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return <section className="space-y-3 rounded-xl border bg-white p-4">
+    <div><h2 className="text-lg font-bold">Bulk class reports</h2><p className="text-sm text-slate-500">Print one individual-format report per student, each starting on a new page. Students without results in the selected period are included.</p></div>
+    <div className="flex flex-wrap items-end gap-3">
+      <label className="text-xs font-semibold">From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block rounded border px-2 py-1.5" /></label>
+      <label className="text-xs font-semibold">To<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 block rounded border px-2 py-1.5" /></label>
+      <label className="text-xs font-semibold">Class<select value={classId} onChange={(e) => { const id = e.target.value; setClassId(id); setSession(choices.classes.find((c) => c.id === id)?.session ?? ""); setSemesterId(""); }} className="mt-1 block max-w-64 rounded border px-2 py-2 text-sm"><option value="">Select class</option>{choices.classes.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.session})</option>)}</select></label>
+      <label className="text-xs font-semibold">Session<select value={session} onChange={(e) => { setSession(e.target.value); setClassId(""); setSemesterId(""); }} className="mt-1 block rounded border px-2 py-2 text-sm"><option value="">Select session</option>{choices.sessions.map((s) => <option key={s} value={s}>{s}</option>)}</select></label>
+      <label className="text-xs font-semibold">Semester<select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} disabled={!classId} className="mt-1 block rounded border px-2 py-2 text-sm disabled:opacity-50"><option value="">Select semester</option>{choices.semesters.filter((s) => s.class_id === classId).map((s) => <option key={s.id} value={s.id}>Semester {s.name}</option>)}</select></label>
+      <button disabled={loading} onClick={() => void printClass()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Printer className="mr-1 inline h-4 w-4" />{loading ? "Preparing reports…" : "Print all class reports / PDF"}</button>
+    </div>
+  </section>;
 }
 
 function ReportTable({ report }: { report: AnyRecord }) {
@@ -88,13 +134,7 @@ function ReportTable({ report }: { report: AnyRecord }) {
   const obtained = (t: AnyRecord) => t.obtained_marks ?? t.obtained ?? 0, total = (t: AnyRecord) => t.total_marks ?? t.total ?? 0;
   const chartData = report as DitReportChartData;
   const charts = reportChartsHtml(chartData);
-  const print = () => {
-    const photo = student.profile_image_url ? `<img src="${escapePrintHtml(student.profile_image_url)}" style="height:64px;width:64px;border-radius:50%;object-fit:cover" />` : "";
-    const header = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><img src="/images/logo.png" style="height:64px" /><div style="flex:1"><h2>Result Report</h2><p><b>Student:</b> ${escapePrintHtml(student.name ?? "")} · <b>Roll No:</b> ${escapePrintHtml(student.roll_no ?? "")}</p><p><b>Class:</b> ${escapePrintHtml(cls.name ?? "")} · <b>Session:</b> ${escapePrintHtml(cls.session ?? "")} · <b>Section:</b> ${escapePrintHtml(cls.section ?? "")}</p><p><b>Date:</b> ${escapePrintHtml(report.from_date ?? report.effective_filters?.from_date ?? "")} to ${escapePrintHtml(report.to_date ?? report.effective_filters?.to_date ?? "")} · <b>Report date:</b> ${localDate(new Date())}</p></div>${photo}</div>`;
-    const printRows = rows.map((t) => [t.test_number ?? "—", t.date ?? t.test_date, `${t.course_code ?? ""} ${t.course_title ?? ""}`, t.is_absent ? "Absent (0)" : obtained(t), total(t), `${Number(t.percentage ?? 0).toFixed(1)}%`, t.grade ?? (t.is_absent ? "Absent" : "F")]);
-    printRows.push(["", "Overall", "", totals.obtained ?? totals.obtained_marks ?? 0, totals.total ?? totals.total_marks ?? 0, `${Number(totals.percentage ?? 0).toFixed(1)}%`, totals.grade ?? "F"]);
-    printTable("Result Report", ["Test #", "Date", "Subject", "Obtained Marks", "Total Marks", "Percentage", "Grade"], printRows, header, charts + reportSignaturesHtml, true);
-  };
+  const print = () => { void printResultReports([report]).catch((error) => toast.error(error instanceof Error ? error.message : "Unable to print report.")); };
   return <div className="overflow-auto rounded-xl border bg-white p-4">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex items-start gap-4">
@@ -102,12 +142,12 @@ function ReportTable({ report }: { report: AnyRecord }) {
         <img src={student.profile_image_url ?? "/images/logo.png"} alt={`${student.name ?? "Student"} profile`} className="h-16 w-16 rounded-full object-cover" />
         <div><h2 className="text-lg font-bold">Result Report</h2><p>{student.name} · Roll No: {student.roll_no ?? "—"}</p>
           <p className="text-sm text-slate-500">{cls.name ?? "—"} · Session {cls.session ?? "—"} · Section {cls.section ?? "—"} · Semester {report.semester?.number ?? report.semester ?? "—"}</p>
-          <p className="text-xs text-slate-500">Date: {report.from_date ?? report.effective_filters?.from_date ?? "—"} to {report.to_date ?? report.effective_filters?.to_date ?? "—"} · Report date: {localDate(new Date())}</p>
+          <p className="text-xs text-slate-500">Date: {formatReportDate(report.from_date ?? report.effective_filters?.from_date)} to {formatReportDate(report.to_date ?? report.effective_filters?.to_date)} · Report date: {localReportDate(new Date())}</p>
         </div>
       </div>
       <button onClick={print} className="rounded border px-3 py-2 text-sm"><FileDown className="mr-1 inline h-4 w-4" />Print / PDF</button>
     </div>
-    <table className="mt-4 w-full min-w-[700px] text-left text-xs"><thead><tr className="bg-indigo-50">{["Test #", "Date", "Subject", "Obtained Marks", "Total Marks", "Percentage", "Grade"].map((x) => <th key={x} className="p-2">{x}</th>)}</tr></thead><tbody>{rows.map((t, i) => <tr key={`${testKey(t)}-${i}`} className="border-t"><td className="p-2">{t.test_number ?? "—"}</td><td className="p-2">{t.date ?? t.test_date}</td><td className="p-2">{t.course_code ? `${t.course_code} — ` : ""}{t.course_title}</td><td className="p-2">{t.is_absent ? <b className="text-red-600">Absent (0)</b> : obtained(t)}</td><td className="p-2">{total(t)}</td><td className="p-2">{Number(t.percentage ?? 0).toFixed(1)}%</td><td className="p-2 font-semibold">{t.grade ?? (t.is_absent ? "Absent" : "F")}</td></tr>)}<tr className="border-t-2 font-bold"><td colSpan={3} className="p-2">Overall</td><td className="p-2">{totals.obtained ?? totals.obtained_marks ?? 0}</td><td className="p-2">{totals.total ?? totals.total_marks ?? 0}</td><td className="p-2">{Number(totals.percentage ?? 0).toFixed(1)}%</td><td className="p-2">{totals.grade ?? "F"}</td></tr></tbody></table>
+    <table className="mt-4 w-full min-w-[700px] text-left text-xs"><thead><tr className="bg-indigo-50">{["Test #", "Date", "Subject", "Obtained Marks", "Total Marks", "Percentage", "Grade"].map((x, i) => <th key={x} className={`p-2 ${i >= 3 ? "text-center" : ""}`}>{x}</th>)}</tr></thead><tbody>{rows.map((t, i) => <tr key={`${testKey(t)}-${i}`} className="border-t"><td className="p-2">{t.test_number ?? "—"}</td><td className="p-2">{formatReportDate(t.date ?? t.test_date)}</td><td className="p-2">{t.course_code ? `${t.course_code} — ` : ""}{t.course_title}</td><td className="p-2 text-center">{t.is_absent ? <b className="text-red-600">Absent (0)</b> : obtained(t)}</td><td className="p-2 text-center">{total(t)}</td><td className="p-2 text-center">{Number(t.percentage ?? 0).toFixed(1)}%</td><td className="p-2 text-center font-semibold">{t.grade ?? (t.is_absent ? "Absent" : "F")}</td></tr>)}<tr className="border-t-2 bg-indigo-50 font-bold"><td colSpan={3} className="p-2">Overall</td><td className="p-2 text-center">{totals.obtained ?? totals.obtained_marks ?? 0}</td><td className="p-2 text-center">{totals.total ?? totals.total_marks ?? 0}</td><td className="p-2 text-center">{Number(totals.percentage ?? 0).toFixed(1)}%</td><td className="p-2 text-center">{totals.grade ?? "F"}</td></tr></tbody></table>
     <div dangerouslySetInnerHTML={{ __html: charts + reportSignaturesHtml }} />
   </div>;
 }

@@ -59,8 +59,8 @@ export async function printHtmlDocument(
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
   );
 
-  const singlePageElement = frameDocument.querySelector<HTMLElement>("[data-fit-single-page]");
-  if (singlePageElement) {
+  const singlePageElements = frameDocument.querySelectorAll<HTMLElement>("[data-fit-single-page]");
+  for (const singlePageElement of singlePageElements) {
     const printableWidthMm = Number(singlePageElement.dataset.printWidthMm || 194);
     const printableHeightMm = Number(singlePageElement.dataset.printHeightMm || 281);
     const printableWidthPx = (printableWidthMm / 25.4) * 96;
