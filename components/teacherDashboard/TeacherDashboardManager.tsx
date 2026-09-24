@@ -532,8 +532,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         setDitStudents(
           (data.students ?? []).map((s: DitStudentRow) => ({
             ...s,
-            obtained_marks: s.obtained_marks ?? null,
-            is_absent:      s.is_absent ?? false,
+            obtained_marks: s.is_absent ? null : (s.obtained_marks ?? null),
+            is_absent:      s.result_id ? s.is_absent : s.obtained_marks == null,
             remarks:        s.remarks ?? "",
           }))
         );
@@ -2917,15 +2917,17 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                               min={0}
                               max={total || undefined}
                               value={s.obtained_marks ?? ""}
-                               disabled={s.is_absent}
-                              onChange={(e) => updateDitRow(s.student_id, { obtained_marks: e.target.value === "" ? null : Number(e.target.value) })}
+                              onChange={(e) => updateDitRow(s.student_id, {
+                                obtained_marks: e.target.value === "" ? null : Number(e.target.value),
+                                is_absent: e.target.value === "",
+                              })}
                               placeholder={`/ ${total}`}
                                className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                             />
                           </td>
                            <td className="px-4 py-2.5 text-center">
                              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-                               <input aria-label={`Mark ${s.name} absent`} type="checkbox" checked={s.is_absent} onChange={(e) => updateDitRow(s.student_id, { is_absent: e.target.checked, obtained_marks: e.target.checked ? null : s.obtained_marks })} />
+                               <input aria-label={`Mark ${s.name} absent`} type="checkbox" checked={s.is_absent} onChange={(e) => updateDitRow(s.student_id, { is_absent: e.target.checked, obtained_marks: e.target.checked ? null : 0 })} />
                                Absent
                              </label>
                            </td>

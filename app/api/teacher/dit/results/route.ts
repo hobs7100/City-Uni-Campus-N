@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
              s.father_name,
             s.roll_no,
             dmr.obtained_marks,
-             coalesce(dmr.is_absent, false) as is_absent,
+             coalesce(dmr.is_absent, dmr.id is null) as is_absent,
             dmr.remarks,
             dmr.id     as result_id,
             (

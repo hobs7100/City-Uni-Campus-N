@@ -241,10 +241,15 @@ export default function StudentDashboardManager() {
   const [ditOverviewLoading, setDitOverviewLoading] = useState(false);
   const [ditTabResults, setDitTabResults] = useState<DitMockResult[]>([]);
   const [ditTabSeriesList, setDitTabSeriesList] = useState<{ id: string; name: string }[]>([]);
+  const [ditTabCourses, setDitTabCourses] = useState<{ id: string; title: string; code: string }[]>([]);
   const [ditTabLoading, setDitTabLoading] = useState(false);
+  const [ditTabError, setDitTabError] = useState("");
   const [ditTabSeriesFilter, setDitTabSeriesFilter] = useState("");
+  const [ditTabCourseFilter, setDitTabCourseFilter] = useState("");
   const [ditTabFromFilter, setDitTabFromFilter] = useState("");
   const [ditTabToFilter, setDitTabToFilter] = useState("");
+  const [ditTabMonthFilter, setDitTabMonthFilter] = useState("");
+  const [ditTabYearFilter, setDitTabYearFilter] = useState("");
 
   /* ── loaders ── */
   const loadProfile = useCallback(async () => {
@@ -307,19 +312,28 @@ export default function StudentDashboardManager() {
     }
   }, []);
 
-  const loadDitTab = useCallback(async (seriesId = "", from = "", to = "") => {
+  const loadDitTab = useCallback(async (seriesId = "", from = "", to = "", courseId = "", month = "", year = "") => {
     setDitTabLoading(true);
+    setDitTabError("");
     try {
       const params = new URLSearchParams();
       if (seriesId) params.set("test_series_id", seriesId);
+      if (courseId) params.set("course_id", courseId);
       if (from)     params.set("from_date", from);
       if (to)       params.set("to_date", to);
-      const res  = await fetch(`/api/student/dit/results?${params}`);
+      if (month)    params.set("month", month);
+      if (year)     params.set("year", year);
+      const res  = await fetch(`/api/student/dit/results?${params}`, { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setDitTabResults(data.results ?? []);
         setDitTabSeriesList(data.series_list ?? []);
+        setDitTabCourses(data.courses ?? []);
+      } else {
+        setDitTabError(data.error || "Could not load DIT results.");
       }
+    } catch {
+      setDitTabError("Could not load DIT results. Please try again.");
     } finally {
       setDitTabLoading(false);
     }
@@ -387,8 +401,8 @@ export default function StudentDashboardManager() {
     if (tab === "remid-datesheet")    loadRdDatesheet();
     if (tab === "attendance")         loadSimpleAtt();
     if (tab === "notifications")      loadNotifications();
-    if (tab === "mock-exam-results")  loadDitTab();
-  }, [tab, loadResults, loadDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications, loadDitTab]);
+    if (tab === "mock-exam-results" || (tab === "results" && profile?.class_type === "DIT")) loadDitTab();
+  }, [tab, profile?.class_type, loadResults, loadDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications, loadDitTab]);
 
   /* details modal open */
   async function openDetails(semesterId: string, courseId: string, courseTitle: string, teacherName: string) {
@@ -1311,9 +1325,9 @@ export default function StudentDashboardManager() {
       )}
 
       {/* ── MOCK EXAM RESULTS (DIT only) ── */}
-      {tab === "mock-exam-results" && (
+      {(tab === "mock-exam-results" || (tab === "results" && profile?.class_type === "DIT")) && (
         <div className="space-y-5">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mock Exam Results</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">DIT Test Results</h2>
 
           {/* Filters */}
           <div className="card-3d flex flex-wrap items-end gap-4 p-4">
@@ -1328,6 +1342,30 @@ export default function StudentDashboardManager() {
                 {ditTabSeriesList.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Subject</label>
+              <select value={ditTabCourseFilter} onChange={(e) => setDitTabCourseFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                <option value="">All Subjects</option>
+                {ditTabCourses.map((c) => <option key={c.id} value={c.id}>{c.code} · {c.title}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Month</label>
+              <select value={ditTabMonthFilter} onChange={(e) => setDitTabMonthFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                <option value="">All Months</option>
+                {Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{new Date(2000, index, 1).toLocaleString("en", { month: "long" })}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Year</label>
+              <select value={ditTabYearFilter} onChange={(e) => setDitTabYearFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                <option value="">All Years</option>
+                {[...new Set(ditOverviewResults.map((r) => r.test_date.slice(0, 4)))].sort().reverse().map((year) => <option key={year} value={year}>{year}</option>)}
               </select>
             </div>
             <div>
@@ -1349,17 +1387,20 @@ export default function StudentDashboardManager() {
               />
             </div>
             <button
-              onClick={() => loadDitTab(ditTabSeriesFilter, ditTabFromFilter, ditTabToFilter)}
+              onClick={() => loadDitTab(ditTabSeriesFilter, ditTabFromFilter, ditTabToFilter, ditTabCourseFilter, ditTabMonthFilter, ditTabYearFilter)}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Apply Filters
             </button>
-            {(ditTabSeriesFilter || ditTabFromFilter || ditTabToFilter) && (
+            {(ditTabSeriesFilter || ditTabFromFilter || ditTabToFilter || ditTabCourseFilter || ditTabMonthFilter || ditTabYearFilter) && (
               <button
                 onClick={() => {
                   setDitTabSeriesFilter("");
+                  setDitTabCourseFilter("");
                   setDitTabFromFilter("");
                   setDitTabToFilter("");
+                  setDitTabMonthFilter("");
+                  setDitTabYearFilter("");
                   loadDitTab();
                 }}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -1372,6 +1413,8 @@ export default function StudentDashboardManager() {
           {/* Results table */}
           {ditTabLoading ? (
             <DataFetchLoader label="Loading results…" />
+          ) : ditTabError ? (
+            <div role="alert" className="card-3d p-6 text-sm text-red-600">{ditTabError}</div>
           ) : ditTabResults.length === 0 ? (
             <div className="card-3d p-10 text-center text-sm text-slate-400">
               No mock exam results found. Results are submitted by your teacher.

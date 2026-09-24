@@ -5,7 +5,7 @@ import { requireActiveStudent } from "@/lib/requireActiveStudent";
 // GET /api/student/dit/results
 // Returns this student's DIT mock exam results.
 // Student must belong to a DIT class (enforced server-side).
-// Optional query params: test_series_id, from_date, to_date
+// Optional query params: test_series_id, course_id, from_date, to_date, month, year
 export async function GET(request: NextRequest) {
   const { session, response } = await requireActiveStudent();
   if (response) return response;
@@ -25,16 +25,27 @@ export async function GET(request: NextRequest) {
 
   const sp = request.nextUrl.searchParams;
   const testSeriesId = sp.get("test_series_id");
+  const courseId = sp.get("course_id");
   const fromDate = sp.get("from_date");
   const toDate = sp.get("to_date");
+  const month = sp.get("month");
+  const year = sp.get("year");
+  if ((month && !/^(?:[1-9]|1[0-2])$/.test(month)) ||
+      (year && !/^\d{4}$/.test(year)) ||
+      (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) ||
+      (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)))
+    return NextResponse.json({ error: "Invalid date filter." }, { status: 400 });
 
   const conditions: string[] = ["dmr.student_id = $1"];
   const vals: unknown[] = [studentId];
   let i = 2;
 
   if (testSeriesId) { conditions.push(`dmr.test_series_id = $${i++}`); vals.push(testSeriesId); }
+  if (courseId)     { conditions.push(`a.course_id = $${i++}`); vals.push(courseId); }
   if (fromDate)     { conditions.push(`dmr.test_date >= $${i++}`);      vals.push(fromDate); }
   if (toDate)       { conditions.push(`dmr.test_date <= $${i++}`);      vals.push(toDate); }
+  if (month)        { conditions.push(`extract(month from dmr.test_date) = $${i++}`); vals.push(Number(month)); }
+  if (year)         { conditions.push(`extract(year from dmr.test_date) = $${i++}`); vals.push(Number(year)); }
 
   const results = await query<{
     id: string;
@@ -84,5 +95,15 @@ export async function GET(request: NextRequest) {
     [studentId]
   );
 
-  return NextResponse.json({ results, series_list: seriesList });
+  const courses = await query<{ id: string; title: string; code: string }>(
+    `select distinct co.id, co.title, co.code
+     from dit_mock_results dmr
+     join allocations a on a.id = dmr.allocation_id
+     join courses co on co.id = a.course_id
+     where dmr.student_id = $1
+     order by co.title, co.code`,
+    [studentId]
+  );
+
+  return NextResponse.json({ results, series_list: seriesList, courses });
 }
