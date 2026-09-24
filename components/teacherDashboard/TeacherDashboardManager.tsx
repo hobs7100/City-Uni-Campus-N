@@ -2917,6 +2917,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                               min={0}
                               max={total || undefined}
                               value={s.obtained_marks ?? ""}
+                              onFocus={() => updateDitRow(s.student_id, { is_absent: false })}
                               onChange={(e) => updateDitRow(s.student_id, {
                                 obtained_marks: e.target.value === "" ? null : Number(e.target.value),
                                 is_absent: e.target.value === "",
