@@ -13,16 +13,26 @@ export async function GET(req:NextRequest){
   // Daily attendance is recorded by coordinators/admins, not by course teachers.
   // Use the same inclusive report dates as the test results, without restricting
   // attendance to the dates on which a test happened.
-  const attendance_months = await query<{month:string;presents:number;absents:number;leaves:number}>(
+   const attendance_weeks = await query<{month:string;week:number;presents:number;absents:number;leaves:number}>(
     `select to_char(attendance_date, 'YYYY-MM') as month,
+             ((extract(day from attendance_date)::int - 1) / 7 + 1)::int as week,
             count(*) filter (where status = 'present')::int as presents,
             count(*) filter (where status = 'absent')::int as absents,
             count(*) filter (where status = 'leave')::int as leaves
      from student_attendance_records
      where student_id = $1 and attendance_date >= $2::date and attendance_date <= $3::date
-     group by 1 order by 1`,
+      group by 1, 2 order by 1, 2`,
     [p.data.student_id,d.from,d.to]
   );
+   const monthlyAttendance = new Map<string, {month:string;presents:number;absents:number;leaves:number}>();
+   for (const row of attendance_weeks) {
+     const point = monthlyAttendance.get(row.month) ?? {month:row.month,presents:0,absents:0,leaves:0};
+     point.presents += row.presents;
+     point.absents += row.absents;
+     point.leaves += row.leaves;
+     monthlyAttendance.set(row.month, point);
+   }
+   const attendance_months = [...monthlyAttendance.values()];
   const monthlyResults = new Map<string, {month:string;obtained:number;total:number;tests:number}>();
   for (const row of rows) {
     const month = row.test_date.slice(0, 7);
@@ -43,5 +53,5 @@ export async function GET(req:NextRequest){
   const profile=identity[0] as {class_name?:string;session?:string;profile_image_url?:string|null}|undefined;
   const student={...(identity[0]||{id:r.student_id,name:r.student_name,father_name:r.father_name,roll_no:r.roll_no}),profile_image_url:profile?.profile_image_url||null};
   const classInfo={id:r.class_id,name:r.class_name,session:r.session,section:profile?.class_name?.toLowerCase().includes("digital leaders")?"A":profile?.class_name?.toLowerCase().includes("digital innovators")?"B":null};
-  return NextResponse.json({student,profile_image_url:profile?.profile_image_url||null,section:classInfo.section,class:classInfo,semester:{id:r.semester_id,number:r.semester_number,term_type:r.term_type},effective_filters:{...effective(raw,d.from,d.to),session:p.data.session||null},from_date:d.from,to_date:d.to,courses:course_rows,test_rows,attendance_months,result_months,report_generated_at:new Date().toISOString(),grand_totals:{obtained,total,percentage,obtained_marks:obtained,total_marks:total,overall_percentage:percentage,grade:ditGradeFromPercentage(percentage),zone:zone(percentage)}});
+   return NextResponse.json({student,profile_image_url:profile?.profile_image_url||null,section:classInfo.section,class:classInfo,semester:{id:r.semester_id,number:r.semester_number,term_type:r.term_type},effective_filters:{...effective(raw,d.from,d.to),session:p.data.session||null},from_date:d.from,to_date:d.to,courses:course_rows,test_rows,attendance_months,attendance_weeks,result_months,report_generated_at:new Date().toISOString(),grand_totals:{obtained,total,percentage,obtained_marks:obtained,total_marks:total,overall_percentage:percentage,grade:ditGradeFromPercentage(percentage),zone:zone(percentage)}});
 }

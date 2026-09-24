@@ -29,7 +29,8 @@ function printTable(title: string, columns: string[], rows: string[][], header =
        h1{margin:8px 0}h2,p{margin:4px 0}table{margin-top:8px}th,td{padding:1px 5px}
        .report-charts{grid-template-columns:repeat(2,minmax(0,1fr))!important;overflow:visible!important}
        .report-charts{margin-top:10px!important}.report-chart{min-width:0;padding:8px!important}
-       .report-signatures{margin-top:18px!important}`
+       .report-signatures{margin-top:18px!important}
+       .report-signatures>div{flex:0 0 125px!important;max-width:125px}`
     : `@media print{body{padding:0}}`;
   void printHtmlDocument(`<html><head><title>${escapePrintHtml(title)}</title><style>
     body{font:12px Arial;color:#172033;padding:24px}h1{color:#3730a3}
