@@ -29,6 +29,7 @@ export function printTimetables(timetables: PrintableTimetableData[]) {
     .tt-grid td{font-size:10px}
     .tt-lesson{padding:2px;color:#000}
     .tt-lesson div{margin:1px 0;color:#000}
+    .tt-lesson > div:first-child{font-size:11px;font-weight:700}
     .tt-lesson svg{width:10px;height:10px;stroke:#000}
   </style></head><body>${pages}</body></html>`;
   return printHtmlDocument(html, "Class Timetable", {
