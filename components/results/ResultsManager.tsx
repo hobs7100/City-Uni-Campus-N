@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { FileDown, Pencil, Save, Search, Snowflake, Trash2, UserX, XCircle } from "lucide-react";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
+import MockExamDateSheet from "@/components/results/MockExamDateSheet";
 import { formatDateOnly } from "@/lib/format";
 import { DataFetchLoader, ButtonLoader } from "@/components/ui/Loaders";
 
@@ -201,7 +202,7 @@ function PaperTimeInput({ value, onChange }: { value: string; onChange: (value: 
   );
 }
 
-type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet" | "all-datesheets" | "remid-datesheet" | "all-results";
+type Tab = "failed" | "upload" | "freezed" | "dropped" | "search" | "datesheet" | "mock-exam-datesheet" | "all-datesheets" | "remid-datesheet" | "all-results";
 
 export default function ResultsManager() {
   const [tab, setTab] = useState<Tab>("failed");
@@ -770,6 +771,7 @@ export default function ResultsManager() {
             ["dropped", "Dropped Students"],
             ["search", "Search Result"],
             ["datesheet", "Mid Exam Date Sheet"],
+            ["mock-exam-datesheet", "Mock Exam"],
             ["all-datesheets", "All Date Sheets"],
             ["remid-datesheet", "Re-Mid Exam Date Sheet"],
             ["all-results",     "All Results"],
@@ -1549,6 +1551,14 @@ export default function ResultsManager() {
             </div>
           )}
         </div>
+      )}
+
+      {tab === "mock-exam-datesheet" && (
+        <MockExamDateSheet
+          departments={departments}
+          allClasses={allClasses}
+          allSemesters={allSemesters}
+        />
       )}
 
       {tab === "datesheet" && (

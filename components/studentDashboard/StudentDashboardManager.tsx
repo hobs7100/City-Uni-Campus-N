@@ -169,6 +169,7 @@ const TABS = [
   { id: "results",            label: "Results",             icon: GraduationCap },
   { id: "mock-exam-results",  label: "Mock Exam Results",   icon: PenLine },
   { id: "datesheet",          label: "Mid Exam Date Sheet", icon: FileText },
+  { id: "mock-datesheet",     label: "Mock Exam Date Sheet", icon: FileText },
   { id: "remid-datesheet",    label: "Re-Mid Date Sheet",   icon: RefreshCcw },
   { id: "rollno-slip",        label: "Roll No. Slip",       icon: Ticket },
   { id: "attendance",         label: "Attendance",          icon: Activity },
@@ -211,6 +212,8 @@ export default function StudentDashboardManager() {
   /* mid exam date sheet */
   const [dsRows, setDsRows] = useState<StudentDsRow[]>([]);
   const [dsLoading, setDsLoading] = useState(false);
+  const [mockDsRows, setMockDsRows] = useState<StudentDsRow[]>([]);
+  const [mockDsLoading, setMockDsLoading] = useState(false);
   const [rdRows, setRdRows] = useState<StudentRdRow[]>([]);
   const [rdLoading, setRdLoading] = useState(false);
 
@@ -375,6 +378,17 @@ export default function StudentDashboardManager() {
     }
   }, []);
 
+  const loadMockDatesheet = useCallback(async () => {
+    setMockDsLoading(true);
+    try {
+      const res = await fetch("/api/student/mock-exam-datesheet");
+      const data = await res.json();
+      if (res.ok) setMockDsRows(data.rows ?? []);
+    } finally {
+      setMockDsLoading(false);
+    }
+  }, []);
+
   const loadNotifications = useCallback(async () => {
     setNotifLoading(true);
     try {
@@ -398,11 +412,12 @@ export default function StudentDashboardManager() {
   useEffect(() => {
     if (tab === "results")            loadResults();
     if (tab === "datesheet")          loadDatesheet();
+    if (tab === "mock-datesheet")     loadMockDatesheet();
     if (tab === "remid-datesheet")    loadRdDatesheet();
     if (tab === "attendance")         loadSimpleAtt();
     if (tab === "notifications")      loadNotifications();
     if (tab === "mock-exam-results" || (tab === "results" && profile?.class_type === "DIT")) loadDitTab();
-  }, [tab, profile?.class_type, loadResults, loadDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications, loadDitTab]);
+  }, [tab, profile?.class_type, loadResults, loadDatesheet, loadMockDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications, loadDitTab]);
 
   /* details modal open */
   async function openDetails(semesterId: string, courseId: string, courseTitle: string, teacherName: string) {
@@ -1654,6 +1669,78 @@ export default function StudentDashboardManager() {
                               </td>
                               <td className="px-4 py-2.5">
                                 {r.paper_time ? <span className="font-medium text-indigo-700 dark:text-indigo-400">{r.paper_time}</span> : <span className="text-slate-400">Not set</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "mock-datesheet" && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mock Exam Date Sheet</h2>
+            <button
+              onClick={loadMockDatesheet}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Refresh
+            </button>
+          </div>
+          {mockDsLoading ? (
+            <DataFetchLoader label="Loading date sheet…" />
+          ) : mockDsRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">
+              No mock exam schedule entries are available for your active semester yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {[
+                { label: "Date Sheet – Theory", isPractical: false, hdrCls: "bg-slate-50 dark:bg-slate-800" },
+                { label: "Date Sheet – Practical", isPractical: true, hdrCls: "bg-green-50 dark:bg-green-500/5" },
+              ].map(({ label, isPractical, hdrCls }) => {
+                const rows = mockDsRows.filter((row) =>
+                  (Number(row.credit_hours) === 1 &&
+                    !row.course_title.toLowerCase().includes("translation of holy quran")) === isPractical
+                );
+                if (rows.length === 0) return null;
+                return (
+                  <div key={label}>
+                    <h3 className="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-400">{label}</h3>
+                    <div className="overflow-x-auto card-3d shadow-sm">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className={`border-b border-slate-200 ${hdrCls} text-left dark:border-slate-800`}>
+                            <th className="px-4 py-2">Course</th>
+                            <th className="px-4 py-2 text-center">Cr. Hrs</th>
+                            <th className="px-4 py-2">Paper Date</th>
+                            <th className="px-4 py-2">Paper Time</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row) => (
+                            <tr key={row.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                              <td className="px-4 py-2.5">
+                                <div className="font-medium text-slate-800 dark:text-slate-100">{row.course_title}</div>
+                                <div className="text-xs text-slate-400">{row.course_code}</div>
+                              </td>
+                              <td className="px-4 py-2.5 text-center">{row.credit_hours}</td>
+                              <td className="px-4 py-2.5">
+                                {row.paper_date
+                                  ? <span className="font-medium text-indigo-700 dark:text-indigo-400">{formatDateOnly(row.paper_date)}</span>
+                                  : <span className="text-slate-400">Not scheduled</span>}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {row.paper_time
+                                  ? <span className="font-medium text-indigo-700 dark:text-indigo-400">{row.paper_time}</span>
+                                  : <span className="text-slate-400">Not set</span>}
                               </td>
                             </tr>
                           ))}

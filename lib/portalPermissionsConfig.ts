@@ -171,7 +171,7 @@ export const PORTAL_MODULES = [
     adminHref: "/dashboard/admin/results",
     dashboardPath: "/dashboard/admin/results",
     apiPath: "/api/admin/results",
-    apiPaths: ["/api/admin/mid-exam-datesheet", "/api/admin/re-mid-exam-datesheet"],
+    apiPaths: ["/api/admin/mid-exam-datesheet", "/api/admin/re-mid-exam-datesheet", "/api/admin/mock-exam-datesheet"],
   },
   {
     key: "dept_attendance",

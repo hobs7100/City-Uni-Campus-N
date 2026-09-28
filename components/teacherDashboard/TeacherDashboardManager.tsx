@@ -209,6 +209,22 @@ interface TeacherDsRow {
   result_uploaded: boolean;
 }
 
+interface TeacherMockDsRow {
+  course_id: string;
+  course_code: string;
+  course_title: string;
+  credit_hours: string;
+  class_name: string;
+  session: string;
+  semester_id: string;
+  semester_number: number;
+  term_type: string;
+  paper_date: string | null;
+  paper_time: string | null;
+  bundle_received_date: string | null;
+  return_date: string | null;
+}
+
 interface TeacherRdRow {
   course_id: string;
   course_code: string;
@@ -295,6 +311,7 @@ const tabs = [
   { id: "results", label: "Upload Result", icon: ClipboardCheck },
   { id: "timetable", label: "Timetable", icon: CalendarClock },
   { id: "datesheet", label: "Mid Exam Date Sheet", icon: FileText },
+  { id: "mock-datesheet", label: "Mock Exam Date Sheet", icon: FileText },
   { id: "remid-datesheet", label: "Re-Mid Date Sheet", icon: RefreshCcw },
   { id: "mark", label: "Mark Attendance", icon: CheckCircle2 },
   { id: "students", label: "Student Attendance", icon: GraduationCap },
@@ -391,6 +408,8 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   // Mid Exam Date Sheet tab state
   const [dsRows, setDsRows] = useState<TeacherDsRow[]>([]);
   const [dsLoading, setDsLoading] = useState(false);
+  const [mockDsRows, setMockDsRows] = useState<TeacherMockDsRow[]>([]);
+  const [mockDsLoading, setMockDsLoading] = useState(false);
   const [rdRows, setRdRows] = useState<TeacherRdRow[]>([]);
   const [rdLoading, setRdLoading] = useState(false);
 
@@ -477,6 +496,17 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       if (res.ok) setDsRows(data.rows ?? []);
     } finally {
       setDsLoading(false);
+    }
+  }, []);
+
+  const loadMockDatesheet = useCallback(async () => {
+    setMockDsLoading(true);
+    try {
+      const res = await fetch("/api/teacher/mock-exam-datesheet");
+      const data = await res.json();
+      if (res.ok) setMockDsRows(data.rows ?? []);
+    } finally {
+      setMockDsLoading(false);
     }
   }, []);
 
@@ -920,6 +950,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "results") loadResRoster();
     if (tab === "timetable") loadTimetables();
     if (tab === "datesheet") loadDatesheet();
+    if (tab === "mock-datesheet") loadMockDatesheet();
     if (tab === "remid-datesheet") loadRdDatesheet();
     if (tab === "mark") loadSlots();
     if (tab === "students") loadStudentReport();
@@ -930,7 +961,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     if (tab === "dit-results" && !ditCoursesLoaded) loadDitCourses();
     if (tab === "dit-results" && ditSubTab === "all") loadDitAllResults();
     if (tab === "bills") loadBills();
-  }, [tab, loadResRoster, loadTimetables, loadSlots, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses, loadDitAllResults, ditSubTab, loadBills]);
+  }, [tab, loadResRoster, loadTimetables, loadDatesheet, loadMockDatesheet, loadRdDatesheet, loadSlots, loadStudentReport, loadTsStudents, loadAttendanceReport, loadNotifications, loadProfile, ditCoursesLoaded, loadDitCourses, loadDitAllResults, ditSubTab, loadBills]);
 
   useEffect(() => {
     if (tab === "dit-results" && ditCoursesLoaded && ditCourses.length === 0) setTab("overview");
@@ -1931,6 +1962,84 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      )}
+
+      {tab === "mock-datesheet" && (
+        <div>
+          <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-white">
+            Mock Exam Date Sheet
+          </h2>
+          {mockDsLoading ? (
+            <DataFetchLoader />
+          ) : mockDsRows.length === 0 ? (
+            <div className="card-3d p-8 text-center text-sm text-slate-400">
+              No active-semester mock exam schedule entries found for your courses.
+            </div>
+          ) : (
+            (() => {
+              const groups = Array.from(
+                mockDsRows.reduce((map, row) => {
+                  if (!map.has(row.semester_id)) {
+                    map.set(row.semester_id, {
+                      label: `${row.class_name} (${row.session}) — Semester ${row.semester_number} ${row.term_type}`,
+                      rows: [] as TeacherMockDsRow[],
+                    });
+                  }
+                  map.get(row.semester_id)!.rows.push(row);
+                  return map;
+                }, new Map<string, { label: string; rows: TeacherMockDsRow[] }>()),
+              );
+              return (
+                <div className="space-y-6">
+                  {groups.map(([semesterId, group]) => (
+                    <div key={semesterId}>
+                      <p className="mb-2 text-sm font-semibold text-indigo-700 dark:text-indigo-400">
+                        {group.label}
+                      </p>
+                      <div className="overflow-x-auto card-3d shadow-sm">
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800">
+                              <th className="px-3 py-2">Course</th>
+                              <th className="px-3 py-2 text-center">Cr. Hrs</th>
+                              <th className="px-3 py-2">Paper Date</th>
+                              <th className="px-3 py-2">Paper Time</th>
+                              <th className="px-3 py-2">Bundle Received</th>
+                              <th className="px-3 py-2">Return Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.rows.map((row) => (
+                              <tr key={row.course_id} className="border-b border-slate-100 dark:border-slate-800">
+                                <td className="px-3 py-2">
+                                  <div className="font-medium">{row.course_title}</div>
+                                  <div className="text-xs text-slate-400">{row.course_code}</div>
+                                </td>
+                                <td className="px-3 py-2 text-center">{row.credit_hours}</td>
+                                <td className="px-3 py-2">
+                                  {row.paper_date ? formatDateOnly(row.paper_date) : <span className="text-slate-400">Not scheduled</span>}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {row.paper_time || <span className="text-slate-400">Not set</span>}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {row.bundle_received_date ? formatDateOnly(row.bundle_received_date) : <span className="text-slate-400">—</span>}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {row.return_date ? formatDateOnly(row.return_date) : <span className="text-slate-400">—</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   ))}
