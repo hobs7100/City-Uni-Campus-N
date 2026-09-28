@@ -329,6 +329,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [markClassId, setMarkClassId] = useState("");
   const [markDate, setMarkDate] = useState(todayStr());
   const [rosterRows, setRosterRows] = useState<RosterRow[]>([]);
+  const [excludedRosterClasses, setExcludedRosterClasses] = useState<
+    { class_name: string; session: string; reason: string }[]
+  >([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterSaving, setRosterSaving] = useState(false);
   const [isCombinedRoster, setIsCombinedRoster] = useState(false);
@@ -670,10 +673,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       if (!res.ok) {
         toast.error(data.error || "Could not load roster.");
         setRosterRows([]);
+        setExcludedRosterClasses([]);
         return;
       }
       setRosterRows(data.rows);
       setIsCombinedRoster(data.is_combined);
+      setExcludedRosterClasses(data.excluded_classes ?? []);
     } finally {
       if (currentRequestId === attendanceRequestId.current) setRosterLoading(false);
     }
@@ -684,11 +689,13 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       setMarkSlots([]);
       setMarkSlot(null);
       setRosterRows([]);
+      setExcludedRosterClasses([]);
       return;
     }
     const currentRequestId = ++attendanceRequestId.current;
     setSlotsLoading(true);
     setRosterRows([]);
+    setExcludedRosterClasses([]);
     try {
       const params = new URLSearchParams({ allocation_id: markAllocationId, date: markDate });
       const res  = await fetch(`/api/teacher/student-attendance/slots?${params.toString()}`);
@@ -963,6 +970,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Something went wrong.");
+        if (res.status === 409 && data.error?.includes("roster has changed") && markSlot) {
+          await loadRoster(markSlot);
+          toast.error("Roster reloaded. Review attendance before saving again.");
+        }
         return;
       }
       toast.success("Attendance saved.");
@@ -1947,6 +1958,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                   setMarkSlots([]);
                   setMarkSlot(null);
                   setRosterRows([]);
+                  setExcludedRosterClasses([]);
                 }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
@@ -2061,8 +2073,15 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
           {isCombinedRoster && rosterRows.length > 0 && (
             <p className="mb-2 text-xs text-indigo-600 dark:text-indigo-400">
-              This is a combined lecture — students from all combined classes are shown together.
+              This is a combined lecture — students from all active, unfinished combined classes are shown together.
             </p>
+          )}
+          {excludedRosterClasses.length > 0 && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              Not included in attendance: {excludedRosterClasses.map((item) =>
+                `${item.class_name} (${item.session}) — ${item.reason}`
+              ).join("; ")}. Ask an administrator to check the class setup if this is unexpected.
+            </div>
           )}
 
           <div className="overflow-hidden card-3d card-hover">

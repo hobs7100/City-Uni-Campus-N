@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import type { PoolClient } from "pg";
 import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
@@ -9,6 +10,82 @@ function dayNameFor(date: string) {
     weekday: "long",
     timeZone: "UTC",
   });
+}
+
+interface AttendanceLeg {
+  class_id: string;
+  class_name: string;
+  session: string;
+  status: string;
+  has_catalog: boolean;
+  syllabus_completed_at: string | null;
+}
+
+// Both roster reads and saves must use the same class/slot eligibility rules.
+// A combined lecture needs only one scheduled anchor cell, but every unfinished
+// class linked to that allocation belongs in its roster.
+async function resolveAttendanceClasses(
+  allocationId: string,
+  isCombined: boolean,
+  date: string,
+  startTime: string,
+  endTime: string,
+  client?: PoolClient
+) {
+  const sql = `select distinct s.class_id, cl.class_name, cl.session, s.status,
+            sc.semester_id is not null as has_catalog, sc.syllabus_completed_at
+     from allocation_semesters als
+     join allocations a on a.id = als.allocation_id
+     join semesters s on s.id = als.semester_id
+     join classes cl on cl.id = s.class_id
+     left join semester_courses sc
+       on sc.semester_id = s.id and sc.course_id = a.course_id
+     where als.allocation_id = $1
+       and als.course_id = a.course_id
+       and exists (
+         select 1
+         from timetable_cells tc
+         join timetables tt on tt.id = tc.timetable_id
+         join timetable_days td on td.id = tc.day_id
+         join timetable_periods tp on tp.id = tc.period_id
+         join allocation_semesters slot_als
+           on slot_als.allocation_id = tc.allocation_id
+          and slot_als.semester_id = tt.semester_id
+          and slot_als.course_id = a.course_id
+         join semesters slot_semester
+           on slot_semester.id = slot_als.semester_id and slot_semester.status = 'active'
+         join semester_courses slot_sc
+           on slot_sc.semester_id = slot_als.semester_id
+          and slot_sc.course_id = a.course_id
+          and slot_sc.syllabus_completed_at is null
+         where tc.allocation_id = als.allocation_id
+           and ($5::boolean or tt.semester_id = als.semester_id)
+           and td.day_name = $2
+           and tp.start_time = $3
+           and tp.end_time = $4
+       )`;
+  const params = [allocationId, dayNameFor(date), startTime, endTime, isCombined];
+  const legs = client
+    ? (await client.query<AttendanceLeg>(sql, params)).rows
+    : await query<AttendanceLeg>(sql, params);
+  const missingCombinedClass = isCombined && legs.length > 0 &&
+    new Set(legs.map((leg) => leg.class_id)).size < 2;
+  const eligible = legs.filter((leg) =>
+    leg.status === "active" && leg.has_catalog && leg.syllabus_completed_at === null
+  );
+  const classIds = [...new Set(eligible.map((leg) => leg.class_id))];
+  const excludedClasses = legs
+    .filter((leg) => !classIds.includes(leg.class_id))
+    .map((leg) => ({
+      class_name: leg.class_name,
+      session: leg.session,
+      reason: leg.status !== "active"
+        ? "semester is closed"
+        : !leg.has_catalog
+          ? "course is missing from the class curriculum"
+          : "syllabus is marked complete",
+    }));
+  return { classIds, excludedClasses, missingCombinedClass };
 }
 
 export async function GET(request: NextRequest) {
@@ -30,8 +107,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const allocation = await queryOne<{ id: string; is_combined: boolean }>(
-    `select a.id, a.is_combined
+  const allocation = await queryOne<{ id: string; is_combined: boolean; status: string }>(
+    `select a.id, a.is_combined, a.status
      from allocations a
      where a.id = $1 and a.teacher_id = $2`,
     [allocationId, session!.userId]
@@ -39,70 +116,24 @@ export async function GET(request: NextRequest) {
   if (!allocation) {
     return NextResponse.json({ error: "Allocation not found or not yours." }, { status: 403 });
   }
-
-  const hasRequestedSlot = Boolean(startTime && endTime);
-  const semRows = await query<{ class_id: string; status: string; syllabus_completed_at: string | null }>(
-    `select distinct s.class_id, s.status, sc.syllabus_completed_at
-     from allocation_semesters als
-     join semesters s on s.id = als.semester_id
-     join allocations a on a.id = als.allocation_id
-     left join semester_courses sc
-       on sc.semester_id = s.id and sc.course_id = a.course_id
-      where als.allocation_id = $1
-        ${hasRequestedSlot ? `
-        and exists (
-          select 1
-          from timetable_cells tc
-          join timetables tt on tt.id = tc.timetable_id
-          join timetable_days td on td.id = tc.day_id
-          join timetable_periods tp on tp.id = tc.period_id
-          join allocation_semesters slot_als
-            on slot_als.allocation_id = tc.allocation_id
-           and slot_als.semester_id = tt.semester_id
-          join semesters slot_semester
-            on slot_semester.id = slot_als.semester_id
-           and slot_semester.status = 'active'
-          join semester_courses slot_sc
-            on slot_sc.semester_id = slot_als.semester_id
-           and slot_sc.course_id = slot_als.course_id
-           and slot_sc.syllabus_completed_at is null
-          where tc.allocation_id = als.allocation_id
-            and (a.is_combined or tt.semester_id = als.semester_id)
-            and td.day_name = $2
-            and tp.start_time = $3
-            and tp.end_time = $4
-        )` : ""}`,
-    hasRequestedSlot
-      ? [allocationId, dayNameFor(date), startTime, endTime]
-      : [allocationId]
+  if (allocation.status !== "active") {
+    return NextResponse.json({ error: "This course has been transferred to another teacher." }, { status: 403 });
+  }
+  const { classIds, excludedClasses, missingCombinedClass } = await resolveAttendanceClasses(
+    allocationId, allocation.is_combined, date, startTime, endTime
   );
-
-  // A combined allocation may have one completed class-semester-course leg
-  // and another still in progress. Only the unfinished legs remain markable.
-  const activeSems = semRows.filter(
-    (r) => r.status === "active" && r.syllabus_completed_at === null
-  );
-  if (activeSems.length === 0) {
+  if (missingCombinedClass) {
     return NextResponse.json(
-      { error: "Syllabus is complete for this course. Attendance can no longer be marked." },
+      { error: "This combined course is missing a linked class. Ask an administrator to correct its allocation." },
+      { status: 409 }
+    );
+  }
+  if (classIds.length === 0) {
+    return NextResponse.json(
+      { error: "No active, unfinished class has this scheduled lecture. Attendance cannot be marked." },
       { status: 403 }
     );
   }
-
-  const classIds = activeSems.map((r) => r.class_id);
-
-  // Build slot-aware join condition for student_course_attendance:
-  // - If start_time provided: match exact slot
-  // - If not: match rows that have no slot (null), i.e. old-style records
-  const slotFilter =
-    startTime && endTime
-      ? `and sca.start_time = $4 and sca.end_time = $5`
-      : `and sca.start_time is null`;
-
-  const params: unknown[] =
-    startTime && endTime
-      ? [allocationId, date, classIds, startTime, endTime]
-      : [allocationId, date, classIds];
 
   const students = await query<{
     student_id: string;
@@ -135,7 +166,7 @@ export async function GET(request: NextRequest) {
        on sca.student_id    = st.id
       and sca.allocation_id = $1
       and sca.attendance_date = $2
-      ${slotFilter}
+       and sca.start_time = $4 and sca.end_time = $5
      left join student_attendance_records sar
        on sar.student_id      = st.id
       and sar.attendance_date = $2
@@ -144,7 +175,7 @@ export async function GET(request: NextRequest) {
        and st.deleted_at is null
        and st.status in ('active', 'struck_off', 'permanent_leave')
      order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
-    params
+    [allocationId, date, classIds, startTime, endTime]
   );
 
   const rows = students.map((st) => {
@@ -176,7 +207,7 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  return NextResponse.json({ is_combined: allocation.is_combined, rows });
+  return NextResponse.json({ is_combined: allocation.is_combined, excluded_classes: excludedClasses, rows });
 }
 
 const rowSchema = z.object({
@@ -208,89 +239,114 @@ export async function POST(request: NextRequest) {
   }
   const d = parsed.data;
 
-  const allocation = await queryOne<{ id: string; status: string }>(
-    `select a.id, a.status from allocations a where a.id = $1 and a.teacher_id = $2`,
-    [d.allocation_id, session!.userId]
-  );
-  if (!allocation) {
-    return NextResponse.json({ error: "Allocation not found or not yours." }, { status: 403 });
-  }
-  if (allocation.status !== "active") {
-    return NextResponse.json(
-      { error: "This course has been transferred to another teacher. You can no longer mark attendance for it." },
-      { status: 403 }
-    );
-  }
-
-  // Fetch all active semesters (and their class_ids) for this allocation.
-  // Combined allocations span multiple classes/semesters.
-  const activeSemsWithClass = await query<{ id: string; class_id: string }>(
-    `select distinct s.id, s.class_id from semesters s
-     join allocation_semesters als on als.semester_id = s.id
-     join allocations a on a.id = als.allocation_id
-     left join semester_courses sc
-       on sc.semester_id = s.id and sc.course_id = a.course_id
-     where als.allocation_id = $1
-       and s.status = 'active'
-        and sc.syllabus_completed_at is null
-        and exists (
-          select 1
-          from timetable_cells tc
-          join timetables tt on tt.id = tc.timetable_id
-          join timetable_days td on td.id = tc.day_id
-          join timetable_periods tp on tp.id = tc.period_id
-          join allocation_semesters slot_als
-            on slot_als.allocation_id = tc.allocation_id
-           and slot_als.semester_id = tt.semester_id
-          join semesters slot_semester
-            on slot_semester.id = slot_als.semester_id
-           and slot_semester.status = 'active'
-          join semester_courses slot_sc
-            on slot_sc.semester_id = slot_als.semester_id
-           and slot_sc.course_id = slot_als.course_id
-           and slot_sc.syllabus_completed_at is null
-          where tc.allocation_id = als.allocation_id
-            and (a.is_combined or tt.semester_id = als.semester_id)
-            and td.day_name = $2
-            and tp.start_time = $3
-            and tp.end_time = $4
-        )`,
-    [d.allocation_id, dayNameFor(d.attendance_date), d.start_time, d.end_time]
-  );
-  if (!activeSemsWithClass.length) {
-    return NextResponse.json(
-      { error: "Syllabus is complete for this course. Attendance can no longer be marked." },
-      { status: 403 }
-    );
-  }
-  const classIds    = activeSemsWithClass.map((r) => r.class_id);
-
-  // Do not permit a caller to submit rows from a completed (or unrelated)
-  // class leg of a combined allocation.
-  const eligibleStudents = await query<{ id: string }>(
-    `select id from students
-     where id = any($1::uuid[]) and class_id = any($2::uuid[]) and deleted_at is null`,
-    [d.rows.map((row) => row.student_id), classIds]
-  );
-  if (eligibleStudents.length !== new Set(d.rows.map((row) => row.student_id)).size) {
-    return NextResponse.json(
-      { error: "One or more students do not belong to an active, incomplete course class." },
-      { status: 403 }
-    );
-  }
-
   const client = await pool.connect();
   try {
     await client.query("begin");
-    // Serialize with leave issuance so the leave range and attendance status
-    // are evaluated from one consistent state.
-    await client.query(
-      `select id from students
-       where id = any($1::uuid[])
-       order by id
-       for update`,
-      [d.rows.map((row) => row.student_id)]
+    const allocationResult = await client.query<{ id: string; status: string; is_combined: boolean }>(
+      `select id, status, is_combined from allocations
+       where id = $1 and teacher_id = $2 for update`,
+      [d.allocation_id, session!.userId]
     );
+    const allocation = allocationResult.rows[0];
+    if (!allocation || allocation.status !== "active") {
+      await client.query("rollback");
+      return NextResponse.json(
+        { error: "This active course is no longer allocated to your account." },
+        { status: 403 }
+      );
+    }
+
+    // Hold the class links, curriculum and scheduled slot stable through save.
+    await client.query(
+      `select als.id from allocation_semesters als
+       join semesters s on s.id = als.semester_id
+       join semester_courses sc on sc.semester_id = s.id and sc.course_id = als.course_id
+       where als.allocation_id = $1
+       for share of als, s, sc`,
+      [d.allocation_id]
+    );
+    await client.query(
+      `select tc.id from timetable_cells tc
+       join timetables tt on tt.id = tc.timetable_id
+       join timetable_days td on td.id = tc.day_id
+       join timetable_periods tp on tp.id = tc.period_id
+       where tc.allocation_id = $1 and td.day_name = $2
+         and tp.start_time = $3 and tp.end_time = $4
+       for share of tc, tt, td, tp`,
+      [d.allocation_id, dayNameFor(d.attendance_date), d.start_time, d.end_time]
+    );
+    const { classIds, missingCombinedClass } = await resolveAttendanceClasses(
+      d.allocation_id, allocation.is_combined, d.attendance_date, d.start_time, d.end_time, client
+    );
+    if (missingCombinedClass) {
+      await client.query("rollback");
+      return NextResponse.json(
+        { error: "This combined course is missing a linked class. Ask an administrator to correct its allocation." },
+        { status: 409 }
+      );
+    }
+    if (!classIds.length) {
+      await client.query("rollback");
+      return NextResponse.json(
+        { error: "No active, unfinished class has this scheduled lecture. Attendance cannot be marked." },
+        { status: 403 }
+      );
+    }
+    // Lock the entire eligible roster, not just submitted rows. A stale or
+    // partial one-class request must never be reported as a successful save
+    // for a combined lecture.
+    await client.query(
+      `select st.id from students st
+       where st.class_id = any($1::uuid[])
+         and st.deleted_at is null
+         and st.status in ('active', 'struck_off', 'permanent_leave')
+       order by st.id for update of st`,
+      [classIds]
+    );
+    // Leave issuance and coordinator attendance lock these student rows too.
+    // Read their status in a new statement after any competing write commits.
+    const roster = await client.query<{
+      id: string;
+      status: string;
+      monthly_on_leave: boolean;
+      coord_locked: boolean;
+    }>(
+      `select st.id, st.status,
+              exists (
+                select 1 from student_leaves sl
+                where sl.student_id = st.id and sl.revoked_at is null
+                  and sl.leave_type = 'monthly'
+                  and $2::date between sl.leave_start_date and sl.leave_end_date
+              ) as monthly_on_leave,
+              exists (
+                select 1 from student_attendance_records sar
+                where sar.student_id = st.id and sar.attendance_date = $2
+                  and sar.status = 'leave'
+              ) as coord_locked
+       from students st
+       where st.class_id = any($1::uuid[])
+         and st.deleted_at is null
+         and st.status in ('active', 'struck_off', 'permanent_leave')
+       order by st.id`,
+      [classIds, d.attendance_date]
+    );
+    const markableIds = roster.rows
+      .filter((student) =>
+        student.status === "active" && !student.monthly_on_leave && !student.coord_locked
+      )
+      .map((student) => student.id);
+    const submittedIds = new Set(d.rows.map((row) => row.student_id));
+    if (
+      submittedIds.size !== d.rows.length ||
+      submittedIds.size !== markableIds.length ||
+      markableIds.some((id) => !submittedIds.has(id))
+    ) {
+      await client.query("rollback");
+      return NextResponse.json(
+        { error: "The roster has changed or is incomplete. Reload it and mark students from every included class." },
+        { status: 409 }
+      );
+    }
     for (const row of d.rows) {
       await client.query(
         `insert into student_course_attendance

@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
 
   // Verify this allocation belongs to the requesting teacher
   const allocation = await queryOne<{ id: string; is_combined: boolean }>(
-    `select a.id, a.is_combined from allocations a where a.id = $1 and a.teacher_id = $2`,
+    `select a.id, a.is_combined from allocations a
+     where a.id = $1 and a.teacher_id = $2 and a.status = 'active'`,
     [allocationId, session!.userId]
   );
   if (!allocation) {
@@ -42,9 +43,10 @@ export async function GET(request: NextRequest) {
      from allocation_semesters als
      join semesters s on s.id = als.semester_id
      join allocations a on a.id = als.allocation_id
-     left join semester_courses sc
+      join semester_courses sc
        on sc.semester_id = s.id and sc.course_id = a.course_id
      where als.allocation_id = $1
+        and als.course_id = a.course_id
        and s.status = 'active'
        and sc.syllabus_completed_at is null
      limit 1`,

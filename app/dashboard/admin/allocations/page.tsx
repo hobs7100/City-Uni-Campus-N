@@ -25,6 +25,7 @@ interface ClassOption {
 interface TeacherOption {
   id: string;
   name: string;
+  email: string;
   department_id: string;
   type: "permanent" | "visiting";
   status: "active" | "blocked";
@@ -274,7 +275,7 @@ export default function AllocationsPage() {
 
   const teacherOptions = useMemo(() => {
     const pool = showAllTeachers ? teachers : teachers.filter((t) => t.department_id === departmentId);
-    return pool.filter((t) => t.status === "active").map((t) => ({ value: t.id, label: `${t.name} (${t.type})` }));
+    return pool.filter((t) => t.status === "active").map((t) => ({ value: t.id, label: `${t.name} — ${t.email} (${t.type})` }));
   }, [teachers, showAllTeachers, departmentId]);
 
   const combinedOptions = useMemo(() =>
@@ -288,7 +289,7 @@ export default function AllocationsPage() {
     [semesters]);
 
   const allTeacherOptions = useMemo(() =>
-    teachers.filter((t) => t.status === "active").map((t) => ({ value: t.id, label: `${t.name} (${t.type})` })),
+    teachers.filter((t) => t.status === "active").map((t) => ({ value: t.id, label: `${t.name} — ${t.email} (${t.type})` })),
     [teachers]);
 
   const selectedCreateTeacher = useMemo(
@@ -435,7 +436,7 @@ export default function AllocationsPage() {
       : teachers.filter((t) => t.department_id === (transferTarget.semesters[0]?.department_id ?? ""));
     return pool
       .filter((t) => t.status === "active" && t.id !== transferTarget.teacher_id)
-      .map((t) => ({ value: t.id, label: `${t.name} (${t.type})` }));
+      .map((t) => ({ value: t.id, label: `${t.name} — ${t.email} (${t.type})` }));
   }, [teachers, transferTarget, showAllXferTeachers]);
 
   async function handleTransferSubmit(e: React.FormEvent) {
