@@ -10,6 +10,7 @@ import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect
 import { DataFetchLoader } from "@/components/ui/Loaders";
 import { useUserRole } from "@/lib/roleContext";
 import { usePortalAccess } from "@/lib/usePortalAccess";
+import { printTimetables } from "@/components/timetable/printTimetables";
 
 interface TimetableInfo {
   id: string;
@@ -342,7 +343,8 @@ export default function TimetableGridPage() {
             </>
           )}
           <button
-            onClick={() => window.print()}
+            onClick={() => void printTimetables([{ timetable: info, days, periods, cells }])
+              .catch((error) => toast.error(error instanceof Error ? error.message : "Unable to print timetable."))}
             className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
           >
             <Printer size={16} /> Print / PDF

@@ -7,9 +7,8 @@ import { CalendarDays, FileDown, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
-import PrintableTimetable, {
-  PrintableTimetableData,
-} from "@/components/timetable/PrintableTimetable";
+import type { PrintableTimetableData } from "@/components/timetable/PrintableTimetable";
+import { printTimetables } from "@/components/timetable/printTimetables";
 import { TableLoader } from "@/components/ui/Loaders";
 import { useUserRole } from "@/lib/roleContext";
 import { usePortalAccess } from "@/lib/usePortalAccess";
@@ -79,8 +78,6 @@ export default function TimetablesPage() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
-  const [printData, setPrintData] = useState<PrintableTimetableData[]>([]);
-  const [printRequested, setPrintRequested] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,27 +110,6 @@ export default function TimetablesPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (!printRequested || printData.length === 0) return;
-    let secondFrame = 0;
-    const firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => window.print());
-    });
-    return () => {
-      cancelAnimationFrame(firstFrame);
-      cancelAnimationFrame(secondFrame);
-    };
-  }, [printRequested, printData]);
-
-  useEffect(() => {
-    const cleanup = () => {
-      setPrintRequested(false);
-      setPrintData([]);
-    };
-    window.addEventListener("afterprint", cleanup);
-    return () => window.removeEventListener("afterprint", cleanup);
-  }, []);
 
   function resetForm() {
     setDepartmentId("");
@@ -278,8 +254,7 @@ export default function TimetablesPage() {
           return data as PrintableTimetableData;
         }),
       );
-      setPrintRequested(true);
-      setPrintData(results);
+      await printTimetables(results);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to export timetables.");
     } finally {
@@ -429,18 +404,6 @@ export default function TimetablesPage() {
           </tbody>
         </table>
       </div>
-
-      {printData.length > 0 && (
-        <div className="hidden print:block">
-          {printData.map((d, idx) => (
-            <PrintableTimetable
-              key={d.timetable.id}
-              data={d}
-              isLast={idx === printData.length - 1}
-            />
-          ))}
-        </div>
-      )}
 
       <Modal
         open={modalOpen}

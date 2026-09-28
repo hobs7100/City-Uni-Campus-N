@@ -62,8 +62,8 @@ export default function PrintableTimetable({
   const cellMap = new Map(cells.map((c) => [`${c.day_id}:${c.period_id}`, c]));
 
   return (
-    <div className={isLast ? "" : "print-page-break"}>
-      <div className="mb-4 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-4 text-center text-white">
+    <div className={`tt-page${isLast ? "" : " tt-page-break"}`} data-fit-single-page data-print-width-mm="281" data-print-height-mm="185">
+      <div className="tt-heading mb-4 rounded-lg border-2 border-indigo-600 bg-gradient-to-r from-indigo-600 to-sky-500 p-4 text-center text-white">
         <h2 className="text-xl font-extrabold tracking-wide">City College (University Campus)</h2>
         <p className="text-sm font-semibold">
           Class Timetable — {info.class_name} ({info.session}) — Sem {info.semester_number}{" "}
@@ -75,7 +75,7 @@ export default function PrintableTimetable({
       </div>
 
       <div className="overflow-x-auto rounded-none border-0">
-        <table className="w-full border-collapse text-left text-sm">
+        <table className="tt-grid w-full border-collapse text-left text-sm">
           <thead className="bg-indigo-600 text-xs uppercase text-white">
             <tr>
               <th className="border border-indigo-400 px-3 py-2">Day</th>
@@ -97,7 +97,7 @@ export default function PrintableTimetable({
                   return (
                     <td key={p.id} className="border border-indigo-200 px-2 py-2 align-top">
                       {cell?.allocation_id ? (
-                        <div className="rounded-lg border border-indigo-300 bg-indigo-50 p-2">
+                        <div className="tt-lesson rounded-lg border border-indigo-300 bg-indigo-50 p-2">
                           <div className="flex items-center gap-1 text-xs font-semibold text-indigo-800">
                             {cell.is_combined && <Layers size={11} />} {cell.course_title}
                           </div>
