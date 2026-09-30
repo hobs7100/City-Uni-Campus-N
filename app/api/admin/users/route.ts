@@ -9,7 +9,7 @@ const createSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   cellno: z.string().optional().nullable(),
-  role: z.enum(["admin", "hod", "coordinator", "finance_manager", "assistant"]),
+  role: z.enum(["admin", "hod", "coordinator", "finance_manager", "assistant", "suprident", "controller", "accountant"]),
   status: z.enum(["active", "blocked"]).default("active"),
 });
 

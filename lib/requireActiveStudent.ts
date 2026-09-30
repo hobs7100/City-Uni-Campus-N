@@ -1,14 +1,14 @@
 /**
  * requireActiveStudent — gate for student APIs that must be inaccessible to
- * struck-off students.
+ * struck-off students and alumni.
  *
  * Usage (in a route GET/POST handler):
  *   const { session, studentStatus, response } = await requireActiveStudent();
  *   if (response) return response;
  *   // session.userId is safe to use; student is active
  *
- * Struck-off students may still access their profile and notifications so they
- * can see their notice, but all academic/exam-related endpoints return 403.
+ * Struck-off students and alumni may still access their profile, notifications,
+ * tickets, and feedback; academic/exam-related endpoints return 403.
  */
 
 import { NextResponse } from "next/server";
@@ -21,6 +21,14 @@ const STRUCK_OFF_RESPONSE = NextResponse.json(
       "Your enrollment has been struck off due to insufficient attendance. " +
       "Please contact the administration to apply for reinstatement.",
     code: "STRUCK_OFF",
+  },
+  { status: 403 }
+);
+
+const ALUMNI_RESPONSE = NextResponse.json(
+  {
+    error: "Your enrollment is marked Alumni. Academic features are no longer available.",
+    code: "ALUMNI",
   },
   { status: 403 }
 );
@@ -42,6 +50,9 @@ export async function requireActiveStudent() {
   }
   if (student.status === "struck_off") {
     return { session: null, studentStatus: "struck_off", response: STRUCK_OFF_RESPONSE };
+  }
+  if (student.status === "alumni") {
+    return { session: null, studentStatus: "alumni", response: ALUMNI_RESPONSE };
   }
 
   return { session, studentStatus: student.status, response: null };

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requireActiveStudent } from "@/lib/requireActiveStudent";
 import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
 import { getStudentAttendanceHistory } from "@/lib/student-attendance-history";
 
 export async function GET(request: NextRequest) {
-  const { session, response } = await requireRole("student");
+  const { session, response } = await requireActiveStudent();
   if (response) return response;
 
   const from = request.nextUrl.searchParams.get("from");

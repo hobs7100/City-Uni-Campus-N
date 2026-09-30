@@ -71,6 +71,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "LAT Slip", href: "/dashboard/admin/lat-slip", icon: "ReceiptText" },
     { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
     { label: "Feedback System", href: "/dashboard/admin/feedback", icon: "MessageSquare" },
+    { label: "Issue Management", href: "/dashboard/admin/issue-management", icon: "MessageSquare" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
   ],
   hod: [
@@ -145,9 +146,13 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Leave Management", href: "/dashboard/admin/leave-management", icon: "UserX" },
     { label: "DIT Mock Exam", href: "/dashboard/admin/dit-mock", icon: "PenLine" },
     { label: "Notifications", href: "/dashboard/admin/notifications", icon: "Bell" },
+    { label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" },
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
     // Roll No. Slips intentionally excluded for Assistant
   ],
+  suprident: [{ label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" }],
+  controller: [{ label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" }],
+  accountant: [{ label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" }],
 };
 
 export const roleLabels: Record<UserRole, string> = {
@@ -158,6 +163,9 @@ export const roleLabels: Record<UserRole, string> = {
   student: "Student",
   finance_manager: "Finance Manager",
   assistant: "Assistant",
+  suprident: "Suprident",
+  controller: "Controller",
+  accountant: "Accountant",
 };
 
 const managedRoleRoutes: Partial<Record<UserRole, Partial<Record<PortalModule, string>>>> = {
@@ -204,5 +212,8 @@ export async function getDashboardNavigation(role: UserRole): Promise<NavItem[]>
     }),
   );
 
-  return [...base.slice(0, 1), ...granted, ...base.slice(1)];
+  const extra = role === "assistant"
+    ? navByRole.assistant.filter((item) => item.href === "/dashboard/employee")
+    : [];
+  return [...base.slice(0, 1), ...extra, ...granted, ...base.slice(1)];
 }

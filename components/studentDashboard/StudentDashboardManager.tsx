@@ -48,6 +48,7 @@ import RichTextViewer from "@/components/ui/RichTextViewer";
 import { AttendanceHistoryTable } from "@/components/studentAttendance/AttendanceHistory";
 import type { StudentAttendanceHistoryRecord } from "@/lib/student-attendance-history";
 import StudentFeedback from "@/components/feedback/StudentFeedback";
+import StudentTickets from "@/components/tickets/StudentTickets";
 
 /* ─── interfaces ─────────────────────────────────────────── */
 interface Profile {
@@ -168,6 +169,7 @@ const TABS = [
   { id: "overview",           label: "Overview",            icon: ClipboardList },
   { id: "results",            label: "Results",             icon: GraduationCap },
   { id: "mock-exam-results",  label: "Mock Exam Results",   icon: PenLine },
+  { id: "tickets",            label: "Tickets / Inquiry",   icon: Ticket },
   { id: "datesheet",          label: "Mid Exam Date Sheet", icon: FileText },
   { id: "mock-datesheet",     label: "Mock Exam Date Sheet", icon: FileText },
   { id: "remid-datesheet",    label: "Re-Mid Date Sheet",   icon: RefreshCcw },
@@ -260,6 +262,11 @@ export default function StudentDashboardManager() {
     const data = await res.json();
     if (res.ok) {
       setProfile(data.student);
+      if (String(data.student.status).toLowerCase() === "alumni") {
+        setTab((current) => current === "overview" || current === "tickets" ? current : "overview");
+      } else if (data.student.status === "struck_off") {
+        setTab((current) => current === "overview" || current === "attendance" || current === "profile" ? current : "overview");
+      }
       setProfileForm({ contact: data.student.contact || "", address: data.student.address || "" });
     }
   }, []);
@@ -400,24 +407,51 @@ export default function StudentDashboardManager() {
     }
   }, []);
 
-  useEffect(() => { loadProfile(); loadCourseAtt(); loadAttChart(); }, [loadProfile, loadCourseAtt, loadAttChart]);
+  useEffect(() => {
+    const timer = setTimeout(() => void loadProfile(), 0);
+    return () => clearTimeout(timer);
+  }, [loadProfile]);
+
+  const profileId = profile?.id;
+  const profileStatus = profile?.status;
+  const profileClassType = profile?.class_type;
+  const isAlumni = profileStatus?.toLowerCase() === "alumni";
+  const displayedTab: TabId = !profile || (isAlumni && tab !== "overview" && tab !== "tickets")
+    ? "overview"
+    : tab;
+
+  useEffect(() => {
+    if (!profileId || profileStatus?.toLowerCase() === "alumni") return;
+    const timer = setTimeout(() => {
+      loadCourseAtt();
+      loadAttChart();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [profileId, profileStatus, loadCourseAtt, loadAttChart]);
 
   // (policyModal always starts open on every page load)
 
   // Load DIT data once profile is known and student is in DIT class
   useEffect(() => {
-    if (profile?.class_type === "DIT") loadDitOverview();
-  }, [profile, loadDitOverview]);
+    if (profileClassType !== "DIT" || profileStatus?.toLowerCase() === "alumni") return;
+    const timer = setTimeout(() => void loadDitOverview(), 0);
+    return () => clearTimeout(timer);
+  }, [profileId, profileClassType, profileStatus, loadDitOverview]);
 
   useEffect(() => {
-    if (tab === "results")            loadResults();
-    if (tab === "datesheet")          loadDatesheet();
-    if (tab === "mock-datesheet")     loadMockDatesheet();
-    if (tab === "remid-datesheet")    loadRdDatesheet();
-    if (tab === "attendance")         loadSimpleAtt();
-    if (tab === "notifications")      loadNotifications();
-    if (tab === "mock-exam-results" || (tab === "results" && profile?.class_type === "DIT")) loadDitTab();
-  }, [tab, profile?.class_type, loadResults, loadDatesheet, loadMockDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications, loadDitTab]);
+    if (!profileId) return;
+    if (profileStatus?.toLowerCase() === "alumni" && tab !== "tickets" && tab !== "overview") return;
+    const timer = setTimeout(() => {
+      if (tab === "results")            loadResults();
+      if (tab === "datesheet")          loadDatesheet();
+      if (tab === "mock-datesheet")     loadMockDatesheet();
+      if (tab === "remid-datesheet")    loadRdDatesheet();
+      if (tab === "attendance")         loadSimpleAtt();
+      if (tab === "notifications")      loadNotifications();
+      if (tab === "mock-exam-results" || (tab === "results" && profileClassType === "DIT")) loadDitTab();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [tab, profileId, profileStatus, profileClassType, loadResults, loadDatesheet, loadMockDatesheet, loadRdDatesheet, loadSimpleAtt, loadNotifications, loadDitTab]);
 
   /* details modal open */
   async function openDetails(semesterId: string, courseId: string, courseTitle: string, teacherName: string) {
@@ -754,10 +788,13 @@ export default function StudentDashboardManager() {
     return map[grade] ?? "";
   }
 
-  // Visible tabs:
-  //   - Struck-off students: Overview, Attendance, and Profile
-  //   - Others: all tabs except Mock Exam Results for non-DIT students
+  // Alumni retain access only to their overview and ticket history.
+  // Struck-off access remains unchanged.
   const visibleTabs = TABS.filter((t) => {
+    if (!profile) return t.id === "overview" || t.id === "tickets";
+    if (profile?.status?.toLowerCase() === "alumni") {
+      return t.id === "overview" || t.id === "tickets";
+    }
     if (profile?.status === "struck_off") {
       return t.id === "overview" || t.id === "attendance" || t.id === "profile";
     }
@@ -790,7 +827,7 @@ export default function StudentDashboardManager() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-              tab === t.id
+              displayedTab === t.id
                 ? "bg-indigo-600 text-white shadow-sm"
                 : "text-slate-600 hover:bg-white hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-700"
             }`}
@@ -808,7 +845,40 @@ export default function StudentDashboardManager() {
       </div>
 
       {/* ── OVERVIEW ── */}
-      {tab === "overview" && (
+      {displayedTab === "overview" && (
+        !profile ? (
+          <DataFetchLoader label="Loading your overview…" />
+        ) : isAlumni ? (
+          <div className="space-y-6">
+            <section className="card-3d rounded-2xl p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-300">Alumni overview</p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">Welcome, {profile.name}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                Your student profile remains available here. For assistance, submit a request from the Tickets / Inquiry tab.
+              </p>
+            </section>
+            <section className="card-3d rounded-2xl p-6">
+              <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">Profile overview</h3>
+              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ["Student name", profile.name],
+                  ["Roll number", profile.roll_no],
+                  ["Class", profile.class_name],
+                  ["Session", profile.session],
+                  ["Department", profile.department_name],
+                  ["Contact", profile.contact],
+                  ["Email", profile.email],
+                  ["Status", "Alumni"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</dt>
+                    <dd className="mt-1 break-words text-sm font-semibold text-slate-800 dark:text-slate-100">{value || "—"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          </div>
+        ) : (
         <div className="space-y-6">
 
           {profile?.attendance_fine && !profile.attendance_fine.is_protected && (
@@ -1254,10 +1324,13 @@ export default function StudentDashboardManager() {
             )}
           </div>
         </div>
+        )
       )}
 
+      {displayedTab === "tickets" && <StudentTickets />}
+
       {/* ── RESULTS ── */}
-      {tab === "results" && (
+      {displayedTab === "results" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Academic Results</h2>
@@ -1340,7 +1413,7 @@ export default function StudentDashboardManager() {
       )}
 
       {/* ── MOCK EXAM RESULTS (DIT only) ── */}
-      {(tab === "mock-exam-results" || (tab === "results" && profile?.class_type === "DIT")) && (
+      {(displayedTab === "mock-exam-results" || (displayedTab === "results" && profile?.class_type === "DIT")) && (
         <div className="space-y-5">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-white">DIT Test Results</h2>
 
@@ -1495,7 +1568,7 @@ export default function StudentDashboardManager() {
       )}
 
       {/* ── ROLL NO. SLIP ── */}
-      {tab === "rollno-slip" && (
+      {displayedTab === "rollno-slip" && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Roll Number Slip</h2>
@@ -1535,7 +1608,7 @@ export default function StudentDashboardManager() {
       )}
 
       {/* ── MID EXAM DATE SHEET ── */}
-      {tab === "remid-datesheet" && (
+      {displayedTab === "remid-datesheet" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Re-Mid Exam Date Sheet</h2>
@@ -1609,7 +1682,7 @@ export default function StudentDashboardManager() {
         </div>
       )}
 
-          {tab === "datesheet" && (
+          {displayedTab === "datesheet" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mid Exam Date Sheet</h2>
@@ -1683,7 +1756,7 @@ export default function StudentDashboardManager() {
         </div>
       )}
 
-      {tab === "mock-datesheet" && (
+      {displayedTab === "mock-datesheet" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Mock Exam Date Sheet</h2>
@@ -1756,7 +1829,7 @@ export default function StudentDashboardManager() {
       )}
 
       {/* ── ATTENDANCE (simple daily view) ── */}
-      {tab === "attendance" && (
+      {displayedTab === "attendance" && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Daily Attendance</h2>
           <div className="card-3d flex flex-wrap items-end gap-4 p-4">
@@ -1805,7 +1878,7 @@ export default function StudentDashboardManager() {
       )}
 
       {/* ── NOTIFICATIONS ── */}
-      {tab === "notifications" && (
+      {displayedTab === "notifications" && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Notifications</h2>
@@ -1844,10 +1917,10 @@ export default function StudentDashboardManager() {
         </div>
       )}
 
-      {tab === "feedback" && <StudentFeedback />}
+      {displayedTab === "feedback" && <StudentFeedback />}
 
       {/* ── PROFILE ── */}
-      {tab === "profile" && profile && (
+      {displayedTab === "profile" && profile && (
         <div className="space-y-6">
           {/* ── Profile Picture ── */}
           <div className="card-3d p-6">

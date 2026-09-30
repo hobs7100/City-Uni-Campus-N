@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
-import { requireRole } from "@/lib/requireRole";
+import { requireActiveStudent } from "@/lib/requireActiveStudent";
 import { getRollNumberSlipThreshold, type StudentLeaveType } from "@/lib/attendance-policy";
 import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
 
 export async function GET() {
-  const { session, response } = await requireRole("student");
+  const { session, response } = await requireActiveStudent();
   if (response) return response;
 
   const studentId = session!.userId;

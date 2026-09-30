@@ -28,7 +28,7 @@ interface Student {
   class_id: string;
   class_name: string;
   profile_image_url: string | null;
-  status: "active" | "struck_off" | "left" | "dropped" | "freezed";
+  status: "active" | "struck_off" | "left" | "dropped" | "freezed" | "permanent_leave" | "alumni";
   status_change_date: string | null;
   status_change_semester: number | null;
   status_changed_by_name: string | null;
@@ -63,6 +63,7 @@ const statusOptions = [
   { value: "left",      label: "Left" },
   { value: "dropped",   label: "Dropped" },
   { value: "freezed",   label: "Freezed" },
+  { value: "alumni",    label: "Alumni" },
 ];
 
 const emptyForm = {

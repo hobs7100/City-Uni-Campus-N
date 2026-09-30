@@ -14,7 +14,7 @@ interface UserRow {
   name: string;
   email: string;
   cellno: string | null;
-  role: "admin" | "hod" | "coordinator" | "finance_manager" | "assistant";
+  role: "admin" | "hod" | "coordinator" | "finance_manager" | "assistant" | "suprident" | "controller" | "accountant";
   status: "active" | "blocked";
   created_at: string;
 }
@@ -25,6 +25,9 @@ const roleOptions = [
   { value: "coordinator", label: "Coordinator" },
   { value: "finance_manager", label: "Finance Manager" },
   { value: "assistant", label: "Assistant" },
+  { value: "suprident", label: "Suprident" },
+  { value: "controller", label: "Controller" },
+  { value: "accountant", label: "Accountant" },
 ];
 
 const statusOptions = [
@@ -67,7 +70,8 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   function openCreate() {

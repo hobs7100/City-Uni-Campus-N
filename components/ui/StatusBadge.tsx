@@ -12,6 +12,8 @@ const statusStyles: Record<string, string> = {
     "bg-orange-100 text-orange-700 ring-1 ring-orange-600/20 dark:bg-orange-500/10 dark:text-orange-400 dark:ring-orange-400/20",
   freezed:
     "bg-sky-100 text-sky-700 ring-1 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-400 dark:ring-sky-400/20",
+  alumni:
+    "bg-indigo-100 text-indigo-700 ring-1 ring-indigo-600/20 dark:bg-indigo-500/10 dark:text-indigo-400 dark:ring-indigo-400/20",
   closed:
     "bg-slate-100 text-slate-500 ring-1 ring-slate-400/20 dark:bg-slate-700/30 dark:text-slate-400 dark:ring-slate-500/20",
   mid_term:
@@ -28,6 +30,7 @@ const statusLabels: Record<string, string> = {
   left:       "Left",
   dropped:    "Dropped",
   freezed:    "Freezed",
+  alumni:     "Alumni",
   closed:     "Closed",
   mid_term:   "Mid Term Exam",
   final_term: "Final Term Exam",

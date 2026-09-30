@@ -99,9 +99,6 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      vitest:
-        specifier: ^5.0.2
-        version: 5.0.2(@types/node@20.19.43)(vite@8.3.1(@types/node@20.19.43)(jiti@2.7.0))
       '@tailwindcss/postcss':
         specifier: '4'
         version: 4.3.2
@@ -132,6 +129,9 @@ importers:
       typescript:
         specifier: '5'
         version: 5.9.3
+      vitest:
+        specifier: ^5.0.2
+        version: 5.0.2(@types/node@20.19.43)(vite@8.3.1(@types/node@20.19.43)(jiti@2.7.0))
 
 packages:
 

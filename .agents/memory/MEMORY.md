@@ -30,4 +30,5 @@
 - [Teacher allocation identity](teacher-allocation-identity.md) — duplicate display names can hide courses; reconcile sign-in identity to allocation ownership without losing attendance history.
 - [Workflow port ownership](workflow-port-ownership.md) — an app may respond while its managed workflow fails because an orphaned shell server owns the port.
 - [Mock Exam datesheet scope](mock-exam-datesheet-scope.md) — campus-wide preparatory schedules are separate from DIT mock results and Mid/Re-Mid records.
+- [Alumni ticket access](alumni-ticket-access.md) — Alumni retain support but not academic access; private ticket files must pass current-participant authorization.
 - [Ephemeral PostgreSQL test startup](ephemeral-postgres-test-startup.md) — local pg_ctl needs a writable socket directory and redirected server log when launched via synchronous child process.

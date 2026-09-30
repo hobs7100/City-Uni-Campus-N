@@ -16,6 +16,9 @@ const roleHomePage: Record<UserRole, string> = {
   student: "/dashboard/student",
   finance_manager: "/dashboard/admin",
   assistant: "/dashboard/admin",
+  suprident: "/dashboard/employee",
+  controller: "/dashboard/employee",
+  accountant: "/dashboard/employee",
 };
 
 const rolePrefixAccess: Record<UserRole, string[]> = {
@@ -25,7 +28,10 @@ const rolePrefixAccess: Record<UserRole, string[]> = {
   teacher: ["/dashboard/teacher"],
   student: ["/dashboard/student"],
   finance_manager: ["/dashboard/admin"],
-  assistant: ["/dashboard/admin"],
+  assistant: ["/dashboard/admin", "/dashboard/employee"],
+  suprident: ["/dashboard/employee"],
+  controller: ["/dashboard/employee"],
+  accountant: ["/dashboard/employee"],
 };
 
 function portalModuleForApiPath(pathname: string) {
