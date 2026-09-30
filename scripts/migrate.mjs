@@ -5,6 +5,12 @@ import pg from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(__dirname, "..", "db", "migrations");
+const args = process.argv.slice(2);
+const onlyFiles = args[0] === "--only" ? args.slice(1) : null;
+if (args.length && (!onlyFiles?.length || onlyFiles.some((file) => !/^[^/\\]+\.sql$/.test(file)))) {
+  console.error("Usage: node scripts/migrate.mjs [--only migration.sql ...]");
+  process.exit(1);
+}
 
 const connectionString = process.env.SUPABASE_DB_URL;
 if (!connectionString) {
@@ -28,9 +34,14 @@ async function main() {
       (await client.query("select name from schema_migrations")).rows.map((r) => r.name)
     );
 
-    const files = readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
+    const available = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql"));
+    const files = onlyFiles
+      ? [...new Set(onlyFiles)].sort()
+      : available.sort();
+    const unknown = files.filter((file) => !available.includes(file));
+    if (unknown.length) {
+      throw new Error(`Unknown migrations: ${unknown.join(", ")}`);
+    }
 
     for (const file of files) {
       if (applied.has(file)) {
