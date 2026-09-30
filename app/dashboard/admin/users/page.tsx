@@ -35,6 +35,8 @@ const statusOptions = [
   { value: "blocked", label: "Blocked" },
 ];
 
+const defaultPasswordRoles = new Set<UserRow["role"]>(["suprident", "controller", "accountant"]);
+
 const emptyForm = {
   id: "",
   name: "",
@@ -119,7 +121,9 @@ export default function UsersPage() {
       }
       if (!editing) {
         if (data.emailSent) {
-          toast.success("User created and welcome email sent.");
+          toast.success(defaultPasswordRoles.has(form.role)
+            ? "User created. The initial password is city123; ask them to change it from Profile."
+            : "User created and welcome email sent.");
         } else {
           toast.error(
             `User created, but the welcome email failed to send${
@@ -319,7 +323,9 @@ export default function UsersPage() {
           </div>
           {!editing && (
             <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-              A password will be auto-generated and emailed to this user. They can change it after logging in.
+              {defaultPasswordRoles.has(form.role)
+                ? "Initial password: city123. Share it securely and ask the user to change it from Profile after signing in."
+                : "A password will be auto-generated and emailed to this user. They can change it after logging in."}
             </p>
           )}
           <div>

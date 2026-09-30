@@ -150,9 +150,18 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Profile", href: "/dashboard/admin/profile", icon: "UserCog" },
     // Roll No. Slips intentionally excluded for Assistant
   ],
-  suprident: [{ label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" }],
-  controller: [{ label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" }],
-  accountant: [{ label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" }],
+  suprident: [
+    { label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" },
+    { label: "Profile", href: "/dashboard/employee/profile", icon: "UserCog" },
+  ],
+  controller: [
+    { label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" },
+    { label: "Profile", href: "/dashboard/employee/profile", icon: "UserCog" },
+  ],
+  accountant: [
+    { label: "Assigned Tickets", href: "/dashboard/employee", icon: "MessageSquare" },
+    { label: "Profile", href: "/dashboard/employee/profile", icon: "UserCog" },
+  ],
 };
 
 export const roleLabels: Record<UserRole, string> = {

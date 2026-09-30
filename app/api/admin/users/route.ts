@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
   }
 
-  const generatedPassword = generateRandomPassword();
+  const usesDefaultPassword = ["suprident", "controller", "accountant"].includes(role);
+  const generatedPassword = usesDefaultPassword ? "city123" : generateRandomPassword();
   const passwordHash = await hashPassword(generatedPassword);
   const user = await queryOne(
     `insert into users (name, email, password_hash, cellno, role, status)
