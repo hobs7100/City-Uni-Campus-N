@@ -57,7 +57,7 @@ async function resolveAttendanceClasses(
          join semester_courses slot_sc
            on slot_sc.semester_id = slot_als.semester_id
           and slot_sc.course_id = a.course_id
-          and slot_sc.syllabus_completed_at is null
+           and ($5::boolean or slot_sc.syllabus_completed_at is null)
          where tc.allocation_id = als.allocation_id
            and ($5::boolean or tt.semester_id = als.semester_id)
            and td.day_name = $2

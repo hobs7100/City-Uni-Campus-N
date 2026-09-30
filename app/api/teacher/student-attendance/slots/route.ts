@@ -79,14 +79,14 @@ export async function GET(request: NextRequest) {
      join semesters s
        on s.id = als.semester_id
       and s.status = 'active'
-     join semester_courses sc
-       on sc.semester_id = als.semester_id
-      and sc.course_id = als.course_id
-      and sc.syllabus_completed_at is null
+      join semester_courses sc
+        on sc.semester_id = als.semester_id
+       and sc.course_id = als.course_id
+       and ($3::boolean or sc.syllabus_completed_at is null)
      where tc.allocation_id = $1
        and td.day_name       = $2
      order by tp.start_time, tp.end_time`,
-    [allocationId, dayName]
+    [allocationId, dayName, allocation.is_combined]
   );
 
   return NextResponse.json({ slots, is_combined: allocation.is_combined });
