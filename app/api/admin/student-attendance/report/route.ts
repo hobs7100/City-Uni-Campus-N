@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { pool, query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
-import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
+import { getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
+import { getCoordinatorAttendanceStandings } from "@/lib/coordinator-attendance-standing";
 
 export async function GET(request: NextRequest) {
   const { response } = await requireRole("admin", "coordinator");
@@ -48,6 +49,10 @@ export async function GET(request: NextRequest) {
     values
   );
 
+  const standings = await getCoordinatorAttendanceStandings(
+    pool, semesterId, rows.map((row) => String(row.student_id)),
+  );
+  const standingByStudent = new Map(standings.map((standing) => [standing.student_id, standing]));
   const students = rows.map((r) => {
     const presents = Number(r.presents ?? 0);
     const absents = Number(r.absents ?? 0);
@@ -56,7 +61,7 @@ export async function GET(request: NextRequest) {
     const percentage = denom > 0 ? Math.round((presents / denom) * 10000) / 100 : null;
     const leaveType = r.leave_type as StudentLeaveType;
     const policy = getAttendancePolicy(leaveType);
-    const flag = percentage === null ? "ok" : getAttendanceFlag(percentage, leaveType);
+    const standing = standingByStudent.get(String(r.student_id))!;
     return {
       student_id: r.student_id,
       name: r.name,
@@ -68,7 +73,12 @@ export async function GET(request: NextRequest) {
       absents,
       leaves,
       percentage,
-      flag,
+      flag: standing.flag,
+      policy_percentage: standing.percentage,
+      is_protected: standing.is_protected,
+      protection_days_completed: standing.protection_days_completed,
+      protection_days_required: standing.protection_days_required,
+      eligible_for_strike_off: standing.eligible_for_strike_off,
       leave_type: leaveType,
       policy_threshold: policy.struckOffBelow,
     };

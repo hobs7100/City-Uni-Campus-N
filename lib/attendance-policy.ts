@@ -1,5 +1,6 @@
 export type StudentLeaveType = "permanent" | "partial" | null;
 export type AttendanceFlag = "ok" | "warning" | "struck_off";
+export const ATTENDANCE_PROTECTION_DAYS = 15;
 
 export interface AttendancePolicy {
   struckOffBelow: number;

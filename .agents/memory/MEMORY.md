@@ -32,3 +32,4 @@
 - [Mock Exam datesheet scope](mock-exam-datesheet-scope.md) — campus-wide preparatory schedules are separate from DIT mock results and Mid/Re-Mid records.
 - [Alumni ticket access](alumni-ticket-access.md) — Alumni retain support but not academic access; private ticket files must pass current-participant authorization.
 - [Ephemeral PostgreSQL test startup](ephemeral-postgres-test-startup.md) — local pg_ctl needs a writable socket directory and redirected server log when launched via synchronous child process.
+- [PostgreSQL CASE parameter types](postgres-case-parameter-types.md) — numeric parameters in CASE branches need explicit types; JS numbers alone do not prevent text comparisons.

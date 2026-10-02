@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import { runAutoStruckOff } from "@/lib/auto-struck-off";
+import type { PoolClient } from "pg";
 
 export async function GET(request: NextRequest) {
   const { response } = await requireRole("admin", "coordinator");
@@ -213,25 +214,35 @@ export async function POST(request: NextRequest) {
 
   // Attendance must remain saved even if the follow-up standing evaluation
   // encounters a separate data problem.
-  if (session?.role === "coordinator" || session?.role === "admin") {
-    const strikeClient = await pool.connect();
+  let standingWarning: string | undefined;
+  let struckOffCount = 0;
+  // Every authorized save to this coordinator/admin daily-attendance endpoint
+  // must evaluate standing, including delegated Assistant portal saves.
+  {
+    let strikeClient: PoolClient | undefined;
     try {
+      strikeClient = await pool.connect();
       await strikeClient.query("begin");
-      await runAutoStruckOff({
+      const result = await runAutoStruckOff({
         studentIds,
         semesterId: d.semester_id,
         classIds: [classId],
-        triggeredBy: isCoordinator ? "COORDINATOR" : "ADMIN",
+        triggeredBy: isCoordinator ? "COORDINATOR" : session?.role === "hod" ? "HOD" : "ADMIN",
         client: strikeClient,
       });
       await strikeClient.query("commit");
+      struckOffCount = result.struckOffIds.length;
     } catch (error) {
-      await strikeClient.query("rollback");
+      await strikeClient?.query("rollback").catch(() => undefined);
       console.error("Attendance saved, but auto-struck-off evaluation failed:", error);
+      standingWarning = "Attendance was saved, but the automatic standing check failed. Please contact the administrator.";
     } finally {
-      strikeClient.release();
+      strikeClient?.release();
     }
   }
 
-  return NextResponse.json({ success: true, saved_count: savedCount });
+  return NextResponse.json({
+    success: true, saved_count: savedCount, struck_off_count: struckOffCount,
+    standing_warning: standingWarning,
+  });
 }

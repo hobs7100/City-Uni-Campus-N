@@ -2,224 +2,115 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { getCoordinatorAttendanceStandings } from "@/lib/coordinator-attendance-standing";
+import { getAttendancePolicy } from "@/lib/attendance-policy";
+import { runAutoStruckOff } from "@/lib/auto-struck-off";
 
 export async function GET(request: NextRequest) {
-  const { session: authSession, response } = await requireRole("admin", "coordinator", "hod");
+  const { session, response } = await requireRole("admin", "coordinator", "hod");
   if (response) return response;
-
-  const semesterId = request.nextUrl.searchParams.get("semester_id");
-  const classId = request.nextUrl.searchParams.get("class_id");
-  const departmentId = request.nextUrl.searchParams.get("department_id");
-
-  const conditions: string[] = [
-    "st.deleted_at is null",
-    "st.status = 'active'",
-  ];
   const values: unknown[] = [];
-  let i = 1;
-
-  if (semesterId) {
-    conditions.push(`sem.id = $${i++}`);
-    values.push(semesterId);
-  }
-  if (classId) {
-    conditions.push(`st.class_id = $${i++}`);
-    values.push(classId);
-  }
-  if (departmentId) {
-    conditions.push(`cl.department_id = $${i++}`);
-    values.push(departmentId);
-  }
-
-  // For HoD role with no explicit department filter: restrict to their own departments
-  if (!departmentId && authSession?.role === "hod") {
-    const hodDepts = await query<{ id: string }>(
-      `select id from departments where hod_id = $1`,
-      [authSession.userId]
-    );
-    if (hodDepts.length > 0) {
-      conditions.push(`cl.department_id = any($${i++}::uuid[])`);
-      values.push(hodDepts.map((d) => d.id));
+  const conditions = ["st.deleted_at is null", "st.status = 'active'"];
+  for (const [parameter, column] of [
+    ["semester_id", "sem.id"], ["class_id", "st.class_id"], ["department_id", "cl.department_id"],
+  ]) {
+    const value = request.nextUrl.searchParams.get(parameter);
+    if (value) {
+      values.push(value);
+      conditions.push(`${column} = $${values.length}`);
     }
   }
-
+  if (session?.role === "hod") {
+    values.push(session.userId);
+    conditions.push(`st.department_id in (select id from departments where hod_id = $${values.length})`);
+  }
   const rows = await query<{
-    student_id: string;
-    name: string;
-    father_name: string | null;
-    roll_no: string | null;
-    contact: string | null;
-    class_name: string;
-    session: string;
+    student_id: string; semester_id: string; name: string; father_name: string | null;
+    roll_no: string | null; contact: string | null; class_name: string; session: string;
     student_status: string;
-    presents: string;
-    absents: string;
-    leaves: string;
-    leave_type: "permanent" | "partial";
   }>(
-    `select st.id as student_id, st.name, st.father_name, st.roll_no, st.contact,
-            cl.class_name, cl.session, st.status as student_status,
-            count(*) filter (where sar.status = 'present') as presents,
-            count(*) filter (where sar.status = 'absent')  as absents,
-             count(*) filter (where sar.status = 'leave')   as leaves,
-             case when exists (
-               select 1 from student_leaves sl
-               where sl.student_id = st.id
-                 and sl.revoked_at is null
-                 and sl.leave_type = 'partial'
-             ) then 'partial'::varchar else 'permanent'::varchar end as leave_type
-     from students st
-     join classes cl on cl.id = st.class_id
-     join semesters sem on sem.class_id = st.class_id and sem.status = 'active'
-     left join student_attendance_records sar
-       on sar.student_id = st.id and sar.semester_id = sem.id
+    `select st.id as student_id, sem.id as semester_id, st.name, st.father_name,
+            st.roll_no, st.contact, cl.class_name, cl.session, st.status::text as student_status
+     from students st join classes cl on cl.id = st.class_id
+     join semesters sem on sem.class_id = st.class_id and sem.status in ('active', 'mid_term')
      where ${conditions.join(" and ")}
-     group by st.id, st.name, st.father_name, st.roll_no, st.contact, cl.class_name, cl.session, st.status
-     having
-       count(*) filter (where sar.status in ('present','absent')) > 0
-       and (count(*) filter (where sar.status = 'present'))::float /
-            nullif(count(*) filter (where sar.status in ('present','absent')), 0)
-              < case when exists (
-                select 1 from student_leaves sl
-                where sl.student_id = st.id
-                  and sl.revoked_at is null
-                  and sl.leave_type = 'partial'
-              ) then 0.4 else 0.6 end
      order by cl.class_name, (st.roll_no is null), st.roll_no, st.name`,
-    values
+    values,
   );
-
-  const students = rows.map((r) => {
-    const p = Number(r.presents);
-    const a = Number(r.absents);
-    const l = Number(r.leaves);
-    const total = p + a;
-    const pct = total > 0 ? Math.round((p / total) * 100) : null;
-    const threshold = r.leave_type === "partial" ? 30 : 60;
-    return {
-      student_id: r.student_id,
-      name: r.name,
-      father_name: r.father_name,
-      roll_no: r.roll_no,
-      contact: r.contact,
-      class_name: r.class_name,
-      session: r.session,
-      student_status: r.student_status,
-      presents: p,
-      absents: a,
-      leaves: l,
-      percentage: pct,
-      leave_type: r.leave_type,
-      policy_threshold: threshold,
-    };
+  const bySemester = new Map<string, string[]>();
+  for (const row of rows) {
+    const ids = bySemester.get(row.semester_id) ?? [];
+    ids.push(row.student_id);
+    bySemester.set(row.semester_id, ids);
+  }
+  const standings = await getCoordinatorAttendanceStandings(
+    pool, [...bySemester.keys()], rows.map((row) => row.student_id),
+  );
+  const byStudentSemester = new Map(
+    standings.map((standing) => [`${standing.student_id}:${standing.semester_id}`, standing]),
+  );
+  const students = rows.flatMap((row) => {
+    const standing = byStudentSemester.get(`${row.student_id}:${row.semester_id}`)!;
+    if (standing.flag !== "struck_off") return [];
+    return [{
+      ...row, presents: standing.presents, leaves: standing.leaves,
+      absents: standing.evaluable_days - standing.presents,
+      percentage: standing.percentage, leave_type: standing.leave_type,
+      policy_threshold: getAttendancePolicy(standing.leave_type).struckOffBelow,
+      is_protected: standing.is_protected,
+      protection_days_completed: standing.protection_days_completed,
+      protection_days_required: standing.protection_days_required,
+      eligible_for_strike_off: standing.eligible_for_strike_off,
+    }];
   });
-
   return NextResponse.json({ students });
 }
 
-const strikeSchema = z.object({
-  student_ids: z.array(z.string().uuid()).min(1),
-});
+const strikeSchema = z.object({ student_ids: z.array(z.string().uuid()).min(1) });
 
 export async function POST(request: NextRequest) {
   const { session, response } = await requireRole("admin", "hod");
   if (response) return response;
-
-  const body = await request.json().catch(() => null);
-  const parsed = strikeSchema.safeParse(body);
+  const parsed = strikeSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid data." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
   }
-
-  const actorRole = session!.role === "hod" ? "HOD" : "ADMIN";
-  const hodDepartments = session!.role === "hod"
-    ? await query<{ id: string }>(`select id from departments where hod_id = $1`, [session!.userId])
-    : [];
-  const hodDepartmentIds = hodDepartments.map((department) => department.id);
-
   const client = await pool.connect();
+  let count = 0;
   try {
     await client.query("begin");
-
-    // Re-evaluate selected students in the current active semester instead of
-    // trusting IDs submitted by the client.
-    const eligible = await client.query<{
-      id: string;
-      leave_type: "permanent" | "partial";
-      threshold: number;
+    const selected = await client.query<{
+      id: string; semester_id: string; class_id: string;
     }>(
-      `select st.id,
-              case when exists (
-                select 1 from student_leaves sl
-                where sl.student_id = st.id
-                  and sl.revoked_at is null
-                  and sl.leave_type = 'partial'
-              ) then 'partial'::varchar else 'permanent'::varchar end as leave_type,
-              case when exists (
-                select 1 from student_leaves sl
-                where sl.student_id = st.id
-                  and sl.revoked_at is null
-                  and sl.leave_type = 'partial'
-              ) then 30 else 60 end as threshold
+      `select st.id, sem.id as semester_id, st.class_id
        from students st
-       join semesters sem on sem.class_id = st.class_id and sem.status = 'active'
-       left join student_attendance_records sar
-         on sar.student_id = st.id and sar.semester_id = sem.id
-       where st.id = any($1::uuid[])
-         and st.deleted_at is null
-         and st.status = 'active'
-         and ($2::uuid[] is null or st.department_id = any($2::uuid[]))
-       group by st.id
-       having count(*) filter (where sar.status in ('present', 'absent')) > 0
-          and count(*) filter (where sar.status = 'present')::float /
-              nullif(count(*) filter (where sar.status in ('present', 'absent')), 0)
-              < case when exists (
-                select 1 from student_leaves sl
-                where sl.student_id = st.id
-                  and sl.revoked_at is null
-                  and sl.leave_type = 'partial'
-              ) then 0.3 else 0.6 end`,
-      [parsed.data.student_ids, session!.role === "hod" ? hodDepartmentIds : null]
+       join semesters sem on sem.class_id = st.class_id and sem.status in ('active', 'mid_term')
+       where st.id = any($1::uuid[]) and st.status = 'active' and st.deleted_at is null
+         and ($2::uuid is null or st.department_id in (
+           select id from departments where hod_id = $2
+         ))
+       order by sem.id, st.id`,
+      [parsed.data.student_ids, session!.role === "hod" ? session!.userId : null],
     );
-
-    for (const student of eligible.rows) {
-      const updated = await client.query<{ id: string }>(
-        `update students
-       set status                 = 'struck_off',
-            status_changed_by_name = $2,
-           reactivated_at         = NULL,
-           updated_at             = now()
-        where id = $1
-         and deleted_at is null
-         and status = 'active'
-       returning id`,
-        [student.id, `Short Attendance — Below ${student.threshold}%`]
-      );
-
-      if (updated.rows.length > 0) {
-        await client.query(
-          `insert into student_status_history
-           (student_id, previous_status, new_status, reason, triggered_by)
-           values ($1, 'active', 'struck_off', $2, $3)`,
-          [
-            student.id,
-            `Manually struck off — short attendance (below ${student.threshold}%; ${student.leave_type} leave policy)`,
-            actorRole,
-          ]
-        );
-      }
+    const groups = new Map<string, { studentIds: string[]; classId: string }>();
+    for (const student of selected.rows) {
+      const group = groups.get(student.semester_id) ?? { studentIds: [], classId: student.class_id };
+      group.studentIds.push(student.id);
+      groups.set(student.semester_id, group);
     }
-
+    for (const [semesterId, group] of groups) {
+      const result = await runAutoStruckOff({
+        semesterId, studentIds: group.studentIds, classIds: [group.classId],
+        triggeredBy: session!.role === "hod" ? "HOD" : "ADMIN", client,
+      });
+      count += result.struckOffIds.length;
+    }
     await client.query("commit");
-  } catch (err) {
+  } catch (error) {
     await client.query("rollback");
-    throw err;
+    throw error;
   } finally {
     client.release();
   }
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, struck_off_count: count });
 }

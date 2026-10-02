@@ -55,6 +55,10 @@ interface ShortRow {
   percentage: number | null;
   leave_type: "permanent" | "partial";
   policy_threshold: number;
+  is_protected: boolean;
+  eligible_for_strike_off: boolean;
+  protection_days_completed: number;
+  protection_days_required: number;
 }
 
 interface ReportRow {
@@ -68,7 +72,11 @@ interface ReportRow {
   absents: number;
   leaves: number;
   percentage: number | null;
-  flag: "ok" | "warning" | "low";
+  flag: "ok" | "warning" | "struck_off";
+  policy_percentage: number | null;
+  is_protected: boolean;
+  protection_days_completed: number;
+  protection_days_required: number;
 }
 
 function todayStr() {
@@ -78,13 +86,19 @@ function todayStr() {
 const flagLabels: Record<string, string> = {
   ok: "OK",
   warning: "Warning",
-  low: "Low",
+  struck_off: "Struck-off zone",
 };
 const flagStyles: Record<string, string> = {
   ok: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
   warning: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
-  low: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+  struck_off: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
 };
+
+function standingLabel(row: ReportRow) {
+  return row.is_protected
+    ? `Protected (${row.protection_days_completed}/${row.protection_days_required} days)`
+    : flagLabels[row.flag];
+}
 
 export default function StudentAttendanceManager({
   role = "admin",
@@ -240,6 +254,7 @@ export default function StudentAttendanceManager({
         return;
       }
       toast.success("Attendance saved.");
+      if (data.standing_warning) toast.error(data.standing_warning, { duration: 10000 });
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Student attendance could not be saved.",
@@ -315,7 +330,7 @@ export default function StudentAttendanceManager({
   }, [tab, loadShortAttendance]);
 
   async function handleStruckOffAll() {
-    const activeShortRows = shortRows.filter((r) => r.student_status === "active");
+    const activeShortRows = shortRows.filter((r) => r.eligible_for_strike_off);
     if (activeShortRows.length === 0) return;
     setShortStruckOffLoading(true);
     try {
@@ -329,7 +344,7 @@ export default function StudentAttendanceManager({
         toast.error(data.error || "Failed to struck off students.");
         return;
       }
-      toast.success(`${activeShortRows.length} student(s) marked as Struck Off.`);
+      toast.success(`${data.struck_off_count} student(s) marked as Struck Off.`);
       await loadShortAttendance();
     } finally {
       setShortStruckOffLoading(false);
@@ -618,14 +633,14 @@ export default function StudentAttendanceManager({
                 />
               </div>
             </div>
-            {role === "admin" && shortRows.filter((r) => r.student_status === "active").length > 0 && (
+            {role === "admin" && shortRows.filter((r) => r.eligible_for_strike_off).length > 0 && (
               <button
                 onClick={handleStruckOffAll}
                 disabled={shortStruckOffLoading}
                 className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {shortStruckOffLoading ? <ButtonLoader /> : null}
-                Struck Off All ({shortRows.filter((r) => r.student_status === "active").length})
+                Struck Off Eligible ({shortRows.filter((r) => r.eligible_for_strike_off).length})
               </button>
             )}
           </div>
@@ -686,7 +701,9 @@ export default function StudentAttendanceManager({
                       <td className="px-4 py-3">
                         {r.student_status === "active" ? (
                           <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
-                            Pending
+                            {r.is_protected
+                              ? `Protected (${r.protection_days_completed}/${r.protection_days_required} days)`
+                              : "Eligible"}
                           </span>
                         ) : (
                           <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/10 dark:text-red-400">
@@ -846,10 +863,13 @@ export default function StudentAttendanceManager({
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[r.flag]}`}
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${flagStyles[r.is_protected ? "warning" : r.flag]}`}
                         >
-                          {flagLabels[r.flag]}
+                          {standingLabel(r)}
                         </span>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Evaluation window: {r.policy_percentage === null ? "—" : `${r.policy_percentage}%`}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -909,7 +929,7 @@ export default function StudentAttendanceManager({
                       {r.percentage !== null ? `${r.percentage}%` : "—"}
                     </td>
                     <td className="border border-indigo-200 px-1.5 py-0.5 text-slate-800">
-                      {flagLabels[r.flag]}
+                      {standingLabel(r)}
                     </td>
                   </tr>
                 ))}

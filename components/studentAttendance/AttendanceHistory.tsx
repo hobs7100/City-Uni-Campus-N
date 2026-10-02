@@ -24,7 +24,7 @@ const standingStyles: Record<string, string> = {
 const standingLabels: Record<string, string> = {
   active: "Active",
   warning: "Warning",
-  struck_off: "Struck Off",
+  struck_off: "Struck-off zone",
 };
 
 export function AttendanceHistoryTable({
@@ -68,10 +68,12 @@ export function AttendanceHistoryTable({
               <td className="px-4 py-3">
                 <span
                   className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    standingStyles[record.standing] ?? ""
+                    standingStyles[record.is_protected ? "warning" : record.standing] ?? ""
                   }`}
                 >
-                  {standingLabels[record.standing] ?? record.standing}
+                  {record.is_protected
+                    ? `Protected (${record.protection_days_completed}/${record.protection_days_required} days)`
+                    : standingLabels[record.standing] ?? record.standing}
                 </span>
               </td>
             </tr>
@@ -112,6 +114,8 @@ export function AttendanceHistoryModal({
     if (from) params.set("from", from);
     if (to) params.set("to", to);
 
+    // Reset the request state when the selected student/window changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError("");
     fetch(`/api/student-attendance/history?${params.toString()}`, {
