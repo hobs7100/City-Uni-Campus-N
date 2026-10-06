@@ -1,9 +1,10 @@
 "use client";
 
-export async function printHtmlDocument(
+/** Prepare a page-sized isolated document for both printing and PDF downloads. */
+export async function prepareHtmlDocument(
   html: string,
   title: string,
-  options: { waitForFrameLoad?: boolean; frameWidthMm?: number; frameHeightMm?: number } = {},
+  options: { waitForFrameLoad?: boolean; frameWidthMm?: number; frameHeightMm?: number; strictImages?: boolean } = {},
 ) {
   const iframe = document.createElement("iframe");
   iframe.title = title;
@@ -33,6 +34,7 @@ export async function printHtmlDocument(
       })
     : null;
 
+  try {
   frameDocument.open();
   frameDocument.write(html);
   frameDocument.close();
@@ -47,10 +49,23 @@ export async function printHtmlDocument(
   const images = Array.from(frameDocument.images);
   await Promise.all(
     images.map((image) => {
-      if (image.complete) return Promise.resolve();
-      return new Promise<void>((resolve) => {
-        image.addEventListener("load", () => resolve(), { once: true });
-        image.addEventListener("error", () => resolve(), { once: true });
+      if (image.complete) {
+        if (options.strictImages && !image.naturalWidth) throw new Error("An image on the slip could not be loaded. Please check your profile picture and try again.");
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve, reject) => {
+        const finish = (failed = false) => {
+          window.clearTimeout(timer);
+          image.removeEventListener("load", loaded);
+          image.removeEventListener("error", errored);
+          if (failed && options.strictImages) reject(new Error("An image on the slip could not be loaded. Please check your profile picture and try again."));
+          else resolve();
+        };
+        const loaded = () => finish();
+        const errored = () => finish(true);
+        const timer = window.setTimeout(errored, 15_000);
+        image.addEventListener("load", loaded, { once: true });
+        image.addEventListener("error", errored, { once: true });
       });
     }),
   );
@@ -77,6 +92,19 @@ export async function printHtmlDocument(
     }
   }
 
+  return { iframe, frameDocument, frameWindow };
+  } catch (error) {
+    iframe.remove();
+    throw error;
+  }
+}
+
+export async function printHtmlDocument(
+  html: string,
+  title: string,
+  options: { waitForFrameLoad?: boolean; frameWidthMm?: number; frameHeightMm?: number; strictImages?: boolean } = {},
+) {
+  const { iframe, frameWindow } = await prepareHtmlDocument(html, title, options);
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return;

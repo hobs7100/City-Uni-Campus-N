@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { printHtmlDocument } from "@/lib/printDocument";
+import { downloadHtmlPdf } from "@/lib/downloadHtmlPdf";
+import type { ExamSlipKind, SlipData } from "@/lib/exam-slip-types";
+import { buildExamSlipDocument } from "./examSlipDocument";
+import ExamSlipsPanel from "./ExamSlipsPanel";
 import {
   Activity,
   AlertCircle,
@@ -18,7 +22,6 @@ import {
   FileText,
   GraduationCap,
   PenLine,
-  Printer,
   Save,
   School,
   RefreshCcw,
@@ -140,17 +143,6 @@ interface StudentRdRow {
   paper_time: string | null;
 }
 
-interface SlipCourseRow {
-  course_id: string; course_title: string; course_code: string;
-  credit_hours: string; paper_date: string | null; paper_time: string | null; att_percentage: number;
-}
-interface SlipData {
-  student: { id: string; name: string; father_name: string | null; class_name: string; session: string; department: string; profile_image_url: string | null };
-  semester: { id: string; semester_number: number; term_type: string };
-  overall_attendance: number;
-  rows: SlipCourseRow[];
-}
-
 /* ─── helpers ─────────────────────────────────────────────── */
 const flagLabel: Record<string, string> = { ok: "OK", warning: "Warning", struck_off: "Struck Off" };
 const flagCls: Record<string, string> = {
@@ -233,7 +225,7 @@ export default function StudentDashboardManager() {
   const [showPolicyModal, setShowPolicyModal] = useState(true);
 
   /* roll no. slip */
-  const [slipLoading, setSlipLoading] = useState(false);
+  const [slipBusy, setSlipBusy] = useState<{ kind: ExamSlipKind; action: "print" | "pdf" } | null>(null);
   const [slipBlock, setSlipBlock] = useState<{ title: string; message: string } | null>(null);
 
   /* attendance chart (overview) */
@@ -557,153 +549,14 @@ export default function StudentDashboardManager() {
   }
 
   /* roll no. slip */
-  function printSlip(data: SlipData) {
-    const today = new Date().toLocaleDateString("en-PK", {
-      year: "numeric", month: "long", day: "numeric",
-    });
-
-    const byPaperDate = (a: SlipCourseRow, b: SlipCourseRow) =>
-      (a.paper_date ?? "9999-12-31").localeCompare(b.paper_date ?? "9999-12-31") ||
-      a.course_title.localeCompare(b.course_title);
-    const isPracticalCourse = (row: SlipCourseRow) =>
-      Number(row.credit_hours) === 1 &&
-      !row.course_title.toLowerCase().includes("translation of holy quran");
-    const theoryRows = data.rows.filter((r) => !isPracticalCourse(r)).sort(byPaperDate);
-    const practicalRows = data.rows.filter(isPracticalCourse).sort(byPaperDate);
-
-    const fmtDate = (d: string) =>
-      new Date(d + "T00:00:00").toLocaleDateString("en-PK", {
-        day: "2-digit", month: "short", year: "numeric",
-      });
-
-    const renderGroup = (label: string, rows: SlipCourseRow[], headerBg: string) => {
-      if (rows.length === 0) return "";
-      return `<section style="margin-bottom:10px;break-inside:avoid">
-        <div style="background:${headerBg};color:white;padding:5px 9px;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">${label}</div>
-        <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed">
-          <thead>
-            <tr style="background:#f1f5f9">
-              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:15%">Code</th>
-              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:40%">Course Title</th>
-              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:center;color:#334155;font-weight:700;width:13%">Attendance</th>
-              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:18%">Paper Date</th>
-              <th style="border:1px solid #cbd5e1;padding:5px 7px;text-align:left;color:#334155;font-weight:700;width:14%">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map((r) => {
-              const pct = r.att_percentage;
-              const attColor = pct >= 75 ? "#15803d" : "#b91c1c";
-              const attBg    = pct >= 75 ? "#dcfce7"  : "#fee2e2";
-              return `<tr>
-              <td style="border:1px solid #cbd5e1;padding:5px 7px;font-weight:700">${r.course_code}</td>
-              <td style="border:1px solid #cbd5e1;padding:5px 7px;overflow-wrap:anywhere">${r.course_title}${pct < 75 ? `<div style="color:#b91c1c;font-size:7px;font-weight:800;margin-top:2px">NOT ALLOWED FOR MID EXAM</div>` : ""}</td>
-              <td style="border:1px solid #cbd5e1;padding:5px 7px;text-align:center"><span style="display:inline-block;background:${attBg};color:${attColor};font-weight:800;font-size:9px;padding:2px 5px">${pct.toFixed(1)}%</span></td>
-              <td style="border:1px solid #cbd5e1;padding:5px 7px;font-weight:600">${r.paper_date ? fmtDate(r.paper_date) : "—"}</td>
-              <td style="border:1px solid #cbd5e1;padding:5px 7px;font-weight:600">${r.paper_time || "—"}</td>
-            </tr>`;}).join("")}
-          </tbody>
-        </table>
-      </section>`;
-    };
-
-    const photoHtml = `<img src="${data.student.profile_image_url}" alt="Photo"
-             style="width:28mm;height:34mm;object-fit:cover;border:1px solid #94a3b8;display:block"/>`;
-
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Roll Number Slip</title>
-<style>
-  @page{size:A4 portrait;margin:0}
-  html{width:210mm;height:297mm;margin:0;padding:0;background:#fff}
-  body{width:210mm;min-height:297mm;margin:0;padding:12mm;font-family:Arial,'Segoe UI',sans-serif;color:#172033;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  *{box-sizing:border-box}
-  @media print{html,body{margin:0;width:210mm;height:297mm;overflow:hidden}}
-</style></head><body>
-<main data-fit-single-page data-print-width-mm="186" data-print-height-mm="273" style="width:186mm;max-width:186mm;border:1.5px solid #273783;overflow:hidden;background:#fff">
-  <header style="padding:10px 14px;border-bottom:2px solid #273783;display:grid;grid-template-columns:42mm 1fr 42mm;align-items:center;gap:8px">
-    <img src="${window.location.origin}/images/logo.png" alt="City College" style="max-height:18mm;max-width:42mm;width:auto;display:block"/>
-    <div style="text-align:center;flex:1">
-      <div style="color:#273783;font-size:18px;font-weight:800;letter-spacing:.05em;text-transform:uppercase">Roll Number Slip</div>
-      <div style="color:#475569;font-size:9.5px;font-weight:600;margin-top:3px">MID TERM EXAMINATION</div>
-    </div>
-    <div style="justify-self:end;border:1px solid #cbd5e1;padding:6px 8px;text-align:center;min-width:37mm">
-      <div style="font-size:7.5px;color:#64748b;text-transform:uppercase;font-weight:700">Academic Term</div>
-      <div style="font-size:10px;color:#273783;font-weight:800;margin-top:2px">${data.semester.term_type}</div>
-      <div style="font-size:8px;color:#475569;margin-top:1px">${data.student.session}</div>
-    </div>
-  </header>
-  <section style="background:#f8fafc;border-bottom:1px solid #cbd5e1;padding:9px 14px">
-    <div style="display:grid;grid-template-columns:1fr 28mm;align-items:stretch;gap:12px">
-      <table style="width:100%;border-collapse:collapse;font-size:10px">
-        <tr>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px;width:24mm">Student Name</td>
-           <td style="padding:4px 6px;font-weight:800;border-bottom:1px solid #dbe2ea">${data.student.name}</td>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px;width:17mm">Class</td>
-           <td style="padding:4px 6px;font-weight:700;border-bottom:1px solid #dbe2ea">${data.student.class_name}</td>
-        </tr>
-        <tr>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Father&rsquo;s Name</td>
-           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">${data.student.father_name || "&mdash;"}</td>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Session</td>
-           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">${data.student.session}</td>
-        </tr>
-        <tr>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Department</td>
-           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">${data.student.department}</td>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Semester</td>
-           <td style="padding:4px 6px;border-bottom:1px solid #dbe2ea">Semester ${data.semester.semester_number}</td>
-        </tr>
-        <tr>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Issue Date</td>
-           <td style="padding:4px 6px">${today}</td>
-           <td style="padding:4px 6px;color:#64748b;font-weight:700;text-transform:uppercase;font-size:8px">Attendance</td>
-           <td style="padding:4px 6px;font-weight:800;color:${data.overall_attendance >= 75 ? "#15803d" : "#b91c1c"}">${data.overall_attendance.toFixed(1)}%</td>
-        </tr>
-      </table>
-      <div style="flex-shrink:0">${photoHtml}</div>
-    </div>
-  </section>
-  <section style="padding:10px 14px 2px">
-    ${renderGroup("Date Sheet \u2013 Theory", theoryRows, "#3730a3")}
-    ${renderGroup("Date Sheet \u2013 Practical", practicalRows, "#047857")}
-  </section>
-  <section style="margin:0 14px 9px;border:1px solid #cbd5e1;padding:8px 10px;break-inside:avoid">
-    <div style="font-size:8.5px;font-weight:800;color:#273783;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Important Instructions</div>
-    <ol style="margin:0;padding-left:15px;font-size:8px;color:#334155;line-height:1.45;columns:2;column-gap:28px">
-      <li>Students will not be allowed to enter the examination hall without a valid Roll Number Slip and Original Student ID Card.</li>
-      <li>Report to the examination hall at least 30 minutes before the scheduled examination time.</li>
-      <li>Students arriving more than 15 minutes late after the commencement of the examination will not be permitted to enter.</li>
-      <li>Mobile phones, smart watches, earphones, programmable calculators, and all unauthorized electronic devices are strictly prohibited inside the examination hall.</li>
-      <li>Any form of cheating, possession of unauthorized material, or misconduct will result in disciplinary action according to university rules.</li>
-      <li>Maintain complete silence and follow all instructions given by the invigilators throughout the examination.</li>
-    </ol>
-  </section>
-  <section style="margin:0 14px 9px;border:1.5px solid #273783;padding:8px 10px;break-inside:avoid">
-    <div style="font-size:8.5px;font-weight:800;color:#273783;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px">Account Office Clearance</div>
-    <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:14px;align-items:end;font-size:8px;color:#475569">
-      <div><div style="height:16px;border-bottom:1px solid #64748b"></div><div style="margin-top:3px">Remarks</div></div>
-      <div style="text-align:center"><div style="height:16px;border-bottom:1px solid #64748b"></div><div style="margin-top:3px">Authorized Signature</div></div>
-      <div style="text-align:center"><div style="height:16px;border-bottom:1px solid #64748b"></div><div style="margin-top:3px">Official Stamp</div></div>
-    </div>
-  </section>
-  <footer style="background:#273783;padding:6px 14px;display:flex;justify-content:space-between;align-items:center">
-    <span style="color:#e0e7ff;font-size:7.5px">Computer-generated examination slip</span>
-    <span style="color:#ffffff;font-size:7.5px;font-weight:700">Deveploped By: Prof.M.Shahzad(HoD, Faculty of Computing)</span>
-    <span style="color:#e0e7ff;font-size:7.5px;font-weight:700">City College &mdash; University Campus</span>
-  </footer>
-</main>
-</body></html>`;
-
-    void printHtmlDocument(html, "Roll Number Slip", { waitForFrameLoad: true }).catch(() => {
-      toast.error("Unable to open the print dialog. Please try again.");
-    });
-  }
-
-  async function generateSlip() {
-    setSlipLoading(true);
+  async function generateSlip(kind: ExamSlipKind, action: "print" | "pdf") {
+    if (slipBusy) return;
+    setSlipBusy({ kind, action });
+    setSlipBlock(null);
     try {
-      const res = await fetch("/api/student/rollno-slip");
+      const res = await fetch(`/api/student/${kind === "clearance" ? "clearance" : "rollno"}-slip`);
       const data = await res.json();
-      if (!res.ok) { toast.error("Failed to validate slip. Please try again."); return; }
+      if (!res.ok) throw new Error(data.error || "Failed to validate slip. Please try again.");
       if (!data.allowed) {
         const titles: Record<string, string> = {
           inactive_student: "Enrollment Inactive",
@@ -711,6 +564,7 @@ export default function StudentDashboardManager() {
           no_datesheet: "Date Sheet Not Available",
           low_attendance: "Insufficient Attendance",
           missing_profile_photo: "Profile Picture Required",
+          no_enrolled_courses: "No Enrolled Courses",
         };
         setSlipBlock({
           title: titles[data.reason as string] ?? "Cannot Generate Slip",
@@ -718,9 +572,19 @@ export default function StudentDashboardManager() {
         });
         return;
       }
-      printSlip(data as SlipData);
+      const title = kind === "clearance" ? "Clearance Slip" : "Roll Number Slip";
+      const slip = data as SlipData;
+      const html = buildExamSlipDocument(slip, kind, window.location.origin);
+      if (action === "pdf") {
+        await downloadHtmlPdf(html, title, `${kind === "clearance" ? "Clearance-Slip" : "Roll-Number-Slip"}-Semester-${slip.semester.semester_number}.pdf`);
+        toast.success(`${title} PDF download started.`);
+      } else {
+        await printHtmlDocument(html, title, { waitForFrameLoad: true, strictImages: true });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to generate the slip. Please try again.");
     } finally {
-      setSlipLoading(false);
+      setSlipBusy(null);
     }
   }
 
@@ -1569,42 +1433,7 @@ export default function StudentDashboardManager() {
 
       {/* ── ROLL NO. SLIP ── */}
       {displayedTab === "rollno-slip" && (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Roll Number Slip</h2>
-          </div>
-
-          {/* requirements card */}
-          <div className="card-3d p-5">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Eligibility Requirements</h3>
-            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-              {[
-                "Your enrollment status must be Active.",
-                "The Mid Exam Date Sheet for the current semester must have been published by Admin.",
-                `Your overall attendance must be ≥ ${attendancePolicy.rollSlipRequired}%.`,
-                "If attendance for any individual course is below 75%, that course will be marked \u201cNot Allowed for Mid Exam\u201d on the slip \u2014 but the slip will still be generated.",
-              ].map((txt, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400">
-                    {i + 1}
-                  </span>
-                  <span>{txt}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="flex justify-center">
-            <button
-              onClick={generateSlip}
-              disabled={slipLoading}
-              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-md hover:bg-indigo-700 disabled:opacity-60 active:scale-95 transition-transform"
-            >
-              {slipLoading ? <ButtonLoader /> : <Printer size={18} />}
-              {slipLoading ? "Validating…" : "Generate Slip"}
-            </button>
-          </div>
-        </div>
+        <ExamSlipsPanel threshold={attendancePolicy.rollSlipRequired} busy={slipBusy} onGenerate={generateSlip} />
       )}
 
       {/* ── MID EXAM DATE SHEET ── */}
