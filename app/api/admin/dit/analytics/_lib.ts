@@ -62,14 +62,16 @@ export async function analyticsFilterOptions() {
        where cl.type='DIT'
        order by cl.session desc, cl.class_name, sem.semester_number`
     ),
-    query<{ id:string; title:string; code:string }>(
-      `select distinct co.id, co.title, co.code
+    query<{ id:string; title:string; code:string; class_ids:string[]; semester_ids:string[]; sessions:string[] }>(
+      `select co.id, co.title, co.code, array_agg(distinct cl.id) as class_ids,
+              array_agg(distinct sem.id) as semester_ids, array_agg(distinct cl.session) as sessions
        from allocations a
        join courses co on co.id=a.course_id
        join allocation_semesters asem on asem.allocation_id=a.id
        join semesters sem on sem.id=asem.semester_id
        join classes cl on cl.id=sem.class_id
        where cl.type='DIT'
+        group by co.id, co.title, co.code
        order by co.title, co.code`
     ),
     query<{ id:string; name:string }>(
