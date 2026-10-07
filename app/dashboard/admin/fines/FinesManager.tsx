@@ -20,6 +20,8 @@ import {
   Ban,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import type { AttendanceFineAssessment } from "@/lib/attendance-fines";
+import FinePaymentDialog from "./FinePaymentDialog";
 
 type Transaction = {
   id: string;
@@ -60,31 +62,10 @@ type FineData = {
     months: number[];
     fids: string[];
   };
-  permissions: { can_adjust: boolean };
+  permissions: { can_adjust: boolean; can_collect: boolean };
 };
 
-type AttendanceFine = {
-  student_id: string;
-  name: string;
-  father_name: string | null;
-  roll_no: string | null;
-  status: "active" | "struck_off";
-  department_name: string;
-  class_name: string;
-  session: string;
-  semester_id: string;
-  semester_number: number;
-  attendance_percentage: number;
-  evaluable_days: number;
-  is_protected: boolean;
-  protection_days_completed: number;
-  protection_days_required: number;
-  gross_amount: number;
-  adjustment_type: "discount" | "waive" | null;
-  discount_amount: number;
-  adjustment_reason: string | null;
-  net_amount: number;
-};
+type AttendanceFine = AttendanceFineAssessment;
 
 type Filters = {
   search: string;
@@ -200,6 +181,43 @@ export default function FinesManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [adjusting, setAdjusting] = useState("");
+  const [paymentFine, setPaymentFine] = useState<AttendanceFine | null>(null);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  const submitPayment = async (fid: string, paidDate: string) => {
+    if (!paymentFine || submittingPayment) return;
+    setSubmittingPayment(true);
+    try {
+      const response = await fetch("/api/admin/fines/payment", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: paymentFine.student_id, semester_id: paymentFine.semester_id,
+          assessment_cycle_id: paymentFine.assessment_cycle_id, fid, paid_date: paidDate,
+          fine_quote: {
+            presents: paymentFine.presents, evaluable_days: paymentFine.evaluable_days,
+            gross_amount: paymentFine.gross_amount, discount_amount: paymentFine.discount_amount,
+            paid_amount: paymentFine.paid_amount, net_amount: paymentFine.net_amount,
+            adjustment_type: paymentFine.adjustment_type, adjusted_at: paymentFine.adjusted_at,
+          },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        if (payload.code === "STALE_FINE_QUOTE") {
+          setPaymentFine(null);
+          await loadFines();
+        }
+        throw new Error(payload.error || "Unable to submit the fine.");
+      }
+      setPaymentFine(null);
+      toast.success(`Fine payment of ${money(payload.amount)} recorded.`);
+      await loadFines();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to submit the fine.");
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
 
   const updateFilter = (key: keyof Filters, value: string) =>
     setFilters((current) => ({ ...current, [key]: value, ...(key === "department_id" ? { class_id: "" } : {}) }));
@@ -288,11 +306,11 @@ export default function FinesManager() {
           <div>
             <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">
               <span className="h-2 w-2 rounded-full bg-coral-500" />
-              Revenue control / struck-off reactivation
+               Revenue control / attendance fines
             </div>
             <h1 className="text-3xl font-black tracking-[-0.04em] text-slate-950 sm:text-4xl">Fine ledger</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Reconcile reactivation payments, monitor recovery momentum, and keep every student account traceable.
+               Collect active-student attendance fines, reconcile reactivation payments, and keep every student account traceable.
             </p>
           </div>
           <button
@@ -355,12 +373,15 @@ export default function FinesManager() {
                 {loading ? <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">Calculating attendance fines…</td></tr> : data?.current_attendance_fines.length ? data.current_attendance_fines.map((fine) => <tr key={`${fine.student_id}-${fine.semester_id}`} className="hover:bg-amber-50/20">
                   <td className="px-5 py-4"><p className="font-bold text-slate-800">{fine.name}</p><p className="text-xs text-slate-400">{fine.roll_no || "No roll number"} · {fine.father_name || "Father not listed"}</p></td>
                   <td className="px-4 py-4"><p className="font-semibold text-slate-700">{fine.class_name}</p><p className="text-xs text-slate-400">{fine.department_name} · {fine.session} · Sem {fine.semester_number}</p></td>
-                  <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${fine.is_protected ? "bg-emerald-100 text-emerald-700" : fine.status === "struck_off" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{fine.is_protected ? `Protected ${fine.protection_days_completed}/${fine.protection_days_required}` : fine.status === "struck_off" ? "Struck off" : "Active · low attendance"}</span></td>
+                  <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${fine.is_protected ? "bg-emerald-100 text-emerald-700" : fine.status === "struck_off" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{fine.is_protected ? `Protected ${fine.protection_days_completed}/${fine.protection_days_required}` : fine.status === "struck_off" ? "Struck off" : fine.status === "permanent_leave" ? "Permanent leave · low attendance" : "Active · low attendance"}</span></td>
                   <td className="px-4 py-4"><p className="font-black text-slate-800">{fine.attendance_percentage.toFixed(2)}%</p><p className="text-xs text-slate-400">{fine.evaluable_days} evaluable days</p></td>
                   <td className="px-4 py-4 text-right font-bold">{money(fine.gross_amount)}</td>
                   <td className="px-4 py-4 text-right">{fine.adjustment_type === "waive" ? <span className="font-bold text-emerald-700">Waived</span> : fine.discount_amount > 0 ? <span className="font-bold text-indigo-700">− {money(fine.discount_amount)}</span> : "—"}{fine.adjustment_reason && <p className="max-w-[180px] truncate text-xs text-slate-400" title={fine.adjustment_reason}>{fine.adjustment_reason}</p>}</td>
-                  <td className="px-4 py-4 text-right font-black text-rose-700">{money(fine.net_amount)}</td>
-                  <td className="px-5 py-4"><div className="flex justify-end gap-1.5">{data.permissions.can_adjust && !fine.is_protected ? <><button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "discount")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Discount</button><button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "waive")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"><Ban className="mr-1 inline h-3 w-3" />Waive</button>{fine.adjustment_type && <button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "clear")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Reset</button>}</> : <span className="text-xs text-slate-400">Read only</span>}</div></td>
+                  <td className="px-4 py-4 text-right font-black text-rose-700">{fine.net_amount === 0 && fine.paid_amount > 0 ? "Paid" : money(fine.net_amount)}{fine.paid_amount > 0 && <p className="text-xs font-medium text-emerald-700">Collected {money(fine.paid_amount)}</p>}</td>
+                  <td className="px-5 py-4"><div className="flex flex-wrap justify-end gap-1.5">
+                    {data.permissions.can_collect && fine.status !== "struck_off" && !fine.is_protected && fine.net_amount > 0 && <button disabled={submittingPayment || !!adjusting} onClick={() => setPaymentFine(fine)} className="rounded-lg bg-teal-700 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50">Submit Fine</button>}
+                    {data.permissions.can_adjust && !fine.is_protected ? <><button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "discount")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Discount</button><button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "waive")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"><Ban className="mr-1 inline h-3 w-3" />Waive</button>{fine.adjustment_type && <button disabled={adjusting === fine.student_id} onClick={() => void adjustFine(fine, "clear")} className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Reset</button>}</> : <span className="text-xs text-slate-400">Adjustments locked</span>}
+                  </div></td>
                 </tr>) : <tr><td colSpan={8} className="px-5 py-12 text-center text-slate-400">No current attendance fines match these filters.</td></tr>}
               </tbody>
             </table>
@@ -396,7 +417,8 @@ export default function FinesManager() {
             </section>
           </aside>
         </div>
-        <footer className="mt-7 flex items-center gap-2 text-xs text-slate-400"><ShieldCheck className="h-4 w-4 text-teal-600" /> Payment records remain read-only; attendance-fine adjustments are audited separately.</footer>
+        <footer className="mt-7 flex items-center gap-2 text-xs text-slate-400"><ShieldCheck className="h-4 w-4 text-teal-600" /> Recorded payments remain read-only. New collections and attendance-fine adjustments are audited separately.</footer>
+        {paymentFine && <FinePaymentDialog fine={paymentFine} submitting={submittingPayment} onClose={() => { if (!submittingPayment) setPaymentFine(null); }} onSubmit={submitPayment} />}
       </div>
     </main>
   );

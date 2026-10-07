@@ -76,7 +76,9 @@ export default function ExamSlipsPanel({
           </li>
           <li>
             Overall daily attendance must meet the {thresholdLabel} threshold. Attendance is
-            confirmed by the Coordinator, Assistant, or Admin; an Admin override is supported.
+             confirmed by the Coordinator, Assistant, or Admin. Active/permanent-leave students
+             within the first 15 evaluable days of their current attendance window are exempt
+             from the attendance threshold; an Admin override is also supported.
           </li>
         </ul>
       </section>

@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
 import type { PoolClient } from "pg";
+import { ATTENDANCE_PROTECTION_DAYS } from "./attendance-policy";
 
 export type AttendanceFineAdjustmentType = "discount" | "waive";
 
@@ -8,7 +9,7 @@ export type AttendanceFineAssessment = {
   name: string;
   father_name: string | null;
   roll_no: string | null;
-  status: "active" | "struck_off";
+  status: "active" | "permanent_leave" | "struck_off";
   struck_off_minimum_applies: boolean;
   department_id: string;
   department_name: string;
@@ -34,9 +35,10 @@ export type AttendanceFineAssessment = {
   adjusted_by_name: string | null;
   adjusted_at: string | null;
   net_amount: number;
+  paid_amount: number;
 };
 
-const PROTECTION_DAYS = 15;
+const PROTECTION_DAYS = ATTENDANCE_PROTECTION_DAYS;
 
 export function calculateAttendanceFineAmount(
   percentage: number,
@@ -61,7 +63,7 @@ type FineRow = {
   name: string;
   father_name: string | null;
   roll_no: string | null;
-  status: "active" | "struck_off";
+  status: "active" | "permanent_leave" | "struck_off";
   department_id: string;
   department_name: string;
   class_id: string;
@@ -80,6 +82,7 @@ type FineRow = {
   adjustment_reason: string | null;
   adjusted_by_name: string | null;
   adjusted_at: string | null;
+  paid_amount: string;
 };
 
 export async function getCurrentAttendanceFineAssessments(
@@ -101,17 +104,14 @@ export async function getCurrentAttendanceFineAssessments(
         (st.status = 'struck_off' and latest_strike.reason like '%source: teacher%') as teacher_strike_off,
        count(distinct sar.attendance_date) filter (
          where sar.status = 'present'
-           and (st.attendance_fine_cycle_started_at is null
-                or sar.attendance_date > st.attendance_fine_cycle_started_at)
        )::int as presents,
        count(distinct sar.attendance_date) filter (
          where sar.status in ('present', 'absent')
-           and (st.attendance_fine_cycle_started_at is null
-                or sar.attendance_date > st.attendance_fine_cycle_started_at)
        )::int as evaluable_days,
        afa.adjustment_type, afa.discount_amount::text,
        afa.reason as adjustment_reason, u.name as adjusted_by_name,
-       afa.created_at::text as adjusted_at
+        afa.created_at::text as adjusted_at,
+        coalesce(payments.amount, 0)::text as paid_amount
      from students st
      join classes cl on cl.id = st.class_id
      join departments d on d.id = st.department_id
@@ -151,6 +151,12 @@ export async function getCurrentAttendanceFineAssessments(
      ) sem on true
      left join student_attendance_records sar
        on sar.student_id = st.id and sar.semester_id = sem.id
+        and (
+          (st.status = 'struck_off' and
+            (st.attendance_fine_cycle_started_at is null or sar.attendance_date > st.attendance_fine_cycle_started_at))
+          or (st.status in ('active', 'permanent_leave') and
+            (st.reactivated_at is null or sar.attendance_date > st.reactivated_at::date))
+        )
       left join lateral (
         select ssh.reason
         from student_status_history ssh
@@ -177,14 +183,19 @@ export async function getCurrentAttendanceFineAssessments(
        limit 1
      ) afa on true
      left join users u on u.id = afa.adjusted_by
+      left join lateral (
+        select sum(f.amount) as amount from student_fines f
+        where f.student_id = st.id and f.semester_id = sem.id
+          and f.assessment_cycle_id = st.attendance_fine_cycle_id
+      ) payments on true
      where st.deleted_at is null
-       and st.status in ('active', 'struck_off')
+        and st.status in ('active', 'permanent_leave', 'struck_off')
        ${studentFilter}
      group by st.id, st.name, st.father_name, st.roll_no, st.status,
        st.department_id, d.name, st.class_id, cl.class_name, cl.session,
        sem.id, sem.semester_number, st.attendance_fine_cycle_started_at,
         active_leave.leave_type, latest_strike.reason, afa.adjustment_type, afa.discount_amount,
-       afa.reason, u.name, afa.created_at
+        afa.reason, u.name, afa.created_at, payments.amount
       order by d.name, cl.class_name, st.name`;
   const rows = client
     ? (await client.query(sql, values)).rows as FineRow[]
@@ -195,12 +206,11 @@ export async function getCurrentAttendanceFineAssessments(
       ? (row.presents / row.evaluable_days) * 100
       : 0;
     const percentage = Number(rawPercentage.toFixed(2));
-    const isProtected = row.status === "active"
-      && row.fine_cycle_started_at !== null
+    const isProtected = ["active", "permanent_leave"].includes(row.status)
       && row.evaluable_days < PROTECTION_DAYS;
     // A historical teacher-triggered strike-off cannot impose the struck-off
     // minimum. Any remaining fine must come from coordinator/admin daily marks.
-    const fineStatus = row.teacher_strike_off ? "active" : row.status;
+    const fineStatus = row.teacher_strike_off || row.status === "permanent_leave" ? "active" : row.status;
     const grossAmount = isProtected
       ? 0
       : row.evaluable_days === 0
@@ -213,9 +223,10 @@ export async function getCurrentAttendanceFineAssessments(
     const discount = effectiveAdjustment === "discount"
       ? Math.min(Number(row.discount_amount ?? 0), grossAmount)
       : 0;
+    const paidAmount = Number(row.paid_amount ?? 0);
     const netAmount = effectiveAdjustment === "waive"
       ? 0
-      : Math.max(0, grossAmount - discount);
+      : Math.max(0, grossAmount - discount - paidAmount);
 
     return [{
       student_id: row.student_id,
@@ -248,6 +259,7 @@ export async function getCurrentAttendanceFineAssessments(
       adjusted_by_name: row.adjusted_by_name,
       adjusted_at: row.adjusted_at,
       net_amount: netAmount,
+      paid_amount: paidAmount,
     }];
   });
 }

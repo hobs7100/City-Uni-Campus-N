@@ -34,3 +34,4 @@
 - [Ephemeral PostgreSQL test startup](ephemeral-postgres-test-startup.md) — local pg_ctl needs a writable socket directory and redirected server log when launched via synchronous child process.
 - [PostgreSQL CASE parameter types](postgres-case-parameter-types.md) — numeric parameters in CASE branches need explicit types; JS numbers alone do not prevent text comparisons.
 - [Rasterized slip PDFs](rasterized-slip-pdf.md) — shared print/download layout; CSS zoom corrupts html2canvas text, so capture unscaled and fit the PDF image.
+- [Fine protection and collection](fine-protection-and-collection.md) — active/permanent-leave protection applies to slips and fines; ordinary collections credit dues without restarting protection.

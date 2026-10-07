@@ -73,8 +73,9 @@ interface Profile {
     adjustment_type: "discount" | "waive" | null;
     adjustment_reason: string | null;
     net_amount: number;
+    paid_amount: number;
     is_protected: boolean;
-    status: "active" | "struck_off";
+    status: "active" | "permanent_leave" | "struck_off";
     struck_off_minimum_applies: boolean;
   } | null;
 }
@@ -757,6 +758,8 @@ export default function StudentDashboardManager() {
                     <h2 className="mt-0.5 text-lg font-extrabold text-rose-800 dark:text-rose-200">
                       {profile.attendance_fine.adjustment_type === "waive"
                         ? "Fine waived off"
+                        : profile.attendance_fine.net_amount === 0 && profile.attendance_fine.paid_amount > 0
+                        ? "Fine paid"
                         : `Payable: PKR ${profile.attendance_fine.net_amount.toLocaleString("en-PK")}`}
                     </h2>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
@@ -767,6 +770,7 @@ export default function StudentDashboardManager() {
                 </div>
                 <div className="text-right text-sm">
                   <p className="font-bold text-slate-700 dark:text-slate-200">Gross PKR {profile.attendance_fine.gross_amount.toLocaleString("en-PK")}</p>
+                  {profile.attendance_fine.paid_amount > 0 && <p className="font-semibold text-emerald-700 dark:text-emerald-300">Paid PKR {profile.attendance_fine.paid_amount.toLocaleString("en-PK")}</p>}
                   {profile.attendance_fine.discount_amount > 0 && <p className="font-semibold text-indigo-700 dark:text-indigo-300">Discount − PKR {profile.attendance_fine.discount_amount.toLocaleString("en-PK")}</p>}
                   {profile.attendance_fine.adjustment_reason && <p className="mt-1 max-w-xs text-xs text-slate-500">{profile.attendance_fine.adjustment_reason}</p>}
                 </div>

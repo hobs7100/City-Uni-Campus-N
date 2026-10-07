@@ -55,7 +55,7 @@ export async function getCoordinatorAttendanceStandings(
       : null;
     // Classify before rounding: e.g. 59.999% remains below 60%.
     const flag = rawPercentage === null ? "ok" : getAttendanceFlag(rawPercentage, row.leave_type);
-    const isProtected = row.student_status === "active"
+    const isProtected = ["active", "permanent_leave"].includes(row.student_status)
       && row.evaluable_days < ATTENDANCE_PROTECTION_DAYS;
     return {
       ...row,

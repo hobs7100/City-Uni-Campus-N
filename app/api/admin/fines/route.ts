@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import { getCurrentAttendanceFineAssessments } from "@/lib/attendance-fines";
+import { getPortalAccess } from "@/lib/portalPermissions";
 
 type FineRow = {
   id: string;
@@ -198,6 +199,9 @@ export async function GET(request: NextRequest) {
     },
     monthly_totals: monthlyTotals,
     yearly_totals: yearlyTotals,
-    permissions: { can_adjust: authSession!.role === "admin" },
+    permissions: {
+      can_adjust: authSession!.role === "admin",
+      can_collect: await getPortalAccess(authSession!.role, "fines").then((access) => access.canView && access.canEdit),
+    },
   });
 }

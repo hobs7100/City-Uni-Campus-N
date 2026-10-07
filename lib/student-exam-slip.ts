@@ -2,6 +2,8 @@ import { query, queryOne } from "./db";
 import { getRollNumberSlipThreshold, type StudentLeaveType } from "./attendance-policy";
 import { getCurrentAttendanceFine } from "./attendance-fines";
 import type { ExamSlipKind, SlipCourseRow } from "./exam-slip-types";
+import { pool } from "./db";
+import { getCoordinatorAttendanceStandings } from "./coordinator-attendance-standing";
 
 /** Shared eligibility rules for Mid Term roll-number and Final Term clearance slips. */
 export async function getStudentExamSlip(studentId: string, kind: ExamSlipKind) {
@@ -66,7 +68,9 @@ export async function getStudentExamSlip(studentId: string, kind: ExamSlipKind) 
   const presents = Number(attendance?.presents ?? 0), absents = Number(attendance?.absents ?? 0);
   const percentage = presents + absents ? presents * 100 / (presents + absents) : 0;
   const threshold = getRollNumberSlipThreshold(student.active_leave_type ?? null);
-  if (percentage < threshold) {
+  const [standing] = await getCoordinatorAttendanceStandings(pool, semester.id, [studentId]);
+  const isProtected = standing?.is_protected === true;
+  if (percentage < threshold && !isProtected) {
     const override = await queryOne<{ id: string }>("select id from rollno_slip_overrides where student_id = $1", [studentId]);
     if (!override) {
       return blocked("low_attendance", `Your overall attendance is ${percentage.toFixed(1)}%, which is below the required ${threshold}%. You are not eligible to sit the ${exam} Examination.`);
@@ -100,6 +104,9 @@ export async function getStudentExamSlip(studentId: string, kind: ExamSlipKind) 
     semester,
     overall_attendance: Math.round(percentage * 100) / 100,
     roll_number_slip_threshold: threshold,
+    is_protected: isProtected,
+    protection_days_completed: standing?.protection_days_completed ?? 0,
+    protection_days_required: standing?.protection_days_required ?? 15,
     attendance_fine: attendanceFine?.semester_id === semester.id ? attendanceFine : null,
     rows: courses.filter((course) => kind === "clearance" || course.paper_date !== null)
       .map((course) => ({ ...course,

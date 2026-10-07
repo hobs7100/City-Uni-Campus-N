@@ -11,6 +11,7 @@ let db: Pool;
 let signedIn = true;
 const sqlCalls: string[] = [];
 vi.mock("@/lib/db", () => ({
+  pool: { query: (sql: string, args?: unknown[]) => db.query(sql, args) },
   query: async (sql: string, args?: unknown[]) => { sqlCalls.push(sql); return (await db.query(sql, args)).rows; },
   queryOne: async (sql: string, args?: unknown[]) => { sqlCalls.push(sql); return (await db.query(sql, args)).rows[0] ?? null; },
 }));
@@ -48,13 +49,13 @@ beforeAll(async () => {
     create table departments(id uuid primary key,name text);
     create table classes(id uuid primary key,class_name text);
     create table students(id uuid primary key,name text,father_name text,class_id uuid,
-      session text,status text,department_id uuid,profile_image_url text,deleted_at timestamptz);
+      session text,status text,department_id uuid,profile_image_url text,deleted_at timestamptz,reactivated_at timestamptz);
     create table student_leaves(student_id uuid,leave_type text,revoked_at timestamptz,created_at timestamptz default now());
     create table semesters(id uuid primary key,class_id uuid,status text,semester_number int,term_type text);
     create table courses(id uuid primary key,title text,code text,credit_hours int);
     create table semester_courses(semester_id uuid,course_id uuid);
     create table mid_exam_datesheets(semester_id uuid,course_id uuid,paper_date date,paper_time time);
-    create table student_attendance_records(student_id uuid,semester_id uuid,status text);
+    create table student_attendance_records(student_id uuid,semester_id uuid,status text,attendance_date date default current_date);
     create table rollno_slip_overrides(id uuid default gen_random_uuid(),student_id uuid);
     create table allocations(id uuid primary key,course_id uuid);
     create table allocation_semesters(allocation_id uuid,semester_id uuid);
@@ -82,7 +83,7 @@ beforeEach(async () => {
     insert into semester_courses values('${SEMESTER}','${COURSE}'),('${SEMESTER}','${COURSE2}'),('${SEMESTER}','${COURSE}');
     insert into mid_exam_datesheets values('${SEMESTER}','${COURSE}','2026-10-12','09:00');
     insert into student_attendance_records select '${STUDENT}','${SEMESTER}',
-      case when n<=15 then 'present' else 'absent' end from generate_series(1,20)n;
+      case when n<=15 then 'present' else 'absent' end, date '2026-09-01'+n from generate_series(1,20)n;
     insert into allocations values('${id(7)}','${COURSE}');
     insert into allocation_semesters values('${id(7)}','${SEMESTER}');
     insert into student_course_attendance values('${STUDENT}','${id(7)}','absent');
@@ -116,15 +117,15 @@ describe.each([["roll number", rollno], ["clearance", clearance]] as const)("%s 
     await db.query(`insert into student_attendance_records select '${STUDENT}','${SEMESTER}','leave' from generate_series(1,50)`);
     expect(await (await handler()).json()).toMatchObject({ allowed: true, overall_attendance: 75 });
   });
-  it("respects the same admin override for low or missing daily attendance", async () => {
-    await db.query(`delete from student_attendance_records; insert into rollno_slip_overrides(student_id) values('${STUDENT}')`);
+  it("respects the same admin override outside protection", async () => {
+    await db.query(`update student_attendance_records set status='absent'; insert into rollno_slip_overrides(student_id) values('${STUDENT}')`);
     expect(await (await handler()).json()).toMatchObject({ allowed: true, overall_attendance: 0 });
   });
   it("uses the partial-leave 40% boundary without rounding before comparison", async () => {
     await db.query(`insert into student_leaves(student_id,leave_type) values('${STUDENT}','partial');
       delete from student_attendance_records;
       insert into student_attendance_records select '${STUDENT}','${SEMESTER}',
-        case when n<=8 then 'present' else 'absent' end from generate_series(1,20)n`);
+        case when n<=8 then 'present' else 'absent' end, date '2026-09-01'+n from generate_series(1,20)n`);
     expect(await (await handler()).json()).toMatchObject({ allowed: true, overall_attendance: 40, roll_number_slip_threshold: 40 });
     await db.query(`insert into student_attendance_records values('${STUDENT}','${SEMESTER}','absent')`);
     expect(await (await handler()).json()).toMatchObject({ allowed: false, reason: "low_attendance" });
@@ -135,7 +136,19 @@ describe.each([["roll number", rollno], ["clearance", clearance]] as const)("%s 
   });
   it("does not use another class or closed semester attendance to qualify", async () => {
     await db.query(`update student_attendance_records set semester_id='${id(99)}'`);
+    // No current-window marks means protection; unrelated marks cannot end it.
+    expect(await (await handler()).json()).toMatchObject({ allowed: true, is_protected: true, overall_attendance: 0 });
+  });
+  it.each(["active", "permanent_leave"])("allows %s students at 14 evaluable days but not at 15 with low attendance", async (status) => {
+    await db.query("update students set status=$1", [status]);
+    await db.query("delete from student_attendance_records where attendance_date > '2026-09-15'; update student_attendance_records set status='absent'");
+    expect(await (await handler()).json()).toMatchObject({ allowed: true, is_protected: true, protection_days_completed: 14 });
+    await db.query(`insert into student_attendance_records values('${STUDENT}','${SEMESTER}','absent','2026-09-16')`);
     expect(await (await handler()).json()).toMatchObject({ allowed: false, reason: "low_attendance" });
+  });
+  it("uses the reactivation window for protection, not historic marks", async () => {
+    await db.query("update students set reactivated_at='2026-09-15'; update student_attendance_records set status='absent'");
+    expect(await (await handler()).json()).toMatchObject({ allowed: true, is_protected: true, protection_days_completed: 6 });
   });
 });
 
