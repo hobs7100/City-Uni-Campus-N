@@ -36,3 +36,4 @@
 - [Rasterized slip PDFs](rasterized-slip-pdf.md) — shared print/download layout; CSS zoom corrupts html2canvas text, so capture unscaled and fit the PDF image.
 - [Fine protection and collection](fine-protection-and-collection.md) — active/permanent-leave protection applies to slips and fines; ordinary collections credit dues without restarting protection.
 - [Fresh HTTP responses](fresh-http-response-bodies.md) — create rejection responses per request; reused Response bodies are consumed and lose subsequent error messages.
+- [GitHub commit uploads](github-commit-upload.md) — shell Git and the GitHub integration have separate credentials; use verified Git Data API uploads when necessary.
