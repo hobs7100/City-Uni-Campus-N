@@ -191,7 +191,18 @@ export async function getCurrentAttendanceFineAssessments(
       left join lateral (
         select sum(f.amount) as amount from student_fines f
         where f.student_id = st.id and f.semester_id = sem.id
-          and f.assessment_cycle_id = st.attendance_fine_cycle_id
+           and (
+             f.assessment_cycle_id = st.attendance_fine_cycle_id
+             or (
+               st.status in ('active', 'permanent_leave')
+               and f.id = (
+                 select receipt.id from student_fines receipt
+                 where receipt.student_id = st.id and receipt.semester_id = sem.id
+                   and receipt.reactivated_on = st.attendance_fine_cycle_started_at
+                 order by receipt.created_at desc, receipt.id desc limit 1
+               )
+             )
+           )
       ) payments on true
      where st.deleted_at is null
         and st.status in ('active', 'permanent_leave', 'struck_off')
@@ -225,13 +236,15 @@ export async function getCurrentAttendanceFineAssessments(
         ? 0
         : calculateAttendanceFineAmount(rawPercentage, fineStatus, row.leave_type);
 
-    if (grossAmount === 0 && !isProtected) return [];
+    // Reactivation receipts settle the outgoing cycle, but still credit this
+    // semester after its cycle rotates. Do not hide an already-paid fine.
+    const paidAmount = Number(row.paid_amount ?? 0);
+    if (grossAmount === 0 && !isProtected && paidAmount === 0) return [];
 
     const effectiveAdjustment = row.adjustment_type === "clear" ? null : row.adjustment_type;
     const discount = effectiveAdjustment === "discount"
       ? Math.min(Number(row.discount_amount ?? 0), grossAmount)
       : 0;
-    const paidAmount = Number(row.paid_amount ?? 0);
     const netAmount = effectiveAdjustment === "waive"
       ? 0
       : Math.max(0, grossAmount - discount - paidAmount);

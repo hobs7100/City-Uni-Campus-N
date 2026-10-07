@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { printHtmlDocument } from "@/lib/printDocument";
-import { downloadHtmlPdf } from "@/lib/downloadHtmlPdf";
 import type { ExamSlipKind, SlipData } from "@/lib/exam-slip-types";
 import { buildExamSlipDocument } from "./examSlipDocument";
 import ExamSlipsPanel from "./ExamSlipsPanel";
@@ -226,7 +225,7 @@ export default function StudentDashboardManager() {
   const [showPolicyModal, setShowPolicyModal] = useState(true);
 
   /* roll no. slip */
-  const [slipBusy, setSlipBusy] = useState<{ kind: ExamSlipKind; action: "print" | "pdf" } | null>(null);
+  const [slipBusy, setSlipBusy] = useState<ExamSlipKind | null>(null);
   const [slipBlock, setSlipBlock] = useState<{ title: string; message: string } | null>(null);
 
   /* attendance chart (overview) */
@@ -550,9 +549,9 @@ export default function StudentDashboardManager() {
   }
 
   /* roll no. slip */
-  async function generateSlip(kind: ExamSlipKind, action: "print" | "pdf") {
+  async function generateSlip(kind: ExamSlipKind) {
     if (slipBusy) return;
-    setSlipBusy({ kind, action });
+    setSlipBusy(kind);
     setSlipBlock(null);
     try {
       const res = await fetch(`/api/student/${kind === "clearance" ? "clearance" : "rollno"}-slip`);
@@ -569,21 +568,19 @@ export default function StudentDashboardManager() {
         };
         setSlipBlock({
           title: titles[data.reason as string] ?? "Cannot Generate Slip",
-          message: data.message,
+          message: data.message || "This slip cannot be generated. Please contact the administration to review your eligibility.",
         });
         return;
       }
       const title = kind === "clearance" ? "Clearance Slip" : "Roll Number Slip";
       const slip = data as SlipData;
       const html = buildExamSlipDocument(slip, kind, window.location.origin);
-      if (action === "pdf") {
-        await downloadHtmlPdf(html, title, `${kind === "clearance" ? "Clearance-Slip" : "Roll-Number-Slip"}-Semester-${slip.semester.semester_number}.pdf`);
-        toast.success(`${title} PDF download started.`);
-      } else {
-        await printHtmlDocument(html, title, { waitForFrameLoad: true, strictImages: true });
-      }
+      await printHtmlDocument(html, title, { waitForFrameLoad: true, strictImages: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to generate the slip. Please try again.");
+      setSlipBlock({
+        title: "Unable to Generate Slip",
+        message: error instanceof Error ? error.message : "Unable to generate the slip. Please try again.",
+      });
     } finally {
       setSlipBusy(null);
     }
@@ -746,7 +743,7 @@ export default function StudentDashboardManager() {
         ) : (
         <div className="space-y-6">
 
-          {profile?.attendance_fine && !profile.attendance_fine.is_protected && (
+          {profile?.attendance_fine && (!profile.attendance_fine.is_protected || (profile.attendance_fine.paid_amount > 0 && profile.attendance_fine.net_amount === 0)) && (
             <div className="rounded-2xl border-2 border-rose-300 bg-gradient-to-r from-rose-50 to-amber-50 p-5 shadow-sm dark:border-rose-500/40 dark:from-rose-500/10 dark:to-amber-500/10">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -1437,7 +1434,7 @@ export default function StudentDashboardManager() {
 
       {/* ── ROLL NO. SLIP ── */}
       {displayedTab === "rollno-slip" && (
-        <ExamSlipsPanel threshold={attendancePolicy.rollSlipRequired} busy={slipBusy} onGenerate={generateSlip} />
+        <ExamSlipsPanel busy={slipBusy} onGenerate={generateSlip} />
       )}
 
       {/* ── MID EXAM DATE SHEET ── */}

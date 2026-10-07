@@ -35,3 +35,4 @@
 - [PostgreSQL CASE parameter types](postgres-case-parameter-types.md) — numeric parameters in CASE branches need explicit types; JS numbers alone do not prevent text comparisons.
 - [Rasterized slip PDFs](rasterized-slip-pdf.md) — shared print/download layout; CSS zoom corrupts html2canvas text, so capture unscaled and fit the PDF image.
 - [Fine protection and collection](fine-protection-and-collection.md) — active/permanent-leave protection applies to slips and fines; ordinary collections credit dues without restarting protection.
+- [Fresh HTTP responses](fresh-http-response-bodies.md) — create rejection responses per request; reused Response bodies are consumed and lose subsequent error messages.

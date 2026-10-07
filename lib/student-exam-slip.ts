@@ -70,10 +70,16 @@ export async function getStudentExamSlip(studentId: string, kind: ExamSlipKind) 
   const threshold = getRollNumberSlipThreshold(student.active_leave_type ?? null);
   const [standing] = await getCoordinatorAttendanceStandings(pool, semester.id, [studentId]);
   const isProtected = standing?.is_protected === true;
-  if (percentage < threshold && !isProtected) {
+  const attendanceFine = await getCurrentAttendanceFine(studentId);
+  const finePaid = attendanceFine?.semester_id === semester.id
+    && attendanceFine.paid_amount > 0 && attendanceFine.net_amount === 0;
+  if (percentage < threshold && !isProtected && !finePaid) {
     const override = await queryOne<{ id: string }>("select id from rollno_slip_overrides where student_id = $1", [studentId]);
     if (!override) {
-      return blocked("low_attendance", `Your overall attendance is ${percentage.toFixed(1)}%, which is below the required ${threshold}%. You are not eligible to sit the ${exam} Examination.`);
+      const fineMessage = attendanceFine?.semester_id === semester.id && attendanceFine.net_amount > 0
+        ? ` Your unpaid attendance fine is PKR ${attendanceFine.net_amount.toLocaleString("en-PK")}. Please contact the administration to pay it; once fully paid, the attendance-based printing block will be removed.`
+        : " Please contact the administration to review your attendance and slip eligibility.";
+      return blocked("low_attendance", `Your overall attendance is ${percentage.toFixed(1)}%, below the required ${threshold}%, and you are outside the attendance protection window. Your ${title} for the ${exam} Examination cannot be generated.${fineMessage}`);
     }
   }
   const attendanceByCourse = new Map<string, number>();
@@ -93,7 +99,6 @@ export async function getStudentExamSlip(studentId: string, kind: ExamSlipKind) 
       attendanceByCourse.set(row.course_id, p + a ? p * 100 / (p + a) : 100);
     }
   }
-  const attendanceFine = await getCurrentAttendanceFine(studentId);
   return {
     allowed: true as const,
     student: {

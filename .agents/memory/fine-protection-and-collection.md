@@ -26,3 +26,13 @@ An ordinary fine payment must not change enrollment, rotate the assessment cycle
 **Why:** The user requested fine collection for active students, which is settlement rather than reactivation. Restarting protection would change academic eligibility merely because money was collected; ignoring prior collections would charge the same balance twice.
 
 **How to apply:** Lock the student, revalidate the exact displayed quote including previous collections, append a uniquely referenced receipt, and preserve existing financial records. Use the separate reactivation workflow for struck-off students. Their durable financial-cycle window remains necessary because strike-off may clear the reactivation date.
+
+Fully paid attendance fines remove the low-attendance printing block for both Mid Term roll-number and Final Term clearance slips. Keep the uploaded-photo and other document prerequisites. Show the fine as Paid after either ordinary collection or Student Edit reactivation.
+
+**Why:** The user explicitly requested automatic slip unblocking after payments from either payment path, while retaining the picture check.
+
+**How to apply:** Require positive credited payments and no remaining current-semester balance. Include the latest reactivation receipt associated with the durable current-cycle start date for active/permanent-leave enrollment, because reactivation records its receipt on the outgoing cycle. Never credit that prior receipt against a later struck-off cycle or another semester. If an additional fine becomes unpaid, the attendance printing block applies again.
+
+The student Roll No. Slip page should show only Mid Term and Clearance headings with Generate / Print controls, without direct PDF buttons or eligibility explanations. Display the specific reason when generation is blocked.
+
+**Why:** The user explicitly requested this simplified interface.

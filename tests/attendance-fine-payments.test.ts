@@ -24,6 +24,7 @@ vi.mock("@/lib/portalPermissions", () => ({
 import { getCurrentAttendanceFine } from "../lib/attendance-fines";
 import { POST } from "../app/api/admin/fines/payment/route";
 import { GET as getStudentProfile } from "../app/api/student/profile/route";
+import { getStudentExamSlip } from "../lib/student-exam-slip";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const STUDENT = id(1), CLASS = id(2), SEMESTER = id(3), DEPARTMENT = id(4), CYCLE = id(5);
 let dir: string;
@@ -69,6 +70,15 @@ beforeAll(async () => {
       add column status_changed_by_name text, add column session text;
     alter table classes add column scheme_of_studies_url text, add column type text;
     alter table student_leaves add column partial_days_per_week int, add column created_at timestamptz default now();
+    alter table student_fines add column created_at timestamptz default now();
+    alter table semesters add column term_type text;
+    create table courses(id uuid primary key,title text,code text,credit_hours int);
+    create table semester_courses(semester_id uuid,course_id uuid);
+    create table mid_exam_datesheets(semester_id uuid,course_id uuid,paper_date date,paper_time time);
+    create table rollno_slip_overrides(id uuid default gen_random_uuid(),student_id uuid);
+    create table allocations(id uuid primary key,course_id uuid);
+    create table allocation_semesters(allocation_id uuid,semester_id uuid);
+    create table student_course_attendance(student_id uuid,allocation_id uuid,status text);
   `);
 });
 afterAll(async () => {
@@ -79,7 +89,8 @@ afterAll(async () => {
 beforeEach(async () => {
   authorized = true;
   await db.query(`
-    truncate student_fines,attendance_fine_adjustments,student_leaves,student_status_history,student_attendance_records,
+    truncate courses,semester_courses,mid_exam_datesheets,rollno_slip_overrides,
+      student_fines,attendance_fine_adjustments,student_leaves,student_status_history,student_attendance_records,
       semesters,students,classes,departments,users cascade;
     insert into departments values('${DEPARTMENT}','Computing');
     insert into classes values('${CLASS}','Test Class','2026');
@@ -88,6 +99,10 @@ beforeEach(async () => {
     insert into semesters(id,class_id,semester_number,status) values('${SEMESTER}','${CLASS}',1,'active');
     insert into student_attendance_records select '${STUDENT}','${SEMESTER}',date '2026-09-01'+n,
       case when n<=14 then 'present' else 'absent' end from generate_series(1,20)n;
+    update students set profile_image_url='https://example.com/photo.png';
+    insert into courses values('${id(20)}','Test Course','TC101',3);
+    insert into semester_courses values('${SEMESTER}','${id(20)}');
+    insert into mid_exam_datesheets values('${SEMESTER}','${id(20)}','2026-10-20','09:00');
   `);
 });
 async function quote() {
@@ -173,6 +188,8 @@ describe("atomic active-student collection", () => {
     expect((await db.query("select * from students")).rows[0]).toEqual(before);
     expect((await db.query("select * from student_fines")).rows[0]).toMatchObject({ amount: "500", reactivated_on: null, fid: "TEST-RECEIPT", created_by_name: "Test Collector", assessment_cycle_id: CYCLE });
     expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ paid_amount: 500, net_amount: 0, is_protected: false });
+    expect(await getStudentExamSlip(STUDENT, "rollno")).toMatchObject({ allowed: true });
+    expect(await getStudentExamSlip(STUDENT, "clearance")).toMatchObject({ allowed: true });
   });
   it("does not accept unauthorized collection", async () => {
     authorized = false;
@@ -224,9 +241,56 @@ describe("atomic active-student collection", () => {
     expect((await pay(await quote())).status).toBe(200);
     await db.query(`insert into student_attendance_records values('${STUDENT}','${SEMESTER}','2026-09-22','absent')`);
     expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ gross_amount: 1000, paid_amount: 500, net_amount: 500 });
+    expect(await getStudentExamSlip(STUDENT, "rollno")).toMatchObject({ allowed: false, reason: "low_attendance" });
   });
   it.each(["2026-02-30", "2099-01-01"])("rejects invalid or future date %s", async (paid_date) => {
     expect((await pay({ ...await quote(), paid_date })).status).toBe(400);
     expect((await db.query("select * from student_fines")).rows).toHaveLength(0);
+  });
+});
+
+describe("Student Edit reactivation receipts", () => {
+  async function receipt(amount = 500, effectiveDate = "2026-08-01", cycle = id(99), receiptId = id(90)) {
+    await db.query(`insert into student_fines(id,student_id,department_id,class_id,semester_id,amount,fid,
+      paid_date,reactivated_on,assessment_cycle_id) values($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)`,
+    [receiptId, STUDENT, DEPARTMENT, CLASS, SEMESTER, amount, `REACT-${receiptId}`, effectiveDate, cycle]);
+  }
+  it("credits the reactivation payment after cycle rotation and unblocks both slips outside protection", async () => {
+    await db.query("update students set reactivated_at='2026-08-01',attendance_fine_cycle_started_at='2026-08-01'");
+    await receipt();
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ is_protected: false, paid_amount: 500, net_amount: 0 });
+    expect(await getStudentExamSlip(STUDENT, "rollno")).toMatchObject({ allowed: true });
+    expect(await getStudentExamSlip(STUDENT, "clearance")).toMatchObject({ allowed: true });
+    expect(await (await getStudentProfile(new NextRequest("http://test/api/student/profile"))).json())
+      .toMatchObject({ student: { attendance_fine: { paid_amount: 500, net_amount: 0 } } });
+  });
+  it("retains Paid visibility while in protection without imposing a fine", async () => {
+    await db.query("update students set reactivated_at='2026-09-15',attendance_fine_cycle_started_at='2026-09-15'");
+    await receipt(500, "2026-09-15");
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ is_protected: true, gross_amount: 0, paid_amount: 500, net_amount: 0 });
+  });
+  it("keeps the photo requirement for a paid reactivation", async () => {
+    await db.query("update students set reactivated_at='2026-08-01',attendance_fine_cycle_started_at='2026-08-01',profile_image_url=null");
+    await receipt();
+    expect(await getStudentExamSlip(STUDENT, "rollno")).toMatchObject({ allowed: false, reason: "missing_profile_photo" });
+  });
+  it("preserves payment credit when permanent-leave enrollment clears the academic reactivation date", async () => {
+    await db.query("update students set status='permanent_leave',reactivated_at=null,attendance_fine_cycle_started_at='2026-08-01'");
+    await receipt();
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ paid_amount: 500, net_amount: 0, is_protected: false });
+    expect(await getStudentExamSlip(STUDENT, "clearance")).toMatchObject({ allowed: true });
+  });
+  it("does not credit older reactivations or credit a receipt twice", async () => {
+    await db.query("update students set reactivated_at='2026-08-01',attendance_fine_cycle_started_at='2026-08-01'");
+    await receipt(3000, "2026-07-01", id(98), id(91));
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ paid_amount: 0, net_amount: 500 });
+    await receipt(500, "2026-08-01", CYCLE);
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ paid_amount: 500, net_amount: 0 });
+  });
+  it("does not reuse the prior reactivation payment to waive a new struck-off fine", async () => {
+    await db.query("update students set reactivated_at='2026-08-01',attendance_fine_cycle_started_at='2026-08-01'");
+    await receipt(5000);
+    await db.query("update students set status='struck_off',reactivated_at=null");
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ gross_amount: 5000, paid_amount: 0, net_amount: 5000 });
   });
 });

@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
-const STRUCK_OFF_RESPONSE = NextResponse.json(
+const STRUCK_OFF_RESPONSE = () => NextResponse.json(
   {
     error:
       "Your enrollment has been struck off due to insufficient attendance. " +
@@ -25,7 +25,7 @@ const STRUCK_OFF_RESPONSE = NextResponse.json(
   { status: 403 }
 );
 
-const ALUMNI_RESPONSE = NextResponse.json(
+const ALUMNI_RESPONSE = () => NextResponse.json(
   {
     error: "Your enrollment is marked Alumni. Academic features are no longer available.",
     code: "ALUMNI",
@@ -49,10 +49,10 @@ export async function requireActiveStudent() {
     };
   }
   if (student.status === "struck_off") {
-    return { session: null, studentStatus: "struck_off", response: STRUCK_OFF_RESPONSE };
+    return { session: null, studentStatus: "struck_off", response: STRUCK_OFF_RESPONSE() };
   }
   if (student.status === "alumni") {
-    return { session: null, studentStatus: "alumni", response: ALUMNI_RESPONSE };
+    return { session: null, studentStatus: "alumni", response: ALUMNI_RESPONSE() };
   }
 
   return { session, studentStatus: student.status, response: null };

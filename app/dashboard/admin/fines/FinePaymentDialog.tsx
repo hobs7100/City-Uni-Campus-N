@@ -51,7 +51,7 @@ export default function FinePaymentDialog({
   const [paidDate, setPaidDate] = useState(getLocalDate);
   const fidInputRef = useRef<HTMLInputElement>(null);
   const submitLock = useRef(false);
-  const payable = Math.max(0, Number(fine.net_amount || 0) - Number(fine.paid_amount || 0));
+  const payable = Math.max(0, Number(fine.net_amount || 0));
   const canSubmit = fid.trim().length > 0 && paidDate.length > 0 && payable > 0;
 
   useEffect(() => {
@@ -162,8 +162,8 @@ export default function FinePaymentDialog({
                     <span className="font-bold tabular-nums text-indigo-700">− {money(fine.discount_amount)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-3 text-sm">
-                    <span className="font-medium text-slate-500">Fine after adjustment</span>
-                    <span className="font-bold tabular-nums text-slate-800">{money(fine.net_amount)}</span>
+                     <span className="font-medium text-slate-500">Fine after adjustment</span>
+                     <span className="font-bold tabular-nums text-slate-800">{money(Math.max(0, fine.gross_amount - fine.discount_amount))}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-3 text-sm">
                     <span className="font-medium text-slate-500">Already paid</span>

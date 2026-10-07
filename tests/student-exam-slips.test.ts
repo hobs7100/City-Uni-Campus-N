@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 
 let db: Pool;
 let signedIn = true;
+let fine: { semester_id: string; paid_amount: number; net_amount: number } | null = null;
 const sqlCalls: string[] = [];
 vi.mock("@/lib/db", () => ({
   pool: { query: (sql: string, args?: unknown[]) => db.query(sql, args) },
@@ -19,7 +20,7 @@ vi.mock("@/lib/requireRole", () => ({
   requireRole: async () => signedIn ? { session: { userId: id(1), role: "student" }, response: null }
     : { session: null, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
 }));
-vi.mock("@/lib/attendance-fines", () => ({ getCurrentAttendanceFine: async () => null }));
+vi.mock("@/lib/attendance-fines", () => ({ getCurrentAttendanceFine: async () => fine }));
 import { GET as rollno } from "../app/api/student/rollno-slip/route";
 import { GET as clearance } from "../app/api/student/clearance-slip/route";
 import { buildExamSlipDocument } from "../components/studentDashboard/examSlipDocument";
@@ -69,6 +70,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   signedIn = true;
+  fine = null;
   sqlCalls.length = 0;
   await db.query(`
     truncate departments,classes,students,student_leaves,semesters,courses,semester_courses,
@@ -149,6 +151,40 @@ describe.each([["roll number", rollno], ["clearance", clearance]] as const)("%s 
   it("uses the reactivation window for protection, not historic marks", async () => {
     await db.query("update students set reactivated_at='2026-09-15'; update student_attendance_records set status='absent'");
     expect(await (await handler()).json()).toMatchObject({ allowed: true, is_protected: true, protection_days_completed: 6 });
+  });
+});
+
+describe.each([["Mid Term", rollno], ["Clearance", clearance]] as const)("paid fine eligibility: %s", (_title, handler) => {
+  it.each(["active", "permanent_leave"])("unblocks low-attendance %s enrollment after full payment", async (status) => {
+    await db.query("update students set status=$1", [status]);
+    await db.query("update student_attendance_records set status='absent'");
+    fine = { semester_id: SEMESTER, paid_amount: 8000, net_amount: 0 };
+    expect(await (await handler()).json()).toMatchObject({ allowed: true, overall_attendance: 0 });
+  });
+  it("keeps the profile photo requirement after payment", async () => {
+    fine = { semester_id: SEMESTER, paid_amount: 8000, net_amount: 0 };
+    await db.query("update students set profile_image_url=null;update student_attendance_records set status='absent'");
+    expect(await (await handler()).json()).toMatchObject({ allowed: false, reason: "missing_profile_photo" });
+  });
+  it("shows the unpaid balance and reason instead of unblocking partial payment", async () => {
+    fine = { semester_id: SEMESTER, paid_amount: 7500, net_amount: 500 };
+    await db.query("update student_attendance_records set status='absent'");
+    const response = await (await handler()).json();
+    expect(response).toMatchObject({ allowed: false, reason: "low_attendance" });
+    expect(response.message).toContain("PKR 500");
+    expect(response.message).toContain("outside the attendance protection window");
+  });
+  it("does not use another semester's paid receipt", async () => {
+    fine = { semester_id: id(99), paid_amount: 8000, net_amount: 0 };
+    await db.query("update student_attendance_records set status='absent'");
+    expect(await (await handler()).json()).toMatchObject({ allowed: false, reason: "low_attendance" });
+  });
+  it("does not bypass inactive enrollment after payment", async () => {
+    fine = { semester_id: SEMESTER, paid_amount: 8000, net_amount: 0 };
+    await db.query("update students set status='struck_off'");
+    const response = await handler();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: "STRUCK_OFF", error: expect.stringContaining("reinstatement") });
   });
 });
 
