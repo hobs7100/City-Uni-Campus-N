@@ -11,6 +11,10 @@ let authorized = true;
 vi.mock("@/lib/db", () => ({
   pool: { connect: () => db.connect(), query: (sql: string, args?: unknown[]) => db.query(sql, args) },
   query: async (sql: string, args?: unknown[]) => (await db.query(sql, args)).rows,
+  queryOne: async (sql: string, args?: unknown[]) => (await db.query(sql, args)).rows[0] ?? null,
+}));
+vi.mock("@/lib/requireRole", () => ({
+  requireRole: async () => ({ session: { userId: STUDENT, role: "student" }, response: null }),
 }));
 vi.mock("@/lib/portalPermissions", () => ({
   requirePortalPermission: async () => authorized
@@ -19,6 +23,7 @@ vi.mock("@/lib/portalPermissions", () => ({
 }));
 import { getCurrentAttendanceFine } from "../lib/attendance-fines";
 import { POST } from "../app/api/admin/fines/payment/route";
+import { GET as getStudentProfile } from "../app/api/student/profile/route";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const STUDENT = id(1), CLASS = id(2), SEMESTER = id(3), DEPARTMENT = id(4), CYCLE = id(5);
 let dir: string;
@@ -58,6 +63,13 @@ beforeAll(async () => {
       created_by_name text,gross_amount numeric,discount_amount numeric,adjustment_type text,assessment_cycle_id uuid);
   `);
   await db.query(readFileSync("db/migrations/063_active_student_fine_payments.sql", "utf8"));
+  await db.query(`
+    alter table students add column cnic text, add column contact text, add column address text,
+      add column email text, add column profile_image_url text, add column status_change_date date,
+      add column status_changed_by_name text, add column session text;
+    alter table classes add column scheme_of_studies_url text, add column type text;
+    alter table student_leaves add column partial_days_per_week int, add column created_at timestamptz default now();
+  `);
 });
 afterAll(async () => {
   await db?.end();
@@ -108,7 +120,34 @@ describe("current fine policy", () => {
   });
   it("uses the same reactivation window even with a different financial cycle date", async () => {
     await db.query("update students set reactivated_at='2026-09-15',attendance_fine_cycle_started_at='2026-09-01'");
-    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ is_protected: true, evaluable_days: 6, gross_amount: 0 });
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({ is_protected: true, evaluable_days: 20, protection_days_completed: 6, gross_amount: 0 });
+  });
+  it.each(["active", "permanent_leave"])("charges %s low overall attendance even when recent attendance recovered", async (status) => {
+    await db.query("update students set status=$1,reactivated_at='2026-09-07',attendance_fine_cycle_started_at='2026-09-07'", [status]);
+    await db.query(`delete from student_attendance_records;
+      insert into student_attendance_records select '${STUDENT}','${SEMESTER}',date '2026-09-01'+n,
+        case when n<=2 or n between 7 and 34 then 'present' else 'absent' end from generate_series(1,42)n`);
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({
+      presents: 30, evaluable_days: 42, attendance_percentage: 71.43,
+      protection_days_completed: 36, is_protected: false, gross_amount: 500, net_amount: 500,
+    });
+    const profile = await getStudentProfile(new NextRequest("http://test/api/student/profile"));
+    expect(profile.status).toBe(200);
+    expect(await profile.json()).toMatchObject({ student: { attendance_fine: {
+      attendance_percentage: 71.43, is_protected: false, net_amount: 500,
+    } } });
+    // The same 71.43% overall attendance must not produce a fine inside protection.
+    await db.query("update students set reactivated_at='2026-09-29'");
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({
+      attendance_percentage: 71.43, protection_days_completed: 14,
+      is_protected: true, gross_amount: 0, net_amount: 0,
+    });
+    expect(await (await getStudentProfile(new NextRequest("http://test/api/student/profile"))).json())
+      .toMatchObject({ student: { attendance_fine: { is_protected: true, gross_amount: 0, net_amount: 0 } } });
+    await db.query("update students set reactivated_at='2026-09-28'");
+    expect(await getCurrentAttendanceFine(STUDENT)).toMatchObject({
+      protection_days_completed: 15, is_protected: false, gross_amount: 500,
+    });
   });
   it("excludes leave days and unrelated-semester attendance", async () => {
     await db.query(`insert into student_attendance_records select '${STUDENT}','${SEMESTER}',date '2026-08-01'+n,'leave' from generate_series(1,20)n;

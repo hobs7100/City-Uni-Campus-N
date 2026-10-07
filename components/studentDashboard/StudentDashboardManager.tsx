@@ -764,7 +764,7 @@ export default function StudentDashboardManager() {
                     </h2>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                       Attendance {profile.attendance_fine.attendance_percentage.toFixed(2)}%
-                      {profile.attendance_fine.struck_off_minimum_applies ? " · Struck-off minimum applies" : " · Coordinator/admin attendance schedule applies"}
+                      {profile.attendance_fine.struck_off_minimum_applies ? " · Struck-off minimum applies" : profile.attendance_fine.status === "struck_off" ? " · Coordinator/admin attendance schedule applies" : " · Full-semester coordinator/admin attendance"}
                     </p>
                   </div>
                 </div>

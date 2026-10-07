@@ -77,6 +77,7 @@ type FineRow = {
   teacher_strike_off: boolean;
   presents: number;
   evaluable_days: number;
+  protection_evaluable_days: number;
   adjustment_type: AttendanceFineAdjustmentType | "clear" | null;
   discount_amount: string | null;
   adjustment_reason: string | null;
@@ -108,6 +109,11 @@ export async function getCurrentAttendanceFineAssessments(
        count(distinct sar.attendance_date) filter (
          where sar.status in ('present', 'absent')
        )::int as evaluable_days,
+        count(distinct sar.attendance_date) filter (
+          where sar.status in ('present', 'absent')
+            and (st.status = 'struck_off' or st.reactivated_at is null
+                 or sar.attendance_date > st.reactivated_at::date)
+        )::int as protection_evaluable_days,
        afa.adjustment_type, afa.discount_amount::text,
        afa.reason as adjustment_reason, u.name as adjusted_by_name,
         afa.created_at::text as adjusted_at,
@@ -154,8 +160,7 @@ export async function getCurrentAttendanceFineAssessments(
         and (
           (st.status = 'struck_off' and
             (st.attendance_fine_cycle_started_at is null or sar.attendance_date > st.attendance_fine_cycle_started_at))
-          or (st.status in ('active', 'permanent_leave') and
-            (st.reactivated_at is null or sar.attendance_date > st.reactivated_at::date))
+          or st.status in ('active', 'permanent_leave')
         )
       left join lateral (
         select ssh.reason
@@ -206,8 +211,11 @@ export async function getCurrentAttendanceFineAssessments(
       ? (row.presents / row.evaluable_days) * 100
       : 0;
     const percentage = Number(rawPercentage.toFixed(2));
+    // Protection uses post-reactivation days, but once it ends, active/leave
+    // fines use the whole-semester attendance used to restrict exam slips.
+    // Improved recent attendance must not hide a fine for low overall attendance.
     const isProtected = ["active", "permanent_leave"].includes(row.status)
-      && row.evaluable_days < PROTECTION_DAYS;
+      && row.protection_evaluable_days < PROTECTION_DAYS;
     // A historical teacher-triggered strike-off cannot impose the struck-off
     // minimum. Any remaining fine must come from coordinator/admin daily marks.
     const fineStatus = row.teacher_strike_off || row.status === "permanent_leave" ? "active" : row.status;
@@ -250,7 +258,7 @@ export async function getCurrentAttendanceFineAssessments(
       leave_type: row.leave_type,
       fine_threshold: row.leave_type === "partial" ? 40 : 76,
       is_protected: isProtected,
-      protection_days_completed: row.evaluable_days,
+      protection_days_completed: row.protection_evaluable_days,
       protection_days_required: PROTECTION_DAYS,
       gross_amount: grossAmount,
       adjustment_type: effectiveAdjustment,

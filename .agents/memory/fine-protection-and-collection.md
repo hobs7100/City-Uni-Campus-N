@@ -15,6 +15,12 @@ Include permanent-leave students in attendance-fine assessments once outside pro
 
 **How to apply:** Do not equate permanent-leave enrollment with exempt attendance or rely on a financial-cycle timestamp to determine academic protection.
 
+For active/permanent-leave students, use full-semester coordinator/admin attendance to calculate fines once protection ends. The post-reactivation attendance window determines protection, not their fine percentage.
+
+**Why:** The user reported a student blocked from printing slips for insufficient full-semester attendance whose fine was missing because recent post-reactivation attendance had improved. They explicitly requested fines for these students only outside protection.
+
+**How to apply:** Keep full-semester attendance counts separate from the post-reactivation protection-day count. A recent recovery must not hide a full-semester attendance fine after 15 evaluable days. Preserve the struck-off financial-cycle window, discounts, waivers, and payment credits.
+
 An ordinary fine payment must not change enrollment, rotate the assessment cycle, or restart protection. Credit collections against the same semester and assessment cycle; collect only the remaining balance if the assessed fine later increases.
 
 **Why:** The user requested fine collection for active students, which is settlement rather than reactivation. Restarting protection would change academic eligibility merely because money was collected; ignoring prior collections would charge the same balance twice.
