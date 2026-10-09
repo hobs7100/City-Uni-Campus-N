@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import toast from "react-hot-toast";
-import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, RefreshCw, X, AlertTriangle } from "lucide-react";
+import { BookOpen, Calendar, CheckCircle, FileDown, Lock, Pencil, Play, Plus, RefreshCw, Search, X, AlertTriangle } from "lucide-react";
 import OutlineUploadButton from "@/components/ui/OutlineUploadButton";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
 import { DataFetchLoader } from "@/components/ui/Loaders";
+import { buildSemesterTimelines, matchesSemesterSearch } from "@/lib/semesterProgress";
 
 interface ClassOption {
   id: string;
@@ -120,6 +121,7 @@ export default function SemestersPage() {
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(true);
+  const [semesterSearch, setSemesterSearch] = useState("");
 
   const [departmentId, setDepartmentId] = useState("");
   const [session, setSession] = useState("");
@@ -236,55 +238,32 @@ export default function SemestersPage() {
   const selectedCoursesDetail = availableCourses.filter((c) => selectedCourseIds.includes(c.id));
 
   const semesterTimelines = useMemo(() => {
-    return classes
-      .filter((classInfo) => classInfo.status === "active")
-      .map((classInfo) => {
-        const classSemesters = semesters
-          .filter((semester) => semester.class_id === classInfo.id)
-          .sort((a, b) => a.semester_number - b.semester_number);
-        const hasActiveSemester = classSemesters.some((semester) => semester.status === "active");
-        const hasUpcomingSemesterRecord = classSemesters.some(
-          (semester) => semester.status !== "active",
-        );
-        if (hasActiveSemester || !hasUpcomingSemesterRecord) return null;
-
-        const semesterByNumber = new Map(
-          classSemesters.map((semester) => [semester.semester_number, semester]),
-        );
-        const runningSemester = classSemesters.find((semester) => semester.status !== "closed");
-        const firstSemester = classInfo.type === "BS-Bridging" ? 5 : 1;
-        const nextSemesterNumber =
-          (classSemesters.reduce(
-            (highest, semester) => Math.max(highest, semester.semester_number),
-            firstSemester - 1,
-          ) || (firstSemester - 1)) + 1;
-
-        const steps = Array.from({ length: classInfo.total_semesters }, (_, index) => {
-          const number = firstSemester + index;
-          const semester = semesterByNumber.get(number) ?? null;
-          const isNext = number === nextSemesterNumber;
-          const isReady = isNext && !runningSemester;
-
-          return {
-            number,
-            semester,
-            state: semester
-              ? semester.status === "closed"
-                ? "completed"
-                : "current"
-              : isReady
-                ? "ready"
-                : isNext && runningSemester
-                  ? "blocked"
-                  : "locked",
-          } as const;
-        });
-
-        return { classInfo, steps, runningSemester };
-      })
-      .filter((timeline): timeline is NonNullable<typeof timeline> => timeline !== null)
-      .sort((a, b) => a.classInfo.class_name.localeCompare(b.classInfo.class_name));
+    return buildSemesterTimelines(classes, semesters);
   }, [classes, semesters]);
+
+  const filteredSemesterTimelines = useMemo(
+    () => semesterTimelines.filter(({ classInfo, steps, isNewClass }) =>
+      matchesSemesterSearch(semesterSearch, [
+        classInfo.class_name,
+        classInfo.session,
+        classInfo.type,
+        departments.find((department) => department.value === classInfo.department_id)?.label,
+        isNewClass ? "New class no semesters yet" : "",
+        ...steps.flatMap(({ number, semester, state }) => [
+          `Semester ${number}`,
+          state === "ready" ? "Ready to start" : state === "blocked" ? "Waiting to close" : state,
+          semester?.term_type,
+          semester?.status,
+          semester?.start_date,
+          semester?.close_date,
+          formatSemesterDate(semester?.start_date),
+          formatSemesterDate(semester?.close_date),
+          ...(semester?.courses.flatMap((course) => [course.code, course.title]) ?? []),
+        ]),
+      ]),
+    ),
+    [semesterTimelines, semesterSearch, departments],
+  );
 
   const editCourseOptions = useMemo(() => {
     if (!editSemester) return [];
@@ -694,7 +673,7 @@ export default function SemestersPage() {
               <div className="min-w-0 flex-1">
                 <h3 className="font-bold text-slate-800 dark:text-slate-100">Upcoming Semesters</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Active classes with a completed or in-progress semester
+                  New classes and active classes with a completed or in-progress semester
                 </p>
               </div>
               <div className="flex items-center gap-3 text-[11px] font-semibold">
@@ -707,21 +686,55 @@ export default function SemestersPage() {
               </div>
             </div>
 
-            {semesterTimelines.length === 0 ? (
+            <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <label htmlFor="semester-progress-search" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Search classes and semesters
+              </label>
+              <div className="relative">
+                <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="semester-progress-search"
+                  type="search"
+                  value={semesterSearch}
+                  onChange={(event) => setSemesterSearch(event.target.value)}
+                  placeholder="Class, semester, session, department, course or status..."
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-10 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                />
+                {semesterSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setSemesterSearch("")}
+                    aria-label="Clear semester search"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" aria-live="polite">
+                Showing {filteredSemesterTimelines.length} of {semesterTimelines.length} classes
+              </p>
+            </div>
+
+            {filteredSemesterTimelines.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-5 py-14 text-center">
                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                    <Calendar size={19} />
                  </span>
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                  No active classes found.
+                  {semesterTimelines.length === 0
+                    ? "No classes available to start a semester."
+                    : "No classes match your search."}
                 </p>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Closed classes are hidden from semester progress.
+                  {semesterTimelines.length === 0
+                    ? "New classes appear here automatically. Blocked classes and classes with an active semester are hidden."
+                    : "Try another class, semester or session, or clear the search."}
                 </p>
               </div>
             ) : (
               <div className="space-y-4 p-5">
-                  {semesterTimelines.map(({ classInfo, steps, runningSemester }, classIndex) => {
+                  {filteredSemesterTimelines.map(({ classInfo, steps, runningSemester, isNewClass }, classIndex) => {
                    const scheme = stepperSchemes[classIndex % stepperSchemes.length];
                    return (
                   <div
@@ -745,6 +758,11 @@ export default function SemestersPage() {
                            <span className="ml-2 inline-flex rounded-md bg-white/75 px-2 py-0.5 align-middle text-xs font-semibold tracking-normal text-slate-700 ring-1 ring-slate-900/10 dark:bg-slate-950/40 dark:text-slate-200 dark:ring-white/15">
                             {classInfo.session}
                           </span>
+                           {isNewClass && (
+                             <span className="ml-2 inline-flex rounded-md bg-blue-50 px-2 py-0.5 align-middle text-xs font-semibold tracking-normal text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                               New class
+                             </span>
+                           )}
                         </h4>
                          <p className="mt-1.5 text-xs font-medium text-slate-700 dark:text-slate-200">
                            <span className="font-bold text-slate-900 dark:text-white">{classInfo.total_semesters}</span>{" "}
