@@ -1,25 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, SessionData, UserRole } from "@/lib/session";
+import { refreshSessionAuthentication } from "@/lib/passwordSession";
+import { roleHomePage } from "@/lib/auth-redirect";
 import {
   isPortalManagedRole,
   PORTAL_MODULES,
   PORTAL_READ_DEPENDENCIES,
   portalModuleForRoleDashboard,
 } from "@/lib/portalPermissionsConfig";
-
-const roleHomePage: Record<UserRole, string> = {
-  admin: "/dashboard/admin",
-  hod: "/dashboard/hod",
-  coordinator: "/dashboard/coordinator",
-  teacher: "/dashboard/teacher",
-  student: "/dashboard/student",
-  finance_manager: "/dashboard/admin",
-  assistant: "/dashboard/admin",
-  suprident: "/dashboard/employee",
-  controller: "/dashboard/employee",
-  accountant: "/dashboard/employee",
-};
 
 const rolePrefixAccess: Record<UserRole, string[]> = {
   admin: ["/dashboard/admin"],
@@ -83,6 +72,29 @@ export async function middleware(request: NextRequest) {
 
   const isDashboardRoute = pathname.startsWith("/dashboard");
   const isLoginRoute = pathname === "/login";
+  const isPasswordRoute = pathname === "/change-password";
+  const allowedPasswordApi = ["/api/auth/login", "/api/auth/logout", "/api/auth/change-password"].includes(pathname);
+  try {
+    await refreshSessionAuthentication(session);
+  } catch {
+    return NextResponse.json({ error: "Authentication is temporarily unavailable. Please try again." }, { status: 503 });
+  }
+  if (isPasswordRoute) {
+    if (!session.isLoggedIn) return NextResponse.redirect(new URL("/login", request.url));
+    if (!session.mustChangePassword) return NextResponse.redirect(new URL(roleHomePage[session.role], request.url));
+  }
+  if (session.isLoggedIn && session.mustChangePassword) {
+    if (isDashboardRoute || isLoginRoute) {
+      return NextResponse.redirect(new URL("/change-password", request.url));
+    }
+    if (pathname.startsWith("/api/") && !allowedPasswordApi) {
+      return NextResponse.json({
+        error: "Set your own password before accessing the portal.",
+        code: "PASSWORD_CHANGE_REQUIRED",
+        redirectTo: "/change-password",
+      }, { status: 403 });
+    }
+  }
 
   if (isDashboardRoute) {
     if (!session.isLoggedIn) {
@@ -168,5 +180,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/api/admin/:path*"],
+  runtime: "nodejs",
+  matcher: ["/dashboard/:path*", "/login", "/change-password", "/api/:path*"],
 };

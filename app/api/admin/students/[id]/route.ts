@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
+import { DEFAULT_STUDENT_PASSWORD } from "@/lib/password-policy";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 import { getCurrentAttendanceFine, wasLastStruckOffFromTeacher } from "@/lib/attendance-fines";
 
@@ -198,7 +199,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (password) {
       sets.push(`password_hash = $${i++}`);
-      values.push(await hashPassword(password));
+      values.push(await hashPassword(DEFAULT_STUDENT_PASSWORD));
+      sets.push("must_change_password = true");
+      sets.push("password_version = password_version + 1");
     }
     if (d.status !== undefined) {
       sets.push(`status_changed_by_name = $${i++}`);

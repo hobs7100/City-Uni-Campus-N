@@ -3,6 +3,8 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
+import { isDefaultPassword } from "@/lib/password-policy";
+import { savePersonalPassword } from "@/lib/passwordSession";
 
 export async function GET() {
   const { session, response } = await requireRole("admin", "hod", "coordinator", "finance_manager", "suprident", "controller", "accountant");
@@ -31,6 +33,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
   }
   const { current_password, new_password } = parsed.data;
+  if (isDefaultPassword(new_password)) {
+    return NextResponse.json({ error: "Choose your own password, not a default password." }, { status: 400 });
+  }
 
   const account = await queryOne<{ password_hash: string }>(
     `select password_hash from users where id = $1 and deleted_at is null`,
@@ -42,10 +47,10 @@ export async function PATCH(request: NextRequest) {
   if (!valid) return NextResponse.json({ error: "Current password is incorrect." }, { status: 400 });
 
   const newHash = await bcrypt.hash(new_password, 10);
-  await queryOne(`update users set password_hash = $1, updated_at = now() where id = $2`, [
-    newHash,
-    session!.userId,
-  ]);
+  const saved = await savePersonalPassword(session!, newHash);
+  if (!saved) return NextResponse.json({ error: "Your account was changed. Please sign in again." }, { status: 409 });
+  session!.passwordVersion = saved.password_version;
+  await session!.save();
 
   return NextResponse.json({ success: true });
 }

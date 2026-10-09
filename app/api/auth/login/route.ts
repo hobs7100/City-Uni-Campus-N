@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { findAccountByEmail, recordLoginActivity, verifyPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
+import { roleHomePage } from "@/lib/auth-redirect";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -42,6 +43,9 @@ export async function POST(request: NextRequest) {
   session.name = account.name;
   session.email = account.email;
   session.isLoggedIn = true;
+  session.accountSource = account.source;
+  session.mustChangePassword = account.must_change_password;
+  session.passwordVersion = account.password_version;
   await session.save();
 
   const actorType = account.source === "users" ? "user" : account.source === "teachers" ? "teacher" : "student";
@@ -53,5 +57,10 @@ export async function POST(request: NextRequest) {
     request.headers.get("user-agent")
   );
 
-  return NextResponse.json({ role: account.role, name: account.name });
+  return NextResponse.json({
+    role: account.role,
+    name: account.name,
+    mustChangePassword: account.must_change_password,
+    redirectTo: account.must_change_password ? "/change-password" : roleHomePage[account.role],
+  });
 }

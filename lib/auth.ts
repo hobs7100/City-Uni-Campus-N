@@ -8,6 +8,8 @@ export interface AuthenticatedAccount {
   email: string;
   role: UserRole;
   status: string;
+  must_change_password: boolean;
+  password_version: number;
 }
 
 export async function hashPassword(password: string) {
@@ -45,8 +47,10 @@ export async function findAccountByEmail(
     role: UserRole;
     status: string;
     password_hash: string;
+    must_change_password: boolean;
+    password_version: number;
   }>(
-    `select id, name, email, role, status, password_hash from users where email = $1 and deleted_at is null`,
+    `select id, name, email, role, status, password_hash, must_change_password, password_version from users where email = $1 and deleted_at is null`,
     [email]
   );
   if (user) {
@@ -59,8 +63,10 @@ export async function findAccountByEmail(
     email: string;
     status: string;
     password_hash: string;
+    must_change_password: boolean;
+    password_version: number;
   }>(
-    `select id, name, email, status, password_hash from teachers where email = $1 and deleted_at is null`,
+    `select id, name, email, status, password_hash, must_change_password, password_version from teachers where email = $1 and deleted_at is null`,
     [email]
   );
   if (teacher) {
@@ -73,8 +79,10 @@ export async function findAccountByEmail(
     email: string;
     status: string;
     password_hash: string;
+    must_change_password: boolean;
+    password_version: number;
   }>(
-    `select id, name, email, status, password_hash from students where email = $1 and deleted_at is null`,
+    `select id, name, email, status, password_hash, must_change_password, password_version from students where email = $1 and deleted_at is null`,
     [email]
   );
   if (student) {

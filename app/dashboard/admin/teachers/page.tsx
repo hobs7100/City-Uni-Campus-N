@@ -158,13 +158,7 @@ export default function TeachersPage() {
         return;
       }
       if (!editing) {
-        if (data.emailSent) {
-          toast.success("Teacher created. Login credentials emailed.", { duration: 5000 });
-        } else if (data.generatedPassword) {
-          toast.success(`Teacher created. Email failed — temporary password: ${data.generatedPassword}`, { duration: 10000 });
-        } else {
-          toast.success("Teacher created.");
-        }
+        toast.success("Teacher created with the default password. They must choose their own password at first login.");
       } else {
         toast.success("Teacher updated.");
       }
@@ -182,11 +176,7 @@ export default function TeachersPage() {
       const res = await fetch(`/api/admin/teachers/${regenTarget.id}/regenerate-password`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Failed."); return; }
-      if (data.emailSent) {
-        toast.success(`New password emailed to ${regenTarget.name}.`, { duration: 5000 });
-      } else {
-        toast.success(`Email failed. New password: ${data.newPassword}`, { duration: 10000 });
-      }
+      toast.success(`Password reset to the default for ${regenTarget.name}. They must choose their own password at next login.`);
       setRegenTarget(null);
     } finally {
       setRegenLoading(false);
@@ -318,7 +308,7 @@ export default function TeachersPage() {
                             </button>
                             <button
                               onClick={() => setRegenTarget(t)}
-                              title="Regenerate Password"
+                              title="Reset to default password"
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
                             >
                               <KeyRound size={16} />
@@ -518,9 +508,9 @@ export default function TeachersPage() {
 
           <ConfirmDialog
             open={!!regenTarget}
-            title="Regenerate Password"
-            message={`Generate a new password for ${regenTarget?.name} and email it to ${regenTarget?.email}?`}
-            confirmLabel="Regenerate & Email"
+            title="Reset to Default Password"
+            message={`Reset ${regenTarget?.name}'s password to the default? Their existing sessions will end and they must choose their own password at next login.`}
+            confirmLabel="Reset Password"
             loading={regenLoading}
             onConfirm={handleRegen}
             onCancel={() => setRegenTarget(null)}

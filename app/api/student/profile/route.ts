@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { isDefaultPassword } from "@/lib/password-policy";
+import { savePersonalPassword } from "@/lib/passwordSession";
 import { queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import { getCurrentAttendanceFine } from "@/lib/attendance-fines";
@@ -55,6 +57,9 @@ export async function PATCH(request: NextRequest) {
   const d = parsed.data;
 
   if (d.new_password) {
+    if (isDefaultPassword(d.new_password)) {
+      return NextResponse.json({ error: "Choose your own password, not a default password." }, { status: 400 });
+    }
     if (!d.current_password) {
       return NextResponse.json({ error: "Current password is required to set a new password." }, { status: 400 });
     }
@@ -63,7 +68,10 @@ export async function PATCH(request: NextRequest) {
     const valid = await bcrypt.compare(d.current_password, student.password_hash);
     if (!valid) return NextResponse.json({ error: "Current password is incorrect." }, { status: 400 });
     const newHash = await bcrypt.hash(d.new_password, 10);
-    await queryOne(`update students set password_hash = $1, updated_at = now() where id = $2`, [newHash, session!.userId]);
+    const saved = await savePersonalPassword(session!, newHash);
+    if (!saved) return NextResponse.json({ error: "Your account was changed. Please sign in again." }, { status: 409 });
+    session!.passwordVersion = saved.password_version;
+    await session!.save();
   }
 
   const student = await queryOne(

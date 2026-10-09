@@ -14,6 +14,12 @@ interface PortalPermissionRow {
 
 export async function requireRole(...roles: UserRole[]) {
   const session = await getSession();
+  if (session.isLoggedIn && session.mustChangePassword) {
+    return { session: null, response: NextResponse.json(
+      { error: "Set your own password before accessing the portal.", code: "PASSWORD_CHANGE_REQUIRED", redirectTo: "/change-password" },
+      { status: 403 },
+    ) };
+  }
   // "assistant" shares the same route-level access as "admin".
   // Any route that permits "admin" automatically permits "assistant" too.
   const effective = roles.includes("admin") ? [...roles, "assistant" as UserRole] : roles;
@@ -64,6 +70,12 @@ export async function requireRole(...roles: UserRole[]) {
 
 export async function requireExactRole(...roles: UserRole[]) {
   const session = await getSession();
+  if (session.isLoggedIn && session.mustChangePassword) {
+    return { session: null, response: NextResponse.json(
+      { error: "Set your own password before accessing the portal.", code: "PASSWORD_CHANGE_REQUIRED", redirectTo: "/change-password" },
+      { status: 403 },
+    ) };
+  }
   if (!session.isLoggedIn || !roles.includes(session.role)) {
     return { session: null, response: NextResponse.json({ error: "Unauthorized." }, { status: 403 }) };
   }

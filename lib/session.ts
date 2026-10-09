@@ -1,5 +1,6 @@
 import { getIronSession, IronSession, SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
+import { refreshSessionAuthentication } from "./passwordSession";
 
 export type UserRole =
   | "admin"
@@ -19,6 +20,9 @@ export interface SessionData {
   name: string;
   email: string;
   isLoggedIn: boolean;
+  accountSource?: "users" | "teachers" | "students";
+  mustChangePassword?: boolean;
+  passwordVersion?: number;
 }
 
 export const sessionOptions: SessionOptions = {
@@ -34,5 +38,7 @@ export const sessionOptions: SessionOptions = {
 
 export async function getSession(): Promise<IronSession<SessionData>> {
   const cookieStore = await cookies();
-  return getIronSession<SessionData>(cookieStore, sessionOptions);
+  const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
+  await refreshSessionAuthentication(session);
+  return session;
 }

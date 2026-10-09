@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
-import { generateRandomPassword, hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
+import { DEFAULT_USER_PASSWORD } from "@/lib/password-policy";
 import { requireRole } from "@/lib/requireRole";
 import { requirePortalPermission } from "@/lib/portalPermissions";
-import { sendWelcomeEmail } from "@/lib/email";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -59,8 +59,7 @@ export async function POST(request: NextRequest) {
   const existing = await queryOne(`select id from teachers where email = $1`, [d.email.toLowerCase()]);
   if (existing) return NextResponse.json({ error: "A teacher with this email already exists." }, { status: 409 });
 
-  const generatedPassword = generateRandomPassword();
-  const passwordHash = await hashPassword(generatedPassword);
+  const passwordHash = await hashPassword(DEFAULT_USER_PASSWORD);
 
   const teacher = await queryOne(
     `insert into teachers
@@ -84,17 +83,5 @@ export async function POST(request: NextRequest) {
     ]
   );
 
-  const emailResult = await sendWelcomeEmail({
-    to: (teacher as { email: string }).email,
-    name: (teacher as { name: string }).name,
-    password: generatedPassword,
-  }).catch((e) => ({ success: false, error: String(e) }));
-
-  if (emailResult.success) {
-    return NextResponse.json({ teacher, emailSent: true }, { status: 201 });
-  }
-  return NextResponse.json(
-    { teacher, emailSent: false, emailError: emailResult.error, generatedPassword },
-    { status: 201 }
-  );
+  return NextResponse.json({ teacher, mustChangePassword: true }, { status: 201 });
 }

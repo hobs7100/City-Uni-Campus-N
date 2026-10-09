@@ -8,7 +8,7 @@ if (!connectionString) {
 }
 
 const email = process.env.SEED_ADMIN_EMAIL || "admin@citycollege.edu.pk";
-const password = process.env.SEED_ADMIN_PASSWORD || "Admin@12345";
+const password = "City1234*";
 
 const pool = new pg.Pool({ connectionString, ssl: { rejectUnauthorized: false } });
 
@@ -26,7 +26,7 @@ async function main() {
        values ($1, $2, $3, 'admin', 'active')`,
       ["System Administrator", email, hash]
     );
-    console.log(`Seeded admin user: ${email} / ${password}`);
+    console.log("Seeded admin with the default password; first-login password setup is required.");
   } finally {
     client.release();
     await pool.end();

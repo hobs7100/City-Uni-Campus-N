@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
-import { hashPassword, generateRandomPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
+import { DEFAULT_USER_PASSWORD } from "@/lib/password-policy";
 import { requireRole } from "@/lib/requireRole";
-import { sendWelcomeEmail } from "@/lib/email";
 
 const createSchema = z.object({
   name: z.string().min(2),
@@ -49,9 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
   }
 
-  const usesDefaultPassword = ["suprident", "controller", "accountant"].includes(role);
-  const generatedPassword = usesDefaultPassword ? "city123" : generateRandomPassword();
-  const passwordHash = await hashPassword(generatedPassword);
+  const passwordHash = await hashPassword(DEFAULT_USER_PASSWORD);
   const user = await queryOne(
     `insert into users (name, email, password_hash, cellno, role, status)
      values ($1, $2, $3, $4, $5, $6)
@@ -59,15 +57,5 @@ export async function POST(request: NextRequest) {
     [name, email.toLowerCase(), passwordHash, cellno || null, role, status]
   );
 
-  const emailResult = await sendWelcomeEmail({ to: email.toLowerCase(), name, password: generatedPassword });
-
-  return NextResponse.json(
-    {
-      user,
-      emailSent: emailResult.success,
-      emailError: emailResult.success ? undefined : emailResult.error,
-      ...(emailResult.success ? {} : { generatedPassword }),
-    },
-    { status: 201 }
-  );
+  return NextResponse.json({ user, mustChangePassword: true }, { status: 201 });
 }

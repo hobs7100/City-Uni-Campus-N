@@ -35,7 +35,6 @@ const statusOptions = [
   { value: "blocked", label: "Blocked" },
 ];
 
-const defaultPasswordRoles = new Set<UserRow["role"]>(["suprident", "controller", "accountant"]);
 
 const emptyForm = {
   id: "",
@@ -120,18 +119,7 @@ export default function UsersPage() {
         return;
       }
       if (!editing) {
-        if (data.emailSent) {
-          toast.success(defaultPasswordRoles.has(form.role)
-            ? "User created. The initial password is city123; ask them to change it from Profile."
-            : "User created and welcome email sent.");
-        } else {
-          toast.error(
-            `User created, but the welcome email failed to send${
-              data.generatedPassword ? ` (password: ${data.generatedPassword})` : ""
-            }. ${data.emailError || ""}`,
-            { duration: 10000 },
-          );
-        }
+        toast.success("User created with the default password. They must choose their own password at first login.");
       } else {
         toast.success("User updated.");
       }
@@ -167,19 +155,10 @@ export default function UsersPage() {
       const res = await fetch(`/api/admin/users/${regenTarget.id}/regenerate-password`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Failed to regenerate password.");
+        toast.error(data.error || "Failed to reset password.");
         return;
       }
-      if (data.emailSent) {
-        toast.success("Password regenerated and emailed to the user.");
-      } else {
-        toast.error(
-          `Password regenerated, but the email failed to send${
-            data.generatedPassword ? ` (password: ${data.generatedPassword})` : ""
-          }. ${data.emailError || ""}`,
-          { duration: 10000 },
-        );
-      }
+      toast.success("Password reset to the default. The user must choose their own password at next login.");
       setRegenTarget(null);
     } finally {
       setRegenerating(false);
@@ -271,7 +250,7 @@ export default function UsersPage() {
                       </button>
                       <button
                         onClick={() => setRegenTarget(u)}
-                        title="Regenerate password"
+                        title="Reset to default password"
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
                       >
                         <KeyRound size={16} />
@@ -323,9 +302,7 @@ export default function UsersPage() {
           </div>
           {!editing && (
             <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-              {defaultPasswordRoles.has(form.role)
-                ? "Initial password: city123. Share it securely and ask the user to change it from Profile after signing in."
-                : "A password will be auto-generated and emailed to this user. They can change it after logging in."}
+              The user will sign in with the default password and must choose their own password before entering the portal. No password email is sent.
             </p>
           )}
           <div>
@@ -400,9 +377,9 @@ export default function UsersPage() {
 
       <ConfirmDialog
         open={!!regenTarget}
-        title="Regenerate Password"
-        message={`A new password will be generated for ${regenTarget?.name} and emailed to ${regenTarget?.email}. Continue?`}
-        confirmLabel="Regenerate & Send"
+        title="Reset to Default Password"
+        message={`Reset ${regenTarget?.name}'s password to the default? Their existing sessions will end and they must choose their own password at next login.`}
+        confirmLabel="Reset Password"
         loading={regenerating}
         onConfirm={handleRegeneratePassword}
         onCancel={() => setRegenTarget(null)}

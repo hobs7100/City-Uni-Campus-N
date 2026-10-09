@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne, getClient } from "@/lib/db";
 import { allocateDitRollNumber } from "@/lib/dit-roll-number";
-import { generateRandomPassword, hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
+import { DEFAULT_STUDENT_PASSWORD } from "@/lib/password-policy";
 import { requirePortalPermission } from "@/lib/portalPermissions";
-import { sendWelcomeEmail } from "@/lib/email";
 import * as XLSX from "xlsx";
 
 export async function POST(request: NextRequest) {
@@ -71,8 +71,7 @@ export async function POST(request: NextRequest) {
     const cnicExists = await queryOne(`select id from students where cnic = $1`, [cnic]);
     if (cnicExists) { errors.push(`Row ${rowNum}: CNIC ${cnic} already exists`); continue; }
 
-    const password = generateRandomPassword();
-    const hash = await hashPassword(password);
+    const hash = await hashPassword(DEFAULT_STUDENT_PASSWORD);
     const status = (["active", "struck_off", "left", "dropped", "freezed"].includes(row["status"])
       ? row["status"]
       : "active") as string;
@@ -106,7 +105,6 @@ export async function POST(request: NextRequest) {
       client.release();
       client = null;
       created++;
-      sendWelcomeEmail({ to: email, name, password }).catch(() => {});
     } catch (e) {
       if (client) {
         await client.query("rollback").catch(() => {});

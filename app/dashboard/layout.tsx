@@ -10,6 +10,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!session.isLoggedIn) {
     redirect("/login");
   }
+  if (session.mustChangePassword) {
+    redirect("/change-password");
+  }
 
   if (session.role === "teacher" || session.role === "student") {
     return (
