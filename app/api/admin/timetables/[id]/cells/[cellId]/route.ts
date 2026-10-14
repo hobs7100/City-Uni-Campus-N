@@ -37,11 +37,14 @@ export async function PATCH(
     return NextResponse.json({ cell: updated });
   }
 
-  const timetable = await queryOne<{ semester_id: string }>(
-    `select semester_id from timetables where id = $1`,
+  const timetable = await queryOne<{ semester_id: string; semester_status: string }>(
+    `select tt.semester_id, s.status as semester_status from timetables tt join semesters s on s.id = tt.semester_id where tt.id = $1`,
     [id]
   );
   if (!timetable) return NextResponse.json({ error: "Timetable not found." }, { status: 404 });
+  if (timetable.semester_status === "closed") {
+    return NextResponse.json({ error: "Courses cannot be scheduled in a closed semester." }, { status: 409 });
+  }
 
   const allocation = await queryOne<{ id: string; teacher_id: string; teacher_name: string; is_combined: boolean }>(
     `select a.id, a.teacher_id, a.is_combined, t.name as teacher_name
@@ -95,6 +98,7 @@ export async function PATCH(
      join semesters s on s.id = tt.semester_id
      join allocations a on a.id = tc.allocation_id
      where tc.allocation_id is not null
+        and s.status != 'closed'
        and tc.id != $1
        and a.teacher_id = $2
        and tc.allocation_id != $3
@@ -158,6 +162,7 @@ export async function PATCH(
        join classes cl on cl.id = tt.class_id
        join semesters s on s.id = tt.semester_id
        where tc.allocation_id = $1
+          and s.status != 'closed'
          and tc.id != $2
          and tc.timetable_id != $3
          and td.day_name = $4

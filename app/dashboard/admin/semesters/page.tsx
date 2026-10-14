@@ -17,6 +17,7 @@ interface ClassOption {
   class_name: string;
   session: string;
   total_semesters: number;
+  starting_semester: number;
   type: "ADP" | "BS" | "DIT" | "LLB" | "BS-Bridging";
   status: string;
 }
@@ -220,12 +221,19 @@ export default function SemestersPage() {
   const selectedClass = classes.find((c) => c.id === classId);
   const semesterNumberOptions = useMemo(() => {
     if (!selectedClass) return [];
-    const firstSemester = selectedClass.type === "BS-Bridging" ? 5 : 1;
-    return Array.from({ length: selectedClass.total_semesters }, (_, idx) => ({
-      value: String(firstSemester + idx),
-      label: `Semester ${firstSemester + idx}`,
-    }));
-  }, [selectedClass]);
+    const firstSemester =
+      Number(selectedClass.starting_semester) ||
+      (selectedClass.type === "BS-Bridging" || /bridging/i.test(selectedClass.class_name) ? 5 : 1);
+    const historicalNumbers = semesters
+      .filter((semester) => semester.class_id === selectedClass.id)
+      .map((semester) => semester.semester_number);
+    const nextSemester = Math.max(firstSemester, ...historicalNumbers.map((number) => number + 1));
+    const isBridging =
+      selectedClass.type === "BS-Bridging" || /bridging/i.test(selectedClass.class_name);
+    const maxSemester = isBridging ? 8 : selectedClass.type === "ADP" || selectedClass.type === "DIT" ? 4 : 8;
+    if (nextSemester > maxSemester) return [];
+    return [{ value: String(nextSemester), label: `Semester ${nextSemester}` }];
+  }, [selectedClass, semesters]);
 
   const availableCourses = useMemo(
     () => courses.filter((c) => c.department_id === departmentId && c.status !== "blocked"),
@@ -307,11 +315,18 @@ export default function SemestersPage() {
     setHistoryTermType("");
   }
 
-  function openStartModal(targetClass: ClassOption, targetSemesterNumber: number) {
+  function openStartModal(targetClass: ClassOption) {
+    const firstSemester =
+      Number(targetClass.starting_semester) ||
+      (targetClass.type === "BS-Bridging" || /bridging/i.test(targetClass.class_name) ? 5 : 1);
+    const existingNumbers = semesters
+      .filter((semester) => semester.class_id === targetClass.id)
+      .map((semester) => semester.semester_number);
+    const nextSemester = Math.max(firstSemester, ...existingNumbers.map((number) => number + 1));
     setDepartmentId(targetClass.department_id);
     setSession(targetClass.session);
     setClassId(targetClass.id);
-    setSemesterNumber(String(targetSemesterNumber));
+    setSemesterNumber(String(nextSemester));
     setTermType("Fall");
     setStartDate("");
     setSelectedCourseIds([]);
@@ -849,7 +864,7 @@ export default function SemestersPage() {
                                 {isReady ? (
                                   <button
                                     type="button"
-                                    onClick={() => openStartModal(classInfo, step.number)}
+                                    onClick={() => openStartModal(classInfo)}
                                     aria-label={`Start semester ${step.number} for ${classInfo.class_name}`}
                                     className="rounded-full focus:outline-none focus:ring-4 focus:ring-blue-500/20"
                                   >

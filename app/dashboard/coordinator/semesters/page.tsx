@@ -16,6 +16,7 @@ interface ClassOption {
   class_name: string;
   session: string;
   total_semesters: number;
+  starting_semester: number;
   type: "ADP" | "BS" | "DIT" | "LLB" | "BS-Bridging";
   status: string;
 }
@@ -59,6 +60,19 @@ const termOptions = [
   { value: "Fall", label: "Fall" },
   { value: "Spring", label: "Spring" },
 ];
+
+function firstManagedSemester(classInfo: ClassOption) {
+  return Number(classInfo.starting_semester) ||
+    (classInfo.type === "BS-Bridging" || /bridging/i.test(classInfo.class_name) ? 5 : 1);
+}
+
+function nextSemesterNumber(classInfo: ClassOption, semesters: Semester[]) {
+  const firstSemester = firstManagedSemester(classInfo);
+  const latestSemester = semesters
+    .filter((semester) => semester.class_id === classInfo.id)
+    .reduce((latest, semester) => Math.max(latest, semester.semester_number), firstSemester - 1);
+  return Math.max(firstSemester, latestSemester + 1);
+}
 
 export default function SemestersPage() {
   const [tab, setTab] = useState<"start" | "update" | "close" | "history">("start");
@@ -164,12 +178,12 @@ export default function SemestersPage() {
   const selectedClass = classes.find((c) => c.id === classId);
   const semesterNumberOptions = useMemo(() => {
     if (!selectedClass) return [];
-    const firstSemester = selectedClass.type === "BS-Bridging" ? 5 : 1;
-    return Array.from({ length: selectedClass.total_semesters }, (_, idx) => ({
-      value: String(firstSemester + idx),
-      label: `Semester ${firstSemester + idx}`,
-    }));
-  }, [selectedClass]);
+    const next = nextSemesterNumber(selectedClass, semesters);
+    const isBridging =
+      selectedClass.type === "BS-Bridging" || /bridging/i.test(selectedClass.class_name);
+    const lastSemester = isBridging ? 8 : selectedClass.type === "ADP" || selectedClass.type === "DIT" ? 4 : 8;
+    return next <= lastSemester ? [{ value: String(next), label: `Semester ${next}` }] : [];
+  }, [selectedClass, semesters]);
 
   const availableCourses = useMemo(
     () => courses.filter((c) => c.department_id === departmentId && c.status !== "blocked"),
@@ -237,6 +251,15 @@ export default function SemestersPage() {
     e.preventDefault();
     if (!classId || !semesterNumber || !startDate || selectedCourseIds.length === 0) {
       toast.error("Please fill all required fields and select at least one course.");
+      return;
+    }
+    const classInfo = classes.find((item) => item.id === classId);
+    if (
+      !classInfo ||
+      !semesterNumberOptions.some((option) => option.value === semesterNumber) ||
+      Number(semesterNumber) !== nextSemesterNumber(classInfo, semesters)
+    ) {
+      toast.error("The selected semester is no longer the next semester for this class. Please reselect the class.");
       return;
     }
     setStarting(true);
@@ -689,8 +712,10 @@ export default function SemestersPage() {
                 options={classOptions}
                 value={classOptions.find((c) => c.value === classId) || null}
                 onChange={(opt) => {
-                  setClassId(opt ? (opt as SelectOption).value : "");
-                  setSemesterNumber("");
+                  const nextClassId = opt ? (opt as SelectOption).value : "";
+                  const nextClass = classes.find((item) => item.id === nextClassId);
+                  setClassId(nextClassId);
+                  setSemesterNumber(nextClass ? String(nextSemesterNumber(nextClass, semesters)) : "");
                 }}
                 placeholder="Select..."
                 isDisabled={!session}
@@ -705,10 +730,17 @@ export default function SemestersPage() {
                 value={semesterNumberOptions.find((s) => s.value === semesterNumber) || null}
                 onChange={(opt) => setSemesterNumber(opt ? (opt as SelectOption).value : "")}
                 placeholder="Select..."
-                isDisabled={!classId}
+                isDisabled={!classId || semesterNumberOptions.length === 0}
               />
             </div>
           </div>
+          {selectedClass && (
+            <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+              {semesterNumberOptions.length > 0
+                ? `Semester ${semesterNumber || firstManagedSemester(selectedClass)} is next. With no history, classes begin at their configured starting semester; otherwise numbering follows the latest recorded semester and never goes below that start.`
+                : "This class has reached the final semester in its program."}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">

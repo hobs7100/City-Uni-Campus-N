@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { nextClassSemester, semesterBounds } from "@/lib/classSemester";
 import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
@@ -77,21 +78,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This class already has a running semester. Close it before starting a new one." }, { status: 409 });
   }
 
-  const classRow = await queryOne<{ total_semesters: number; type: string }>(
-    `select total_semesters, type::text from classes where id = $1 and department_id = $2`,
+  const classRow = await queryOne<{ total_semesters: number; type: string; starting_semester: number }>(
+    `select total_semesters, type::text, starting_semester from classes where id = $1 and department_id = $2`,
     [d.class_id, d.department_id]
   );
   if (!classRow) return NextResponse.json({ error: "Class not found in the selected department." }, { status: 404 });
 
-  const minimumSemester = classRow.type === "BS-Bridging" ? 5 : 1;
-  const maximumSemester = classRow.type === "BS-Bridging" ? 8 : classRow.total_semesters;
+  const { minimum: minimumSemester, maximum: maximumSemester } = semesterBounds(classRow.type, classRow.total_semesters);
   const latestSemester = await queryOne<{ latest_semester_number: number | null }>(
     `select max(semester_number)::int as latest_semester_number
      from semesters
      where class_id = $1`,
     [d.class_id]
   );
-  const expectedSemesterNumber = (latestSemester?.latest_semester_number ?? (minimumSemester - 1)) + 1;
+  const expectedSemesterNumber = nextClassSemester(classRow.type, classRow.total_semesters, classRow.starting_semester, latestSemester?.latest_semester_number);
   if (d.semester_number !== expectedSemesterNumber) {
     return NextResponse.json(
       { error: `The next semester for this class must be Semester ${expectedSemesterNumber}.` },

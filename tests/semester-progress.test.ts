@@ -49,6 +49,27 @@ describe("Start Semester progress", () => {
     expect(timeline.steps[0].state).toBe("ready");
   });
 
+  it("makes only Semester 8 ready for a late-entry BS cohort without invented history", () => {
+    const [timeline] = buildSemesterTimelines([{ ...newClass, starting_semester: 8 }], []);
+    expect(timeline.steps[7]).toEqual({ number: 8, semester: null, state: "ready" });
+    expect(timeline.steps.slice(0, 7).every((step) => step.semester === null && step.state === "locked")).toBe(true);
+  });
+
+  it("starts a late-entry Bridging cohort at 7, then progresses to 8", () => {
+    const lateClass = { ...newClass, type: "BS-Bridging", total_semesters: 4, starting_semester: 7 };
+    expect(buildSemesterTimelines([lateClass], [])[0].steps.map((step) => step.state))
+      .toEqual(["locked", "locked", "ready", "locked"]);
+    expect(buildSemesterTimelines([lateClass], [semester(7)])[0].steps.map((step) => step.state))
+      .toEqual(["locked", "locked", "completed", "ready"]);
+  });
+
+  it("keeps real history and does not restart at the configured starting semester", () => {
+    const [timeline] = buildSemesterTimelines([{ ...newClass, starting_semester: 6 }], [semester(6), semester(7)]);
+    expect(timeline.steps[5].state).toBe("completed");
+    expect(timeline.steps[6].state).toBe("completed");
+    expect(timeline.steps[7].state).toBe("ready");
+  });
+
   it("preserves the next sequential semester after closed semesters", () => {
     const [timeline] = buildSemesterTimelines([newClass], [semester(2), semester(1)]);
     expect(timeline.isNewClass).toBe(false);

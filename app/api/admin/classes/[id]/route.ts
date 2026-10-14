@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requirePortalPermission } from "@/lib/portalPermissions";
+import { semesterBounds } from "@/lib/classSemester";
 
 const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8, "BS-Bridging": 4 };
 
@@ -11,6 +12,7 @@ const schema = z.object({
   session: z.string().min(4).optional(),
   affiliation_id: z.string().uuid().nullable().optional(),
   type: z.enum(["ADP", "BS", "DIT", "LLB", "BS-Bridging"]).optional(),
+  starting_semester: z.number().int().optional(),
   status: z.enum(["active", "blocked"]).optional(),
   scheme_of_studies_url: z.string().url().nullable().optional(),
   scheme_public_id: z.string().nullable().optional(),
@@ -27,8 +29,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data." }, { status: 400 });
   }
-  const current = await queryOne<{ class_name: string; type: string }>(
-    `select class_name, type::text from classes where id = $1`,
+  const current = await queryOne<{ class_name: string; type: string; starting_semester: number }>(
+    `select class_name, type::text, starting_semester from classes where id = $1`,
     [id],
   );
   if (!current) return NextResponse.json({ error: "Class not found." }, { status: 404 });
@@ -36,6 +38,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const d = parsed.data;
   const effectiveName = d.class_name ?? current.class_name;
   const normalizedType = /bridging/i.test(effectiveName) ? "BS-Bridging" : (d.type ?? current.type);
+  const { minimum, maximum } = semesterBounds(normalizedType, typeToSemesters[normalizedType]);
+  const startingSemester = d.starting_semester ?? current.starting_semester;
+  if (startingSemester < minimum || startingSemester > maximum) {
+    return NextResponse.json({ error: `Starting semester must be between ${minimum} and ${maximum}.` }, { status: 400 });
+  }
+  const firstRecorded = await queryOne<{ first_semester: number | null; last_semester: number | null }>(
+    `select min(semester_number)::int as first_semester, max(semester_number)::int as last_semester from semesters where class_id = $1`,
+    [id],
+  );
+  if (firstRecorded?.first_semester != null && (startingSemester > firstRecorded.first_semester || firstRecorded.first_semester < minimum || firstRecorded.last_semester! > maximum)) {
+    return NextResponse.json({ error: "Starting semester and class type must preserve the existing semester history." }, { status: 409 });
+  }
   const normalizedData = { ...d, type: normalizedType as NonNullable<typeof d.type> };
 
   const sets: string[] = [];

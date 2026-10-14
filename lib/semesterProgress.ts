@@ -1,9 +1,12 @@
+import { nextClassSemester } from "@/lib/classSemester";
+
 interface ProgressClass {
   id: string;
   class_name: string;
   status: string;
   type: string;
   total_semesters: number;
+  starting_semester?: number;
 }
 
 interface ProgressSemester {
@@ -32,10 +35,11 @@ export function buildSemesterTimelines<C extends ProgressClass, S extends Progre
       );
       const runningSemester = classSemesters.find((semester) => semester.status !== "closed");
       const firstSemester = classInfo.type === "BS-Bridging" ? 5 : 1;
-      const nextSemesterNumber = classSemesters.reduce(
+      const latestSemesterNumber = classSemesters.reduce(
         (highest, semester) => Math.max(highest, semester.semester_number),
         firstSemester - 1,
-      ) + 1;
+      );
+      const nextSemesterNumber = nextClassSemester(classInfo.type, classInfo.total_semesters, classInfo.starting_semester, latestSemesterNumber);
 
       const steps = Array.from({ length: classInfo.total_semesters }, (_, index) => {
         const number = firstSemester + index;

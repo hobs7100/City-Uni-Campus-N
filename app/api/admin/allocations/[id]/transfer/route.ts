@@ -126,6 +126,7 @@ export async function POST(
      from timetable_cells tc
      join allocations a   on a.id = tc.allocation_id
      join timetables  tt  on tt.id = tc.timetable_id
+     join semesters timetable_semester on timetable_semester.id = tt.semester_id and timetable_semester.status != 'closed'
      join timetable_cells tc2 on tc2.timetable_id = tt.id
                               and tc2.day_id = tc.day_id
                               and tc2.period_id = tc.period_id

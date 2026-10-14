@@ -20,6 +20,7 @@ interface ClassRow {
   university_name: string | null;
   type: "ADP" | "BS" | "DIT" | "LLB" | "BS-Bridging";
   total_semesters: number;
+  starting_semester: number;
   status: "active" | "blocked";
   scheme_of_studies_url: string | null;
   scheme_public_id: string | null;
@@ -41,6 +42,12 @@ const statusOptions = [
 
 const semestersByType: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8, "BS-Bridging": 4 };
 
+function semesterRange(type: ClassRow["type"], className: string) {
+  if (type === "BS-Bridging" || /bridging/i.test(className)) return { first: 5, last: 8 };
+  if (type === "ADP" || type === "DIT") return { first: 1, last: 4 };
+  return { first: 1, last: 8 };
+}
+
 const emptyForm = {
   id: "",
   department_id: "",
@@ -48,6 +55,7 @@ const emptyForm = {
   session: "",
   affiliation_id: null as string | null,
   type: "BS" as ClassRow["type"],
+  starting_semester: "" as number | "",
   status: "active" as "active" | "blocked",
   scheme_of_studies_url: null as string | null,
   scheme_public_id: null as string | null,
@@ -133,6 +141,7 @@ export default function ClassesPage() {
       session: item.session,
       affiliation_id: item.affiliation_id,
       type: item.type,
+      starting_semester: item.starting_semester,
       status: item.status,
       scheme_of_studies_url: item.scheme_of_studies_url,
       scheme_public_id: item.scheme_public_id ?? null,
@@ -193,6 +202,10 @@ export default function ClassesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.starting_semester === "") {
+      toast.error("Please select a starting semester.");
+      return;
+    }
     setSaving(true);
     try {
       const url = editing ? `/api/admin/classes/${form.id}` : "/api/admin/classes";
@@ -200,7 +213,7 @@ export default function ClassesPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, starting_semester: Number(form.starting_semester) }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -273,6 +286,7 @@ export default function ClassesPage() {
               <th className="px-4 py-3">University</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Semesters</th>
+              <th className="px-4 py-3">Starts at</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-center">Scheme of Studies</th>
               <th className="px-4 py-3 text-right">Actions</th>
@@ -280,10 +294,10 @@ export default function ClassesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <TableLoader colSpan={9} />
+              <TableLoader colSpan={10} />
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
                   {search ? `No classes match "${search}".` : "No classes found."}
                 </td>
               </tr>
@@ -303,6 +317,9 @@ export default function ClassesPage() {
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{c.type}</td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                     {c.total_semesters}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    Semester {c.starting_semester}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={c.status} />
@@ -373,7 +390,19 @@ export default function ClassesPage() {
             <input
               required
               value={form.class_name}
-              onChange={(e) => setForm({ ...form, class_name: e.target.value })}
+              onChange={(e) => {
+                const class_name = e.target.value;
+                const range = semesterRange(form.type, class_name);
+                setForm((prev) => ({
+                  ...prev,
+                  class_name,
+                  starting_semester:
+                    prev.starting_semester !== "" &&
+                    (prev.starting_semester < range.first || prev.starting_semester > range.last)
+                      ? ""
+                      : prev.starting_semester,
+                }));
+              }}
               placeholder="e.g. BSCS Morning"
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
@@ -398,9 +427,19 @@ export default function ClassesPage() {
               <SearchableSelect
                 options={typeOptions}
                 value={typeOptions.find((t) => t.value === form.type)}
-                onChange={(opt) =>
-                  setForm({ ...form, type: (opt as { value: string }).value as ClassRow["type"] })
-                }
+                onChange={(opt) => {
+                  const type = (opt as { value: string }).value as ClassRow["type"];
+                  const range = semesterRange(type, form.class_name);
+                  setForm((prev) => ({
+                    ...prev,
+                    type,
+                    starting_semester:
+                      prev.starting_semester !== "" &&
+                      (prev.starting_semester < range.first || prev.starting_semester > range.last)
+                        ? ""
+                        : prev.starting_semester,
+                  }));
+                }}
                 isClearable={false}
               />
             </div>
@@ -418,13 +457,53 @@ export default function ClassesPage() {
               placeholder="Select university..."
             />
           </div>
-          <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-            This class will have <strong>{semestersByType[form.type] ?? "—"}</strong> semesters
-            {form.type === "BS-Bridging" ? " numbered 5–8 (Post-ADP program)." : " (auto-calculated from type)."}
-            {/bridging/i.test(form.class_name) && form.type !== "BS-Bridging"
-              ? " Class names containing “Bridging” are automatically saved as BS-Bridging."
-              : ""}
-          </p>
+          <div className="space-y-3 rounded-lg bg-indigo-50 px-3 py-3 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+            <p>
+              This class will have <strong>{semestersByType[/bridging/i.test(form.class_name) ? "BS-Bridging" : form.type] ?? "—"}</strong> managed semesters
+              {form.type === "BS-Bridging" || /bridging/i.test(form.class_name)
+                ? " numbered 5–8 (Post-ADP program)."
+                : " (auto-calculated from type)."}
+              {/bridging/i.test(form.class_name) && form.type !== "BS-Bridging"
+                ? " Class names containing “Bridging” are automatically saved as BS-Bridging."
+                : ""}
+            </p>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                Starting semester <span className="text-red-600">*</span>
+              </label>
+              {(() => {
+                const range = semesterRange(form.type, form.class_name);
+                return (
+                  <SearchableSelect
+                    options={Array.from(
+                      { length: range.last - range.first + 1 },
+                      (_, index) => range.first + index,
+                    ).map((number) => ({ value: String(number), label: `Semester ${number}` }))}
+                    value={
+                      form.starting_semester === ""
+                        ? null
+                        : {
+                            value: String(form.starting_semester),
+                            label: `Semester ${form.starting_semester}`,
+                          }
+                    }
+                    onChange={(opt) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        starting_semester: opt ? Number((opt as SelectOption).value) : "",
+                      }))
+                    }
+                    placeholder="Choose first managed semester..."
+                    isClearable={false}
+                  />
+                );
+              })()}
+              <p className="mt-1.5 text-indigo-600/90 dark:text-indigo-300/90">
+                Sets the first semester managed here. It does not create past semesters or erase existing history.
+                For classes with history, it cannot be moved later than the earliest recorded semester.
+              </p>
+            </div>
+          </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
               Status

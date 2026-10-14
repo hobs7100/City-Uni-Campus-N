@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
                from classes cl2 where cl2.id in (
                  select distinct tt2.class_id from timetable_cells tc2
                  join timetables tt2 on tt2.id = tc2.timetable_id
+                  join semesters s2 on s2.id = tt2.semester_id and s2.status != 'closed'
                   join allocation_semesters als2 on als2.allocation_id = tc2.allocation_id
                                                 and als2.semester_id = tt2.semester_id
                   join semester_courses sc2 on sc2.semester_id = tt2.semester_id
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
      where td.day_name = $1
         and exists (
           select 1 from timetables cell_tt
+          join semesters cell_s on cell_s.id = cell_tt.semester_id and cell_s.status != 'closed'
           join allocation_semesters active_als on active_als.allocation_id = tc.allocation_id
                                                and active_als.semester_id = cell_tt.semester_id
           join semester_courses sc on sc.semester_id = cell_tt.semester_id

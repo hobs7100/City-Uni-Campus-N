@@ -34,19 +34,33 @@ export async function POST(request: NextRequest) {
   const d = parsed.data;
   const lectureCount = d.status === "ok" ? d.lecture_count : 0;
 
-  const allocation = await queryOne(`select id from allocations where id = $1`, [d.allocation_id]);
+  const allocation = await queryOne<{ id: string; all_semesters_closed: boolean }>(
+    `select a.id,
+       exists (select 1 from allocation_semesters als where als.allocation_id = a.id)
+       and not exists (
+         select 1 from allocation_semesters als
+         join semesters s on s.id = als.semester_id
+         where als.allocation_id = a.id and s.status != 'closed'
+       ) as all_semesters_closed
+     from allocations a where a.id = $1`,
+    [d.allocation_id],
+  );
   if (!allocation) return NextResponse.json({ error: "Allocation not found." }, { status: 404 });
+  if (allocation.all_semesters_closed) {
+    return NextResponse.json({ error: "Attendance cannot be marked for a closed semester." }, { status: 409 });
+  }
 
   // A combined allocation remains actionable while any scheduled class-course
   // leg at this time is incomplete. Completed legs must not receive new records.
   const slotCompletion = await queryOne<{ has_completed_leg: boolean; has_incomplete_leg: boolean }>(
     `select
-       bool_or(sc.syllabus_completed_at is not null) as has_completed_leg,
-       bool_or(sc.syllabus_completed_at is null) as has_incomplete_leg
+       bool_or(s.status = 'closed' or sc.syllabus_completed_at is not null) as has_completed_leg,
+       bool_or(s.status != 'closed' and sc.syllabus_completed_at is null) as has_incomplete_leg
      from timetable_cells tc
      join timetable_days td on td.id = tc.day_id
      join timetable_periods tp on tp.id = tc.period_id
      join timetables tt on tt.id = tc.timetable_id
+     join semesters s on s.id = tt.semester_id
      join allocations a on a.id = tc.allocation_id
      join allocation_semesters als on als.allocation_id = tc.allocation_id and als.semester_id = tt.semester_id
      join semester_courses sc on sc.semester_id = tt.semester_id and sc.course_id = als.course_id
@@ -58,7 +72,7 @@ export async function POST(request: NextRequest) {
   );
   if (slotCompletion?.has_completed_leg && !slotCompletion.has_incomplete_leg) {
     return NextResponse.json(
-      { error: "Attendance cannot be marked because this course's syllabus is complete." },
+      { error: "Attendance cannot be marked because this semester is closed or the course's syllabus is complete." },
       { status: 409 }
     );
   }

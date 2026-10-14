@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query, queryOne } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 import { requirePortalPermission } from "@/lib/portalPermissions";
+import { semesterBounds } from "@/lib/classSemester";
 
 const typeToSemesters: Record<string, number> = { ADP: 4, DIT: 4, BS: 8, LLB: 8, "BS-Bridging": 4 };
 
@@ -12,6 +13,7 @@ const schema = z.object({
   session: z.string().min(4),
   affiliation_id: z.string().uuid().nullable().optional(),
   type: z.enum(["ADP", "BS", "DIT", "LLB", "BS-Bridging"]),
+  starting_semester: z.number().int(),
   status: z.enum(["active", "blocked"]).default("active"),
   scheme_of_studies_url: z.string().url().nullable().optional(),
 });
@@ -54,6 +56,10 @@ export async function POST(request: NextRequest) {
   const d = parsed.data;
   const normalizedType = /bridging/i.test(d.class_name) ? "BS-Bridging" : d.type;
   const totalSemesters = typeToSemesters[normalizedType];
+  const { minimum, maximum } = semesterBounds(normalizedType, totalSemesters);
+  if (d.starting_semester < minimum || d.starting_semester > maximum) {
+    return NextResponse.json({ error: `Starting semester must be between ${minimum} and ${maximum}.` }, { status: 400 });
+  }
 
   const existing = await queryOne(
     `select id from classes where department_id = $1 and lower(class_name) = lower($2) and session = $3`,
@@ -64,9 +70,9 @@ export async function POST(request: NextRequest) {
   }
 
   const created = await queryOne(
-    `insert into classes (department_id, class_name, session, affiliation_id, type, total_semesters, status, scheme_of_studies_url)
-     values ($1, $2, $3, $4, $5, $6, $7, $8) returning *`,
-    [d.department_id, d.class_name, d.session, d.affiliation_id || null, normalizedType, totalSemesters, d.status, d.scheme_of_studies_url || null]
+    `insert into classes (department_id, class_name, session, affiliation_id, type, total_semesters, status, scheme_of_studies_url, starting_semester)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning *`,
+    [d.department_id, d.class_name, d.session, d.affiliation_id || null, normalizedType, totalSemesters, d.status, d.scheme_of_studies_url || null, d.starting_semester]
   );
   return NextResponse.json({ class: created }, { status: 201 });
 }
