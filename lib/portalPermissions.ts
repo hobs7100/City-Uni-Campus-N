@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, queryOne } from "@/lib/db";
+import { getPortalPermissionRows } from "@/lib/portalPermissionStore";
 import { requireRole } from "@/lib/requireRole";
 import type { UserRole } from "@/lib/session";
 import {
@@ -7,12 +7,6 @@ import {
   type PortalAction,
   type PortalModule,
 } from "@/lib/portalPermissionsConfig";
-
-interface PermissionRow {
-  can_view: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
-}
 
 export interface PortalAccess {
   canView: boolean;
@@ -23,6 +17,7 @@ export interface PortalAccess {
 export async function getPortalAccess(
   role: UserRole,
   module: PortalModule,
+  userId?: string,
 ): Promise<PortalAccess> {
   if (role === "admin") return { canView: true, canEdit: true, canDelete: true };
 
@@ -33,12 +28,7 @@ export async function getPortalAccess(
     return { canView: false, canEdit: false, canDelete: false };
   }
 
-  const permission = await queryOne<PermissionRow>(
-    `select can_view, can_edit, can_delete
-     from portal_permissions
-     where role = $1 and module = $2`,
-    [role, module],
-  );
+  const [permission] = await getPortalPermissionRows(role, [module], userId);
 
   return {
     canView: permission?.can_view ?? false,
@@ -47,19 +37,14 @@ export async function getPortalAccess(
   };
 }
 
-export async function getPortalAccessMap(role: UserRole): Promise<Map<PortalModule, PortalAccess>> {
+export async function getPortalAccessMap(role: UserRole, userId?: string): Promise<Map<PortalModule, PortalAccess>> {
   const access = new Map<PortalModule, PortalAccess>();
   if (role === "admin") {
     return access;
   }
   if (!isPortalManagedRole(role)) return access;
 
-  const rows = await query<PermissionRow & { module: PortalModule }>(
-    `select module, can_view, can_edit, can_delete
-     from portal_permissions
-     where role = $1`,
-    [role],
-  );
+  const rows = await getPortalPermissionRows(role, undefined, userId);
   for (const row of rows) {
     access.set(row.module, {
       canView: row.can_view,
@@ -78,7 +63,7 @@ export async function requirePortalPermission(
   const result = await requireRole(...roles);
   if (result.response || !result.session) return result;
 
-  const access = await getPortalAccess(result.session.role, module);
+  const access = await getPortalAccess(result.session.role, module, result.session.userId);
   const allowed =
     action === "view"
       ? access.canView

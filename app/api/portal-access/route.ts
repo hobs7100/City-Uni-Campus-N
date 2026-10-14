@@ -20,6 +20,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid module." }, { status: 400 });
   }
 
-  const access = await getPortalAccess(session.role, moduleKey);
+  const access = await getPortalAccess(session.role, moduleKey, session.userId);
   return NextResponse.json(access);
 }

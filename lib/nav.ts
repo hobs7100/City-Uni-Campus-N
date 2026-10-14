@@ -202,13 +202,13 @@ const managedRoleRoutes: Partial<Record<UserRole, Partial<Record<PortalModule, s
  * Existing role-specific routes are preferred; newly granted modules fall
  * back to their admin page so a grant is immediately usable.
  */
-export async function getDashboardNavigation(role: UserRole): Promise<NavItem[]> {
+export async function getDashboardNavigation(role: UserRole, userId?: string): Promise<NavItem[]> {
   if (role === "admin") return navByRole.admin;
   if (!["assistant", "coordinator", "hod", "finance_manager"].includes(role)) {
     return navByRole[role];
   }
 
-  const access = await getPortalAccessMap(role);
+  const access = await getPortalAccessMap(role, userId);
   const base = navByRole[role].filter(
     (item) => item.label === "Overview" || item.label === "Profile",
   );

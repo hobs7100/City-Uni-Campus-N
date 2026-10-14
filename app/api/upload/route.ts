@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
   }
   if (isPortalManagedRole(session.role)) {
-    const access = await getPortalAccess(session.role, folderModules[body.folder]);
+    const access = await getPortalAccess(session.role, folderModules[body.folder], session.userId);
     if (!access.canView || !access.canEdit) {
       return NextResponse.json(
         { error: "Editing is locked by Portal Management." },

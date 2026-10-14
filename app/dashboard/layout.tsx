@@ -22,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     );
   }
 
-  const navigation = await getDashboardNavigation(session.role);
+  const navigation = await getDashboardNavigation(session.role, session.userId);
   return (
     <DashboardShell
       items={navigation}

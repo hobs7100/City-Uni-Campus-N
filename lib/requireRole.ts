@@ -3,14 +3,7 @@ import { headers } from "next/headers";
 import { getSession } from "./session";
 import type { UserRole } from "./session";
 import { isPortalManagedRole, isPortalModule } from "./portalPermissionsConfig";
-import { query } from "./db";
-
-interface PortalPermissionRow {
-  module: string;
-  can_view: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
-}
+import { getPortalPermissionRows } from "./portalPermissionStore";
 
 export async function requireRole(...roles: UserRole[]) {
   const session = await getSession();
@@ -33,12 +26,7 @@ export async function requireRole(...roles: UserRole[]) {
         .split(",")
         .filter(isPortalModule);
       const modules = action === "view" ? [targetModule, ...readParents] : [targetModule];
-      const permissions = await query<PortalPermissionRow>(
-        `select module, can_view, can_edit, can_delete
-         from portal_permissions
-         where role = $1 and module = any($2::text[])`,
-        [session.role, modules],
-      );
+      const permissions = await getPortalPermissionRows(session.role, modules, session.userId);
       const target = permissions.find((permission) => permission.module === targetModule);
       const allowed =
         action === "view"

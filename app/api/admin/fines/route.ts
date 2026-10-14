@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
     yearly_totals: yearlyTotals,
     permissions: {
       can_adjust: authSession!.role === "admin",
-      can_collect: await getPortalAccess(authSession!.role, "fines").then((access) => access.canView && access.canEdit),
+      can_collect: await getPortalAccess(authSession!.role, "fines", authSession!.userId).then((access) => access.canView && access.canEdit),
     },
   });
 }
