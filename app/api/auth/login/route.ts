@@ -3,9 +3,10 @@ import { z } from "zod";
 import { findAccountByEmail, recordLoginActivity, verifyPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import { roleHomePage } from "@/lib/auth-redirect";
+import { accountEmailSchema } from "@/lib/account-email";
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: accountEmailSchema,
   password: z.string().min(1),
 });
 

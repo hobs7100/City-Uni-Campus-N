@@ -4,6 +4,7 @@ import { query, queryOne, getClient } from "@/lib/db";
 import { allocateDitRollNumber } from "@/lib/dit-roll-number";
 import { hashPassword } from "@/lib/auth";
 import { DEFAULT_STUDENT_PASSWORD } from "@/lib/password-policy";
+import { accountEmailSchema } from "@/lib/account-email";
 import { requireRole } from "@/lib/requireRole";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 
@@ -13,7 +14,7 @@ const schema = z.object({
   cnic: z.string().min(5),
   contact: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
-  email: z.string().email(),
+  email: accountEmailSchema,
   department_id: z.string().uuid(),
   session: z.string().min(1),
   class_id: z.string().uuid(),
@@ -95,8 +96,8 @@ export async function POST(request: NextRequest) {
     student = (await client.query(
     `insert into students
       (name, father_name, cnic, contact, address, email, password_hash, department_id, session, class_id,
-       profile_image_url, status, status_change_date, status_change_semester, roll_no)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       profile_image_url, status, status_change_date, status_change_semester, roll_no, must_change_password)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,true)
      returning id, name, email, status, roll_no`,
     [
       d.name, d.father_name || null, d.cnic, d.contact || null, d.address || null,

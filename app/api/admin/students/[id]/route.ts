@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool, query, queryOne } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { DEFAULT_STUDENT_PASSWORD } from "@/lib/password-policy";
+import { accountEmailSchema } from "@/lib/account-email";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 import { getCurrentAttendanceFine, wasLastStruckOffFromTeacher } from "@/lib/attendance-fines";
 
@@ -12,7 +13,7 @@ const schema = z.object({
   cnic: z.string().min(5).optional(),
   contact: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
-  email: z.string().email().optional(),
+  email: accountEmailSchema.optional(),
   password: z.string().min(6).optional().or(z.literal("")),
   department_id: z.string().uuid().optional(),
   session: z.string().min(1).optional(),

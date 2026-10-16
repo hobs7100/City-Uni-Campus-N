@@ -3,6 +3,7 @@ import { query, queryOne, getClient } from "@/lib/db";
 import { allocateDitRollNumber } from "@/lib/dit-roll-number";
 import { hashPassword } from "@/lib/auth";
 import { DEFAULT_STUDENT_PASSWORD } from "@/lib/password-policy";
+import { accountEmailSchema } from "@/lib/account-email";
 import { requirePortalPermission } from "@/lib/portalPermissions";
 import * as XLSX from "xlsx";
 
@@ -53,6 +54,10 @@ export async function POST(request: NextRequest) {
 
     if (!name) { errors.push(`Row ${rowNum}: name is required`); continue; }
     if (!email) { errors.push(`Row ${rowNum}: email is required`); continue; }
+    if (!accountEmailSchema.safeParse(email).success) {
+      errors.push(`Row ${rowNum}: email must be a valid email address`);
+      continue;
+    }
     if (!cnic) { errors.push(`Row ${rowNum}: cnic is required`); continue; }
     if (!deptName) { errors.push(`Row ${rowNum}: department_name is required`); continue; }
     if (!session) { errors.push(`Row ${rowNum}: session is required`); continue; }
@@ -84,8 +89,8 @@ export async function POST(request: NextRequest) {
       await client.query(
         `insert into students
            (name, father_name, cnic, contact, address, email, password_hash,
-             department_id, session, class_id, status, roll_no)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+             department_id, session, class_id, status, roll_no, must_change_password)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true)`,
         [
           name,
           String(row["father_name"] || "").trim() || null,

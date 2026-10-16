@@ -132,6 +132,48 @@ describe("Middleware password gate", () => {
 });
 
 describe("Login and mandatory password setup", () => {
+  it.each(["  PERSON@EXAMPLE.TEST  ", "\tPerson@Example.Test\n"])(
+    "normalizes copied student email before validation and lookup: %j", async (email) => {
+      mocks.queryOne.mockImplementation(async (sql: string, params: unknown[]) =>
+        sql.includes("from students where email") && params[0] === "person@example.test"
+          ? { id: ID, name: "Test Account", email: "person@example.test", status: "active",
+              password_hash: studentHash, must_change_password: true, password_version: 1 }
+          : null);
+      const result = await login(request("/api/auth/login", { email, password: DEFAULT_STUDENT_PASSWORD }));
+      expect(result.status).toBe(200);
+      expect(await result.json()).toMatchObject({ mustChangePassword: true, redirectTo: "/change-password" });
+      expect(session.accountSource).toBe("students");
+    },
+  );
+  it("does not treat a different, unregistered student email as an alias", async () => {
+    mocks.queryOne.mockResolvedValue(null);
+    const result = await login(request("/api/auth/login", {
+      email: "unregistered@example.test", password: DEFAULT_STUDENT_PASSWORD,
+    }));
+    expect(result.status).toBe(401);
+    expect(session.save).not.toHaveBeenCalled();
+  });
+  it("does not reactivate a student's default after a personal password was set", async () => {
+    mocks.queryOne.mockImplementation(async (sql: string) => sql.includes("from students where email")
+      ? { id: ID, name: "Test Account", email: "person@example.test", status: "active",
+          password_hash: personalHash, must_change_password: false, password_version: 2 }
+      : null);
+    expect((await login(request("/api/auth/login", {
+      email: " PERSON@EXAMPLE.TEST ", password: DEFAULT_STUDENT_PASSWORD,
+    }))).status).toBe(401);
+    expect((await login(request("/api/auth/login", {
+      email: " PERSON@EXAMPLE.TEST ", password: "PersonalTestPassword!",
+    }))).status).toBe(200);
+  });
+  it("does not trim or otherwise weaken password verification", async () => {
+    mocks.queryOne.mockResolvedValue({
+      id: ID, name: "Test Account", email: "person@example.test", status: "active",
+      password_hash: studentHash, must_change_password: true, password_version: 1,
+    });
+    expect((await login(request("/api/auth/login", {
+      email: "person@example.test", password: ` ${DEFAULT_STUDENT_PASSWORD} `,
+    }))).status).toBe(401);
+  });
   it.each(["users", "teachers", "students"] as const)("accepts the correct %s default and requires setup", async (source) => {
     const isStudent = source === "students";
     mocks.queryOne.mockImplementation(async (sql: string) => sql.includes(`from ${source} where email`)
