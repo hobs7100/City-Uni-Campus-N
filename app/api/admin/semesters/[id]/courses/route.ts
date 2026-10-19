@@ -19,8 +19,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   const d = parsed.data;
 
-  const semester = await queryOne<{ id: string; status: string; department_id: string }>(
-    `select id, status, department_id from semesters where id = $1`,
+  const semester = await queryOne<{ id: string; status: string }>(
+    `select id, status from semesters where id = $1`,
     [id]
   );
   if (!semester) return NextResponse.json({ error: "Semester not found." }, { status: 404 });
@@ -28,14 +28,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Cannot edit courses on a closed semester." }, { status: 409 });
   }
 
-  const course = await queryOne<{ id: string; department_id: string }>(
-    `select id, department_id from courses where id = $1`,
+  const course = await queryOne<{ id: string }>(
+    `select id from courses where id = $1`,
     [d.course_id]
   );
   if (!course) return NextResponse.json({ error: "Course not found." }, { status: 404 });
-  if (course.department_id !== semester.department_id) {
-    return NextResponse.json({ error: "This course does not belong to the semester's department." }, { status: 400 });
-  }
 
   const existing = await queryOne(
     `select 1 from semester_courses where semester_id = $1 and course_id = $2`,

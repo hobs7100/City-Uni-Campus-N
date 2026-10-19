@@ -10,6 +10,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
 import { DataFetchLoader } from "@/components/ui/Loaders";
 import { buildSemesterTimelines, matchesSemesterSearch } from "@/lib/semesterProgress";
+import { semesterCourseOptions } from "@/lib/semesterCourseCatalog";
 
 interface ClassOption {
   id: string;
@@ -27,6 +28,7 @@ interface CourseOption {
   code: string;
   title: string;
   department_id: string;
+  department_name: string;
   credit_hours: string;
   status: "active" | "blocked";
 }
@@ -235,15 +237,8 @@ export default function SemestersPage() {
     return [{ value: String(nextSemester), label: `Semester ${nextSemester}` }];
   }, [selectedClass, semesters]);
 
-  const availableCourses = useMemo(
-    () => courses.filter((c) => c.department_id === departmentId && c.status !== "blocked"),
-    [courses, departmentId],
-  );
-  const courseOptions = availableCourses.map((c) => ({
-    value: c.id,
-    label: `${c.code} — ${c.title} (${c.credit_hours} Cr)`,
-  }));
-  const selectedCoursesDetail = availableCourses.filter((c) => selectedCourseIds.includes(c.id));
+  const courseOptions = useMemo(() => semesterCourseOptions(courses), [courses]);
+  const selectedCoursesDetail = courses.filter((c) => selectedCourseIds.includes(c.id));
 
   const semesterTimelines = useMemo(() => {
     return buildSemesterTimelines(classes, semesters);
@@ -275,12 +270,7 @@ export default function SemestersPage() {
 
   const editCourseOptions = useMemo(() => {
     if (!editSemester) return [];
-    const existingIds = new Set(editSemester.courses.map((c) => c.id));
-    return courses
-      .filter((c) => c.department_id === editSemester.department_id)
-      .filter((c) => !existingIds.has(c.id))
-      .filter((c) => c.status !== "blocked")
-      .map((c) => ({ value: c.id, label: `${c.code} — ${c.title} (${c.credit_hours} Cr)` }));
+    return semesterCourseOptions(courses, editSemester.courses.map((c) => c.id));
   }, [courses, editSemester]);
 
   // History tab — derived filter helpers
@@ -1504,9 +1494,8 @@ export default function SemestersPage() {
                 }
               }}
               placeholder={
-                departmentId ? "Search by course name or code..." : "Select a department first"
+                "Search the full catalog by course name, code or department..."
               }
-              isDisabled={!departmentId}
             />
           </div>
 
@@ -1709,7 +1698,7 @@ export default function SemestersPage() {
                     options={editCourseOptions}
                     value={null}
                     onChange={(opt) => setAddCourseId(opt ? (opt as SelectOption).value : "")}
-                    placeholder="Search by course name or code to add..."
+                    placeholder="Search the full catalog by course name, code or department..."
                   />
                 </div>
                 <button
