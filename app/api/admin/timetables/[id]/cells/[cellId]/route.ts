@@ -46,14 +46,20 @@ export async function PATCH(
     return NextResponse.json({ error: "Courses cannot be scheduled in a closed semester." }, { status: 409 });
   }
 
-  const allocation = await queryOne<{ id: string; teacher_id: string; teacher_name: string; is_combined: boolean }>(
-    `select a.id, a.teacher_id, a.is_combined, t.name as teacher_name
+  const allocation = await queryOne<{ id: string; teacher_id: string; teacher_name: string; is_combined: boolean; status: string }>(
+    `select a.id, a.teacher_id, a.is_combined, a.status, t.name as teacher_name
      from allocations a
      join teachers t on t.id = a.teacher_id
      where a.id = $1`,
     [allocation_id]
   );
   if (!allocation) return NextResponse.json({ error: "Allocation not found." }, { status: 404 });
+  if (allocation.status !== "active") {
+    return NextResponse.json(
+      { error: "This allocation has been transferred or is inactive. Reload the timetable and select the current teacher's allocation." },
+      { status: 409 }
+    );
+  }
 
   const inSemester = await queryOne(
     `select 1 from allocation_semesters where allocation_id = $1 and semester_id = $2`,
@@ -196,9 +202,18 @@ export async function PATCH(
   }
 
   const updated = await queryOne(
-    `update timetable_cells set allocation_id = $1, updated_at = now() where id = $2 returning *`,
+    `update timetable_cells set allocation_id = $1, updated_at = now()
+     where id = $2
+       and exists (select 1 from allocations where id = $1 and status = 'active')
+     returning *`,
     [allocation_id, cellId]
   );
+  if (!updated) {
+    return NextResponse.json(
+      { error: "This allocation changed while saving. Reload the timetable and try again." },
+      { status: 409 }
+    );
+  }
   await query(`update timetables set updated_at = now() where id = $1`, [id]);
   return NextResponse.json({ cell: updated });
 }

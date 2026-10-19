@@ -90,7 +90,7 @@ export async function POST(
     [id],
   );
   const oldDelivered       = Math.round(Number(lectureCount?.total ?? 0));
-  const newSeqOffset       = oldAlloc.lecture_seq_offset + oldDelivered;
+  let newSeqOffset         = oldAlloc.lecture_seq_offset + oldDelivered;
 
   // ── 5. Load semester rows for the old allocation ───────────────────────────
   const semesterRows = await query<{ semester_id: string; course_id: string }>(
@@ -187,6 +187,30 @@ export async function POST(
   try {
     await client.query("begin");
 
+    // Serialize transfers with attendance saves and other transfers. All
+    // preflight reads above can become stale while another request commits.
+    const locked = await client.query(
+      `select id from allocations
+       where id = $1 and status = 'active' and teacher_id = $2
+       for update`,
+      [id, oldAlloc.teacher_id],
+    );
+    if (!locked.rowCount) {
+      await client.query("rollback");
+      return NextResponse.json({ error: "This allocation has changed. Reload it before transferring." }, { status: 409 });
+    }
+    const latestLecture = await client.query<{ last_date: string | null; total: string }>(
+      `select max(attendance_date)::text as last_date,
+              coalesce(sum(lecture_count), 0)::text as total
+       from attendance_records where allocation_id = $1`,
+      [id],
+    );
+    if (latestLecture.rows[0].last_date && d.transfer_date <= latestLecture.rows[0].last_date) {
+      await client.query("rollback");
+      return NextResponse.json({ error: "A lecture was recorded before the transfer completed. Reload and choose a date after the last delivered lecture." }, { status: 409 });
+    }
+    newSeqOffset = oldAlloc.lecture_seq_offset + Math.round(Number(latestLecture.rows[0].total));
+
     // 10a. Close Teacher A's allocation
     await client.query(
       `update allocations
@@ -237,10 +261,24 @@ export async function POST(
       [newAllocId, d.new_teacher_id, id],
     );
 
-    // 10e. Re-point all timetable_cells from old allocation to new allocation
+    // 10e. Carry the entire transfer chain's current schedule forward. Legacy
+    // cells can still reference an earlier teacher, not just the immediate
+    // predecessor. Never move closed-semester or unrelated-course cells.
     await client.query(
-      `update timetable_cells set allocation_id = $1 where allocation_id = $2`,
-      [newAllocId, id],
+      `update timetable_cells tc set allocation_id = $1, updated_at = now()
+       from allocations previous, timetables tt, semesters s
+       where tc.allocation_id = previous.id
+         and tc.timetable_id = tt.id and s.id = tt.semester_id
+         and s.status = 'active'
+         and previous.course_id = $4
+         and (previous.id = $2 or
+              (previous.transfer_group_id = $3 and previous.status = 'transferred'))
+         and exists (
+           select 1 from allocation_semesters als
+           where als.allocation_id = $1 and als.semester_id = tt.semester_id
+             and als.course_id = $4
+         )`,
+      [newAllocId, id, transferGroupId, oldAlloc.course_id],
     );
 
     await client.query("commit");
