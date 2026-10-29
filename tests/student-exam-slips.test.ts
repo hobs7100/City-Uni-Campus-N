@@ -139,7 +139,7 @@ describe.each([["roll number", rollno], ["clearance", clearance]] as const)("%s 
   it("does not use another class or closed semester attendance to qualify", async () => {
     await db.query(`update student_attendance_records set semester_id='${id(99)}'`);
     // No current-window marks means protection; unrelated marks cannot end it.
-    expect(await (await handler()).json()).toMatchObject({ allowed: true, is_protected: true, overall_attendance: 0 });
+    expect(await (await handler()).json()).toMatchObject({ allowed: true, is_protected: true, overall_attendance: 100 });
   });
   it.each(["active", "permanent_leave"])("allows %s students at 14 evaluable days but not at 15 with low attendance", async (status) => {
     await db.query("update students set status=$1", [status]);

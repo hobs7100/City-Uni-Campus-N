@@ -2,6 +2,12 @@ export type StudentLeaveType = "permanent" | "partial" | null;
 export type AttendanceFlag = "ok" | "warning" | "struck_off";
 export const ATTENDANCE_PROTECTION_DAYS = 15;
 
+// Each semester starts at 100% until real present/absent marks exist.
+// This is a baseline only: never add synthetic present days to the counts.
+export function getAttendancePercentage(presents: number, evaluableDays: number): number {
+  return evaluableDays > 0 ? presents * 100 / evaluableDays : 100;
+}
+
 export interface AttendancePolicy {
   struckOffBelow: number;
   warningBelow: number;

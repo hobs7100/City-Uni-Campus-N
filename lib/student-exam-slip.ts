@@ -1,5 +1,5 @@
 import { query, queryOne } from "./db";
-import { getRollNumberSlipThreshold, type StudentLeaveType } from "./attendance-policy";
+import { getAttendancePercentage, getRollNumberSlipThreshold, type StudentLeaveType } from "./attendance-policy";
 import { getCurrentAttendanceFine } from "./attendance-fines";
 import type { ExamSlipKind, SlipCourseRow } from "./exam-slip-types";
 import { pool } from "./db";
@@ -66,7 +66,7 @@ export async function getStudentExamSlip(studentId: string, kind: ExamSlipKind) 
      from student_attendance_records where student_id = $1 and semester_id = $2`, [studentId, semester.id],
   );
   const presents = Number(attendance?.presents ?? 0), absents = Number(attendance?.absents ?? 0);
-  const percentage = presents + absents ? presents * 100 / (presents + absents) : 0;
+  const percentage = getAttendancePercentage(presents, presents + absents);
   const threshold = getRollNumberSlipThreshold(student.active_leave_type ?? null);
   const [standing] = await getCoordinatorAttendanceStandings(pool, semester.id, [studentId]);
   const isProtected = standing?.is_protected === true;

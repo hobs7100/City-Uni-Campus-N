@@ -41,3 +41,4 @@
 - [Password onboarding scope](password-onboarding-scope.md) — keep custom portal permissions; all-account resets require explicit one-time authorization, never startup or publishing.
 - [Transfer-chain schedule continuity](transfer-chain-schedule-continuity.md) — legacy timetable cells may reference the original owner after multiple transfers; inspect the full chain.
 - [Full semester course catalog](semester-full-course-catalog.md) — every class's semester must offer the entire campus catalog, not just its department's courses.
+- [Semester attendance baseline](semester-attendance-baseline.md) — every semester starts at 100%; no synthetic attendance credit or changes to institute thresholds.

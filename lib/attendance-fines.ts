@@ -1,6 +1,6 @@
 import { query } from "@/lib/db";
 import type { PoolClient } from "pg";
-import { ATTENDANCE_PROTECTION_DAYS } from "./attendance-policy";
+import { ATTENDANCE_PROTECTION_DAYS, getAttendancePercentage } from "./attendance-policy";
 
 export type AttendanceFineAdjustmentType = "discount" | "waive";
 
@@ -218,9 +218,7 @@ export async function getCurrentAttendanceFineAssessments(
     : await query<FineRow>(sql, values);
 
   return rows.flatMap<AttendanceFineAssessment>((row) => {
-    const rawPercentage = row.evaluable_days > 0
-      ? (row.presents / row.evaluable_days) * 100
-      : 0;
+    const rawPercentage = getAttendancePercentage(row.presents, row.evaluable_days);
     const percentage = Number(rawPercentage.toFixed(2));
     // Protection uses post-reactivation days, but once it ends, active/leave
     // fines use the whole-semester attendance used to restrict exam slips.

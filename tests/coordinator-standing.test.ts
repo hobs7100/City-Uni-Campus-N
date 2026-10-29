@@ -115,6 +115,45 @@ const post = (path: string, body: unknown) => new NextRequest(`http://localhost$
 });
 
 describe("coordinator/admin attendance standing", () => {
+  it("starts a new semester at 100% without carrying old attendance or adding seeded marks", async () => {
+    await mark(15, 3);
+    await db.query("update semesters set status='closed' where id=$1", [SEMESTER]);
+    const nextSemester = id(501);
+    await db.query("insert into semesters values($1,$2,'active')", [nextSemester, CLASS]);
+    const [fresh] = await getCoordinatorAttendanceStandings(db, nextSemester, [STUDENT]);
+    expect(fresh).toMatchObject({
+      percentage: 100, flag: "ok", presents: 0, evaluable_days: 0,
+      is_protected: true, protection_days_completed: 0, eligible_for_strike_off: false,
+    });
+    const response = await reportAttendance(new NextRequest(`http://test/api?semester_id=${nextSemester}`));
+    expect((await response.json()).students[0]).toMatchObject({
+      percentage: 100, policy_percentage: 100, flag: "ok", presents: 0, absents: 0,
+    });
+    expect(await getStudentAttendanceHistory(STUDENT, nextSemester, null)).toEqual([]);
+    expect((await getCoordinatorAttendanceStandings(db, SEMESTER, [STUDENT]))[0])
+      .toMatchObject({ percentage: 20, evaluable_days: 15 });
+    expect((await db.query("select count(*)::int as n from student_attendance_records")).rows[0].n).toBe(15);
+
+    // The first real absence is 0/1, not a synthetic 100% present day plus 0/1.
+    await db.query(`insert into student_attendance_records(student_id,semester_id,attendance_date,status)
+      values($1,$2,'2026-10-01','absent')`, [STUDENT, nextSemester]);
+    expect((await getCoordinatorAttendanceStandings(db, nextSemester, [STUDENT]))[0])
+      .toMatchObject({ percentage: 0, flag: "struck_off", evaluable_days: 1, is_protected: true, eligible_for_strike_off: false });
+    expect(await status()).toBe("active");
+  });
+
+  it("keeps the 100% starting baseline when only leave days have been marked", async () => {
+    await mark(3, 0, "2026-09-01", "leave");
+    expect(await standing()).toMatchObject({
+      percentage: 100, flag: "ok", presents: 0, evaluable_days: 0, leaves: 3,
+      is_protected: true, eligible_for_strike_off: false,
+    });
+    const history = await getStudentAttendanceHistory(STUDENT, SEMESTER, null);
+    expect(history).toHaveLength(3);
+    expect(history.every((row) => row.percentage === 100 && row.standing === "active")).toBe(true);
+    expect((await evaluate()).struckOffIds).toEqual([]);
+  });
+
   it("strikes off below 60% on day 15 and records numeric percentage and semester", async () => {
     await mark(15, 8);
     expect((await evaluate()).struckOffIds).toEqual([STUDENT]);

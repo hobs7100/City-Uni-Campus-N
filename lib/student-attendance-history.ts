@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import {
   getAttendanceFlag,
+  getAttendancePercentage,
   ATTENDANCE_PROTECTION_DAYS,
   type StudentLeaveType,
 } from "@/lib/attendance-policy";
@@ -59,13 +60,9 @@ export async function getStudentAttendanceHistory(
     if (row.status === "absent") absents += 1;
 
     const evaluableDays = presents + absents;
-    const rawPercentage =
-      evaluableDays > 0
-        ? (presents / evaluableDays) * 100
-        : null;
-    const percentage = rawPercentage === null ? null : Math.round(rawPercentage * 100) / 100;
-    const flag =
-      rawPercentage === null ? "ok" : getAttendanceFlag(rawPercentage, leaveType);
+    const rawPercentage = getAttendancePercentage(presents, evaluableDays);
+    const percentage = Math.round(rawPercentage * 100) / 100;
+    const flag = getAttendanceFlag(rawPercentage, leaveType);
 
     return {
       attendance_date: row.attendance_date,

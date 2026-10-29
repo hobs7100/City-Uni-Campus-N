@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool, query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
-import { getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
+import { getAttendancePolicy, getAttendancePercentage, type StudentLeaveType } from "@/lib/attendance-policy";
 import { getCoordinatorAttendanceStandings } from "@/lib/coordinator-attendance-standing";
 
 export async function GET(request: NextRequest) {
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     const absents = Number(r.absents ?? 0);
     const leaves = Number(r.leaves ?? 0);
     const denom = presents + absents;
-    const percentage = denom > 0 ? Math.round((presents / denom) * 10000) / 100 : null;
+    const percentage = Math.round(getAttendancePercentage(presents, denom) * 100) / 100;
     const leaveType = r.leave_type as StudentLeaveType;
     const policy = getAttendancePolicy(leaveType);
     const standing = standingByStudent.get(String(r.student_id))!;

@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { ATTENDANCE_PROTECTION_DAYS, getAttendanceFlag, type StudentLeaveType } from "./attendance-policy";
+import { ATTENDANCE_PROTECTION_DAYS, getAttendanceFlag, getAttendancePercentage, type StudentLeaveType } from "./attendance-policy";
 
 interface StandingRow {
   student_id: string;
@@ -50,16 +50,14 @@ export async function getCoordinatorAttendanceStandings(
     [Array.isArray(semesterId) ? semesterId : [semesterId], studentIds],
   );
   return result.rows.map((row) => {
-    const rawPercentage = row.evaluable_days > 0
-      ? row.presents * 100 / row.evaluable_days
-      : null;
+    const rawPercentage = getAttendancePercentage(row.presents, row.evaluable_days);
     // Classify before rounding: e.g. 59.999% remains below 60%.
-    const flag = rawPercentage === null ? "ok" : getAttendanceFlag(rawPercentage, row.leave_type);
+    const flag = getAttendanceFlag(rawPercentage, row.leave_type);
     const isProtected = ["active", "permanent_leave"].includes(row.student_status)
       && row.evaluable_days < ATTENDANCE_PROTECTION_DAYS;
     return {
       ...row,
-      percentage: rawPercentage === null ? null : Math.round(rawPercentage * 100) / 100,
+      percentage: Math.round(rawPercentage * 100) / 100,
       flag,
       is_protected: isProtected,
       protection_days_completed: row.evaluable_days,

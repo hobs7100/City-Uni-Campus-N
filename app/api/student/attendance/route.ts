@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireActiveStudent } from "@/lib/requireActiveStudent";
-import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
+import { getAttendanceFlag, getAttendancePolicy, getAttendancePercentage, type StudentLeaveType } from "@/lib/attendance-policy";
 import { getStudentAttendanceHistory } from "@/lib/student-attendance-history";
 
 export async function GET(request: NextRequest) {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   const presents = records.filter((r) => r.attendance_status === "present").length;
   const absents = records.filter((r) => r.attendance_status === "absent").length;
   const leaves = records.filter((r) => r.attendance_status === "leave").length;
-  const percentage = presents + absents > 0 ? (presents / (presents + absents)) * 100 : 0;
+  const percentage = getAttendancePercentage(presents, presents + absents);
   const flag = getAttendanceFlag(percentage, leaveType);
 
   return NextResponse.json({

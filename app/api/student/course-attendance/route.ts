@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireActiveStudent } from "@/lib/requireActiveStudent";
-import { getAttendanceFlag, getAttendancePolicy, type StudentLeaveType } from "@/lib/attendance-policy";
+import { getAttendanceFlag, getAttendancePolicy, getAttendancePercentage, type StudentLeaveType } from "@/lib/attendance-policy";
 
 export async function GET() {
   const { session, response } = await requireActiveStudent();
@@ -84,7 +84,7 @@ export async function GET() {
 
     const toNum = (s: string | undefined) => parseInt(s ?? "0", 10);
     const calcFlag = (p: number, a: number) => {
-      const pct = p + a > 0 ? (p / (p + a)) * 100 : 0;
+      const pct = getAttendancePercentage(p, p + a);
       const flag = getAttendanceFlag(pct, leaveType);
       return { percentage: Number(pct.toFixed(2)), flag };
     };
