@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { query } from "@/lib/db";
 import { requireRole } from "@/lib/requireRole";
 
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
   const testSeriesId = sp.get("test_series_id");
   const fromDate     = sp.get("from_date");
   const toDate       = sp.get("to_date");
+  const examSectionId = sp.get("exam_section_id");
+  if (examSectionId && !z.string().uuid().safeParse(examSectionId).success)
+    return NextResponse.json({ error: "Invalid exam section." }, { status: 400 });
 
   const conditions: string[] = ["cl.type = 'DIT'", "s.deleted_at is null"];
   const vals: unknown[] = [];
@@ -27,6 +31,7 @@ export async function GET(request: NextRequest) {
   if (testSeriesId) { conditions.push(`dmr.test_series_id = $${i++}`); vals.push(testSeriesId); }
   if (fromDate)     { conditions.push(`dmr.test_date >= $${i++}`);    vals.push(fromDate); }
   if (toDate)       { conditions.push(`dmr.test_date <= $${i++}`);    vals.push(toDate); }
+  if (examSectionId) { conditions.push(`m.exam_section_id = $${i++}`); vals.push(examSectionId); }
 
   const results = await query<{
     id: string;
@@ -77,7 +82,8 @@ export async function GET(request: NextRequest) {
             dmr.obtained_marks,
              dmr.is_absent,
             dmr.remarks,
-            t.name                                     as teacher_name
+             t.name                                     as teacher_name,
+             es.name as exam_section_name, original.name as recorded_exam_section_name
      from dit_mock_results dmr
      join students s          on s.id  = dmr.student_id
      join dit_test_series ts  on ts.id = dmr.test_series_id
@@ -86,6 +92,9 @@ export async function GET(request: NextRequest) {
      join semesters sem        on sem.id = dmr.semester_id
      join classes cl           on cl.id = sem.class_id
      join teachers t           on t.id  = dmr.submitted_by
+      left join dit_exam_section_memberships m on m.student_id=s.id
+      left join dit_exam_sections es on es.id=m.exam_section_id
+      left join dit_exam_sections original on original.id=dmr.exam_section_id
      where ${conditions.join(" and ")}
      order by dmr.test_date desc, s.name asc`,
     vals

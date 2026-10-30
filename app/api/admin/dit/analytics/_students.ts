@@ -19,6 +19,7 @@ export function studentResults(rows: ResultRow[]) {
       father_name: first.father_name, roll_no: first.roll_no, class_id: first.class_id,
       class_name: first.class_name, class: first.class_name, session: first.session,
       semester_id: first.semester_id, semester_number: first.semester_number, term_type: first.term_type,
+      exam_section_id: first.exam_section_id ?? null, exam_section_name: first.exam_section_name ?? null,
       total_obtained, total_marks, percentage, overall_percentage: percentage,
       grade: ditGradeFromPercentage(percentage), zone: zone(percentage), test_count: records.length,
     };

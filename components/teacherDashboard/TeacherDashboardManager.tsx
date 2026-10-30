@@ -432,6 +432,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     session: string;
   }
   interface DitSeriesOption { id: string; name: string; total_marks: number; passing_marks: number; }
+  interface DitExamSectionOption { id: string; name: string; date: string; student_count: number; }
   interface DitStudentRow {
     student_id: string;
     name: string;
@@ -453,6 +454,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   const [ditSemId, setDitSemId]             = useState("");
   const [ditSeriesId, setDitSeriesId]       = useState("");
   const [ditTestDate, setDitTestDate]       = useState("");
+  const [ditExamSectionId, setDitExamSectionId] = useState("");
+  const [ditExamSections, setDitExamSections] = useState<DitExamSectionOption[]>([]);
+  const [ditExamSectionsLoading, setDitExamSectionsLoading] = useState(false);
   // student table
   const [ditStudents, setDitStudents]       = useState<DitStudentRow[]>([]);
   const [ditStudentsLoading, setDitStudentsLoading] = useState(false);
@@ -559,11 +563,12 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
         test_series_id: ditSeriesId,
         test_date: ditTestDate,
       });
+      if (ditExamSectionId) params.set("exam_section_id", ditExamSectionId);
       const res  = await fetch(`/api/teacher/dit/results?${params}`);
       const data = await res.json();
       if (requestId !== ditStudentsRequestId.current) return;
       if (res.ok) {
-        setDitLoadedSelection([ditAllocId, ditSemId, ditSeriesId, ditTestDate].join(":"));
+        setDitLoadedSelection([ditAllocId, ditSemId, ditSeriesId, ditTestDate, ditExamSectionId].join(":"));
         setDitStudents(
           (data.students ?? []).map((s: DitStudentRow) => ({
             ...s,
@@ -578,7 +583,27 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
     } finally {
       if (requestId === ditStudentsRequestId.current) setDitStudentsLoading(false);
     }
-  }, [ditAllocId, ditSemId, ditSeriesId, ditTestDate]);
+  }, [ditAllocId, ditSemId, ditSeriesId, ditTestDate, ditExamSectionId]);
+
+  // Reset section choices when the active semester changes before fetching its options.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDitExamSections([]);
+    if (!ditSemId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDitExamSectionsLoading(true);
+    fetch(`/api/teacher/dit/exam-sections?semester_id=${encodeURIComponent(ditSemId)}`)
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "Could not load exam sections.");
+        if (!cancelled) setDitExamSections(body.sections ?? []);
+      })
+      .catch((error) => { if (!cancelled) toast.error(error instanceof Error ? error.message : "Could not load exam sections."); })
+      .finally(() => { if (!cancelled) setDitExamSectionsLoading(false); });
+    return () => { cancelled = true; };
+  }, [ditSemId]);
 
   function updateDitRow(studentId: string, patch: Partial<DitStudentRow>) {
     setDitStudents((prev) => prev.map((r) => (r.student_id === studentId ? { ...r, ...patch } : r)));
@@ -587,7 +612,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   async function handleSaveDitResults() {
     if (ditSaving) return;
     if (ditStudentsLoading || !ditStudents.length ||
-        ditLoadedSelection !== [ditAllocId, ditSemId, ditSeriesId, ditTestDate].join(":")) {
+        ditLoadedSelection !== [ditAllocId, ditSemId, ditSeriesId, ditTestDate, ditExamSectionId].join(":")) {
       toast.error("Wait for the selected test's students to load before saving."); return;
     }
     if (!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate) {
@@ -609,6 +634,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
           semester_id:    ditSemId,
           test_series_id: ditSeriesId,
           test_date:      ditTestDate,
+          ...(ditExamSectionId ? { exam_section_id: ditExamSectionId } : {}),
           rows: ditStudents.map((s) => ({
             student_id:     s.student_id,
             obtained_marks: s.is_absent ? 0 : (s.obtained_marks ?? 0),
@@ -2942,7 +2968,9 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                     setDitClassId(e.target.value);
                     setDitSemId(selected?.semester_id ?? "");
                     setDitAllocId("");
+                    setDitExamSectionId("");
                     setDitStudents([]);
+                    setDitLoadedSelection("");
                   }}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
@@ -2990,11 +3018,30 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
                 />
               </div>
 
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Exam Section</label>
+                <select
+                  value={ditExamSectionId}
+                  disabled={!ditSemId || ditExamSectionsLoading}
+                  onChange={(e) => {
+                    setDitExamSectionId(e.target.value);
+                    setDitStudents([]);
+                    setDitLoadedSelection("");
+                  }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">{ditExamSectionsLoading ? "Loading sections…" : "All students / sections"}</option>
+                  {ditExamSections.map((section) => (
+                    <option key={section.id} value={section.id}>{section.name} · {section.date} ({section.student_count})</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Load button */}
               <div className="flex items-end">
                 <button
                   onClick={loadDitStudents}
-                  disabled={!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate || ditStudentsLoading}
+                  disabled={!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate || ditStudentsLoading || ditExamSectionsLoading}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {ditStudentsLoading ? <ButtonLoader /> : <Search size={15} />}

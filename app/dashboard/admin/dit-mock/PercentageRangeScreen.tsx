@@ -14,6 +14,7 @@ type PercentageStudent = {
   roll_no?: string | null;
   class_name?: string | null;
   session?: string | null;
+  exam_section_name?: string | null;
   semester_number?: string | number | null;
   term_type?: string | null;
   total_obtained: number;
@@ -36,6 +37,7 @@ const initialFilters: AnalyticsFilters = {
   semester_id: "",
   course_id: "",
   test_series_id: "",
+  exam_section_id: "",
 };
 
 const formatNumber = (value: unknown, digits = 1) => {
@@ -188,18 +190,20 @@ export default function PercentageRangeScreen() {
       ["Semester", optionLabel(options, "semester_id", effectiveFilters.semester_id)],
       ["Course", optionLabel(options, "course_id", effectiveFilters.course_id)],
       ["Test series", optionLabel(options, "test_series_id", effectiveFilters.test_series_id)],
+      ["Exam section", optionLabel(options, "exam_section_id", effectiveFilters.exam_section_id)],
       ["Inclusive percentage range", `${displayValue(effectiveFilters.min_percentage)}% – ${displayValue(effectiveFilters.max_percentage)}%`],
     ];
     const meta = selected.map(([label, value]) =>
       `<div><strong>${escapePrintHtml(label)}:</strong> ${escapePrintHtml(value)}</div>`,
     ).join("");
-    const columns = ["Roll No", "Student", "Class", "Session", "Marks", "Percentage", "Grade"];
+    const columns = ["Roll No", "Student", "Class", "Session", "Exam Section", "Marks", "Percentage", "Grade"];
     const headings = columns.map((column) => `<th>${escapePrintHtml(column)}</th>`).join("");
     const rows = visibleStudents.map((student) => `<tr>
       <td>${escapePrintHtml(displayValue(student.roll_no))}</td>
       <td>${escapePrintHtml(displayValue(student.name))}</td>
       <td>${escapePrintHtml(displayValue(student.class_name))}</td>
       <td>${escapePrintHtml(displayValue(student.session))}</td>
+      <td>${escapePrintHtml(displayValue(student.exam_section_name ?? "Not recorded"))}</td>
       <td>${escapePrintHtml(`${formatNumber(student.total_obtained)} / ${formatNumber(student.total_marks)}`)}</td>
       <td>${escapePrintHtml(`${formatNumber(student.percentage)}%`)}</td>
       <td>${escapePrintHtml(displayValue(student.grade))}</td>

@@ -11,6 +11,7 @@ import { TableLoader } from "@/components/ui/Loaders";
 import { calculateDitGrade, ditGradeFromPercentage } from "@/lib/dit-grades";
 import SearchableSelect, { SelectOption } from "@/components/ui/SearchableSelect";
 import DitAnalytics from "./DitAnalytics";
+import ExamSectionsManager from "./ExamSectionsManager";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 interface TestSeries {
@@ -46,6 +47,8 @@ interface DitResult {
   is_absent: boolean;
   remarks: string | null;
   teacher_name: string;
+  exam_section_name?: string | null;
+  recorded_exam_section_name?: string | null;
 }
 
 interface DitStudent {
@@ -58,7 +61,8 @@ interface DitStudent {
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function DitMockPage() {
-  const [activeTab, setActiveTab] = useState<"series" | "view" | "all" | "analytics">("series");
+  const [activeTab, setActiveTab] = useState<"series" | "sections" | "view" | "all" | "analytics">("series");
+  const [examSections, setExamSections] = useState<{ id: string; name: string; date: string; student_count: number }[]>([]);
 
   /* ── Test Series ─────────────────────────────────────────────────────── */
   const [series, setSeries]       = useState<TestSeries[]>([]);
@@ -81,6 +85,7 @@ export default function DitMockPage() {
   const [vrSession,      setVrSession]      = useState("");
   const [vrSemesterId,   setVrSemesterId]   = useState("");
   const [vrSeriesId,     setVrSeriesId]     = useState("");
+  const [vrExamSectionId, setVrExamSectionId] = useState("");
   const [vrFrom,         setVrFrom]         = useState("");
   const [vrTo,           setVrTo]           = useState("");
   const [vrResults,      setVrResults]      = useState<DitResult[]>([]);
@@ -125,6 +130,14 @@ export default function DitMockPage() {
     if (res.ok) setDitSemesters(data.semesters ?? []);
   }, []);
 
+  const loadExamSections = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/dit/exam-sections", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) setExamSections(data.sections ?? []);
+    } catch { /* Exam Sections tab has its own retryable loading state. */ }
+  }, []);
+
   const loadAllResults = useCallback(async () => {
     setAllLoading(true);
     setAllError("");
@@ -143,11 +156,16 @@ export default function DitMockPage() {
     loadSeries();
     loadDitStudents();
     loadDitSemesters();
-  }, [loadSeries, loadDitStudents, loadDitSemesters]);
+    loadExamSections();
+  }, [loadSeries, loadDitStudents, loadDitSemesters, loadExamSections]);
 
   useEffect(() => {
     if (activeTab === "all") loadAllResults();
   }, [activeTab, loadAllResults]);
+
+  useEffect(() => {
+    if (activeTab === "view") void loadExamSections();
+  }, [activeTab, loadExamSections]);
 
   /* ─── Test Series CRUD ───────────────────────────────────────────────── */
   function openCreateSeries() {
@@ -224,6 +242,7 @@ export default function DitMockPage() {
       if (vrSeriesId)   params.set("test_series_id", vrSeriesId);
       if (vrFrom)       params.set("from_date",      vrFrom);
       if (vrTo)         params.set("to_date",         vrTo);
+      if (vrExamSectionId) params.set("exam_section_id", vrExamSectionId);
       const res  = await fetch(`/api/admin/dit/results?${params}`);
       const data = await res.json();
       if (res.ok) { setVrResults(data.results ?? []); setVrSearched(true); }
@@ -326,8 +345,8 @@ export default function DitMockPage() {
       </div>
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex gap-1 border-b border-slate-200 dark:border-slate-700 print:hidden">
-        {(["series", "view", "all", "analytics"] as const).map((t) => (
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-700 print:hidden">
+        {(["series", "sections", "view", "all", "analytics"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
@@ -337,7 +356,7 @@ export default function DitMockPage() {
                 : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400"
             }`}
           >
-            {t === "series" ? "Create Test Series" : t === "view" ? "View Results" : t === "all" ? "All Results" : "Analytics & Reports"}
+              {t === "series" ? "Create Test Series" : t === "sections" ? "Exam Sections" : t === "view" ? "View Results" : t === "all" ? "All Results" : "Analytics & Reports"}
           </button>
         ))}
       </div>
@@ -402,6 +421,8 @@ export default function DitMockPage() {
         </div>
       )}
 
+      {activeTab === "sections" && <ExamSectionsManager />}
+
       {/* ══════════════════ TAB 2 — VIEW RESULTS ═══════════════════════════ */}
       {activeTab === "view" && (
         <div className="space-y-4">
@@ -446,6 +467,13 @@ export default function DitMockPage() {
                 />
               </div>
               <div>
+                <label className="mb-1 block text-xs font-medium text-slate-500 uppercase">Exam Section</label>
+                <select value={vrExamSectionId} onChange={(e) => setVrExamSectionId(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                  <option value="">All exam sections</option>
+                  {examSections.map((section) => <option key={section.id} value={section.id}>{section.name} · {section.date}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="mb-1 block text-xs font-medium text-slate-500 uppercase">From Date</label>
                 <input type="date" value={vrFrom} onChange={(e) => setVrFrom(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -482,6 +510,7 @@ export default function DitMockPage() {
                     <th className="px-3 py-3">Class / Session</th>
                     <th className="px-3 py-3">Semester</th>
                     <th className="px-3 py-3">Test Series</th>
+                    <th className="px-3 py-3">Exam Section</th>
                     <th className="px-3 py-3">Course</th>
                     <th className="px-3 py-3">Date</th>
                     <th className="px-3 py-3 text-center">Obtained</th>
@@ -491,7 +520,7 @@ export default function DitMockPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {vrResults.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No results found for the selected filters.</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400">No results found for the selected filters.</td></tr>
                   ) : (
                     vrResults.map((r) => {
                       const grade = calculateDitGrade(r.obtained_marks, r.total_marks, r.is_absent);
@@ -504,6 +533,7 @@ export default function DitMockPage() {
                           <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{r.class_name} ({r.session})</td>
                           <td className="px-3 py-3 text-slate-500">Sem {r.semester_number}</td>
                           <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{r.test_series_name}</td>
+                          <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{r.exam_section_name ?? "Unassigned"}</td>
                           <td className="px-3 py-3 text-slate-500">{r.course_code}</td>
                           <td className="px-3 py-3 text-slate-500">{r.test_date}</td>
                           <td className="px-3 py-3 text-center font-semibold">{r.is_absent ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Absent</span> : `${r.obtained_marks}/${r.total_marks}`}</td>
@@ -524,7 +554,7 @@ export default function DitMockPage() {
                 {vrSummary && vrResults.length > 0 && (
                   <tfoot className="bg-slate-50 dark:bg-slate-800/50 text-sm font-semibold">
                     <tr>
-                      <td colSpan={6} className="px-3 py-3 text-right text-slate-600 dark:text-slate-300">Totals</td>
+                      <td colSpan={7} className="px-3 py-3 text-right text-slate-600 dark:text-slate-300">Totals</td>
                       <td className="px-3 py-3 text-center">{vrSummary.totalObtained}/{vrSummary.totalMax}</td>
                       <td className="px-3 py-3 text-center">{vrSummary.pct}% — {vrSummary.grade}{vrSummary.absentCount ? ` · ${vrSummary.absentCount} absent` : ""}</td>
                       <td />
@@ -571,6 +601,7 @@ export default function DitMockPage() {
                     <>
                       <div><span className="font-semibold text-slate-600">Class:</span> {vrResults[0].class_name}</div>
                       <div><span className="font-semibold text-slate-600">Session:</span> {vrResults[0].session}</div>
+                      <div><span className="font-semibold text-slate-600">Exam Section:</span> {vrResults[0].exam_section_name ?? "Unassigned"}</div>
                       <div><span className="font-semibold text-slate-600">Semester:</span> {printSem ? `Sem ${printSem.semester_number} (${printSem.term_type})` : `Sem ${vrResults[0].semester_number}`}</div>
                     </>
                   )}
@@ -647,6 +678,7 @@ export default function DitMockPage() {
                   <th className="px-3 py-3">Class / Session</th>
                   <th className="px-3 py-3">Semester</th>
                   <th className="px-3 py-3">Test Series</th>
+                  <th className="px-3 py-3">Exam Section</th>
                   <th className="px-3 py-3">Course</th>
                   <th className="px-3 py-3">Date</th>
                   <th className="px-3 py-3 text-center">Marks</th>
@@ -658,11 +690,11 @@ export default function DitMockPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {allLoading ? (
-                  <TableLoader colSpan={11} />
+                  <TableLoader colSpan={12} />
                 ) : allError ? (
-                  <tr><td colSpan={11} className="px-4 py-10 text-center text-red-600">{allError}</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-10 text-center text-red-600">{allError}</td></tr>
                 ) : allResults.length === 0 ? (
-                  <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400">No DIT mock results yet.</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-10 text-center text-slate-400">No DIT mock results yet.</td></tr>
                 ) : (
                   allResults.map((r) => {
                     const grade = calculateDitGrade(r.obtained_marks, r.total_marks, r.is_absent);
@@ -675,6 +707,7 @@ export default function DitMockPage() {
                         <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{r.class_name}<br/><span className="text-xs text-slate-400">{r.session}</span></td>
                         <td className="px-3 py-3 text-slate-500">Sem {r.semester_number}</td>
                         <td className="px-3 py-3 font-medium text-slate-700 dark:text-slate-200">{r.test_series_name}</td>
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{r.exam_section_name ?? "Unassigned"}{r.recorded_exam_section_name ? <div className="text-xs text-slate-400">Recorded: {r.recorded_exam_section_name}</div> : null}</td>
                         <td className="px-3 py-3 text-slate-500 text-xs">{r.course_code}<br/>{r.course_title}</td>
                         <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{r.test_date}</td>
                         <td className="px-3 py-3 text-center font-semibold">{r.is_absent ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Absent</span> : `${r.obtained_marks}/${r.total_marks}`}</td>

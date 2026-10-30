@@ -12,6 +12,7 @@ const schema = z.object({
   from_date: z.string().date().optional(), to_date: z.string().date().optional(),
   class_id: uuid.optional(), semester_id: uuid.optional(), course_id: uuid.optional(),
   test_series_id: uuid.optional(), session: z.string().min(1).optional(),
+  exam_section_id: uuid.optional(),
   min_percentage: percentageParam(0),
   max_percentage: percentageParam(100),
 });
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
   }
   const rows = await resultRows({
     ...window, classId: p.class_id, semesterId: p.semester_id, courseId: p.course_id,
-    testSeriesId: p.test_series_id, session: p.session,
+    testSeriesId: p.test_series_id, session: p.session, examSectionId: p.exam_section_id,
   });
   const students = studentResults(rows).filter((row) => row.percentage >= p.min_percentage && row.percentage <= p.max_percentage);
   return NextResponse.json({

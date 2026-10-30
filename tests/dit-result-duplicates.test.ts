@@ -51,6 +51,7 @@ beforeAll(async () => {
     create table students(id uuid primary key, class_id uuid, status text, deleted_at timestamptz,
       name text, father_name text, roll_no text);
     create table student_course_attendance(student_id uuid, allocation_id uuid, marked_by uuid, status text);
+    create table dit_exam_section_memberships(student_id uuid primary key, exam_section_id uuid);
     insert into teachers values('${teacher}');
     insert into courses values('${id(6)}');
     insert into classes values('${id(7)}','DIT');

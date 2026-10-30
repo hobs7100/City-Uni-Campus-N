@@ -2,7 +2,7 @@ import { ditGradeFromPercentage } from "@/lib/dit-grades";
 import { effective, zone, type ResultRow } from "./_lib";
 
 export type AttendanceWeek = { month: string; week: number; presents: number; absents: number; leaves: number };
-export type ReportIdentity = { id: string; name: string; father_name: string | null; roll_no: string | null; profile_image_url: string | null; class_name: string; session: string };
+export type ReportIdentity = { id: string; name: string; father_name: string | null; roll_no: string | null; profile_image_url: string | null; class_name: string; session: string; exam_section_id?: string | null; exam_section_name?: string | null };
 export type ReportContext = { class_id: string; class_name: string; session: string; semester_id: string; semester_number: number; term_type: string };
 
 export function assembleStudentReport(
@@ -57,13 +57,15 @@ export function assembleStudentReport(
       course_code: x.course_code, course_title: x.course_title, series_name: x.series_name,
       obtained_marks: x.obtained_marks, total_marks: x.total_marks, series: x.series_name,
       obtained: x.obtained_marks, total: x.total_marks, percentage: score,
-      grade: x.is_absent ? "Absent" : ditGradeFromPercentage(score), is_absent: x.is_absent };
+      grade: x.is_absent ? "Absent" : ditGradeFromPercentage(score), is_absent: x.is_absent,
+      recorded_exam_section_name: x.recorded_exam_section_name ?? null };
   });
   const section = identity.class_name.toLowerCase().includes("digital leaders") ? "A" :
     identity.class_name.toLowerCase().includes("digital innovators") ? "B" : null;
   const grade = rows.length ? ditGradeFromPercentage(percentage) : "—";
   return {
     student: identity, profile_image_url: identity.profile_image_url, section,
+    exam_section_id: identity.exam_section_id ?? null, exam_section_name: identity.exam_section_name ?? null,
     class: { id: context.class_id, name: context.class_name, session: context.session, section },
     semester: { id: context.semester_id, number: context.semester_number, term_type: context.term_type },
     effective_filters: { ...effective(raw, from, to), session: raw.session || null },

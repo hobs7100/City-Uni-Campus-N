@@ -20,3 +20,9 @@ Reject truncated shell output before parsing Git upload payloads, even if the JS
 **Why:** Output truncation can shorten a large base64 blob while leaving the surrounding JSON valid. Uploading it produces a different blob hash.
 
 **How to apply:** Check the shell callback's `truncated` flag, increase the bounded output budget or read blobs in smaller batches, and verify every blob hash before constructing the remote tree.
+
+Bound connector API concurrency and respect throttling, even when GitHub's own rate budget is available.
+
+**Why:** The connector proxy enforces its own requests-per-second limit; uploading many blobs in one unrestricted parallel batch hit that limit before GitHub did.
+
+**How to apply:** Use sequential or bounded-concurrency blob uploads with a short pacing interval, and retry throttled requests according to their retry delay. Do not update the branch until every blob, tree, and commit hash has been verified.

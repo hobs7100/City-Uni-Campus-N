@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
   const semesterId    = sp.get("semester_id");
   const testSeriesId  = sp.get("test_series_id");
   const testDate      = sp.get("test_date");
+  const examSectionId = sp.get("exam_section_id");
+  if (examSectionId && !z.string().uuid().safeParse(examSectionId).success)
+    return NextResponse.json({ error: "Invalid exam section." }, { status: 400 });
 
   if (!allocationId || !semesterId || !testSeriesId || !testDate)
     return NextResponse.json(
@@ -78,8 +81,12 @@ export async function GET(request: NextRequest) {
      where sem.id = $2
        and s.status      = 'active'
         and s.deleted_at  is null
+        and ($5::uuid is null or exists (
+          select 1 from dit_exam_section_memberships m
+          where m.student_id=s.id and m.exam_section_id=$5
+        ))
       order by s.roll_no asc nulls last, s.name asc`,
-    [allocationId, semesterId, testSeriesId ?? null, session!.userId]
+    [allocationId, semesterId, testSeriesId ?? null, session!.userId, examSectionId || null]
   );
 
   return NextResponse.json({ students });
@@ -98,6 +105,7 @@ const bodySchema = z.object({
   semester_id:    z.string().uuid(),
   test_series_id: z.string().uuid(),
   test_date:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  exam_section_id: z.string().uuid().optional(),
   rows:           z.array(rowSchema).min(1),
 });
 
@@ -149,12 +157,26 @@ export async function POST(request: NextRequest) {
     const validStudents = await client.query<{ id: string }>(
       `select id from students
        where id = any($1::uuid[]) and class_id = $2 and status = 'active' and deleted_at is null
+       order by id
        for key share`,
       [submittedIds, graph.rows[0].class_id]
     );
     if (validStudents.rowCount !== submittedIds.length) {
       await client.query("rollback");
       return NextResponse.json({ error: "Every submitted student must be an active student in this semester's class." }, { status: 400 });
+    }
+    // Check after acquiring student locks: a concurrent exam-section move
+    // must not allow an old filtered roster to submit into the wrong group.
+    if (d.exam_section_id) {
+      const members = await client.query(
+        `select student_id from dit_exam_section_memberships
+         where student_id=any($1::uuid[]) and exam_section_id=$2`,
+        [submittedIds, d.exam_section_id],
+      );
+      if (members.rowCount !== submittedIds.length) {
+        await client.query("rollback");
+        return NextResponse.json({ error: "Exam section membership changed. Reload students before saving." }, { status: 409 });
+      }
     }
     await client.query(
       `insert into dit_mock_results

@@ -42,3 +42,5 @@
 - [Transfer-chain schedule continuity](transfer-chain-schedule-continuity.md) — legacy timetable cells may reference the original owner after multiple transfers; inspect the full chain.
 - [Full semester course catalog](semester-full-course-catalog.md) — every class's semester must offer the entire campus catalog, not just its department's courses.
 - [Semester attendance baseline](semester-attendance-baseline.md) — every semester starts at 100%; no synthetic attendance credit or changes to institute thresholds.
+- [DIT exam-only sections](dit-exam-section-scope.md) — exam moves never change registration or attendance; one current membership, with section-change and result history preserved.
+- [Browser verification origins](browser-verification-origins.md) — localhost may render SSR without hydration; use the allowed preview origin for interactive checks.

@@ -9,6 +9,7 @@ const schema = z.object({
   student_id: uuid, from_date: z.string().date().optional(), to_date: z.string().date().optional(),
   test_series_id: uuid.optional(), class_id: uuid.optional(), semester_id: uuid.optional(),
   course_id: uuid.optional(), session: z.string().min(1).optional(),
+  exam_section_id: uuid.optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   if (!validDateRange(d.from, d.to)) return NextResponse.json({ error: "from_date must not be after to_date." }, { status: 400 });
   const rows = await resultRows({ from: d.from, to: d.to, studentId: p.student_id,
     testSeriesId: p.test_series_id, classId: p.class_id, semesterId: p.semester_id,
-    courseId: p.course_id, session: p.session });
+    courseId: p.course_id, session: p.session, examSectionId: p.exam_section_id });
   if (!rows.length) return NextResponse.json({ error: "Student has no DIT results in the selected period." }, { status: 404 });
   const attendance_weeks = await query<AttendanceWeek>(
     `select to_char(attendance_date, 'YYYY-MM') as month,
@@ -36,8 +37,11 @@ export async function GET(req: NextRequest) {
     [p.student_id, d.from, d.to],
   );
   const identity = await query<ReportIdentity>(
-    `select s.id, s.name, s.father_name, s.roll_no, s.profile_image_url, c.class_name, s.session
+    `select s.id, s.name, s.father_name, s.roll_no, s.profile_image_url, c.class_name, s.session,
+            m.exam_section_id,es.name as exam_section_name
      from students s join classes c on c.id = s.class_id
+     left join dit_exam_section_memberships m on m.student_id=s.id
+     left join dit_exam_sections es on es.id=m.exam_section_id
      where s.id = $1 and s.deleted_at is null`,
     [p.student_id],
   );

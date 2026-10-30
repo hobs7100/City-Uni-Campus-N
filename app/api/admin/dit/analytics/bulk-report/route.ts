@@ -8,6 +8,7 @@ import { assembleStudentReport, type AttendanceWeek, type ReportContext, type Re
 const schema = z.object({
   from_date: z.string().date(), to_date: z.string().date(),
   class_id: uuid, session: z.string().min(1), semester_id: uuid,
+  exam_section_id: uuid.optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -25,7 +26,8 @@ export async function GET(req: NextRequest) {
        where cl.type = 'DIT' and cl.status = 'active'
        order by sem.semester_number`,
     );
-    return NextResponse.json({ classes, sessions: [...new Set(classes.map((c) => c.session))], semesters });
+    const exam_sections = await query(`select id,name,date::text from dit_exam_sections order by name`);
+    return NextResponse.json({ classes, sessions: [...new Set(classes.map((c) => c.session))], semesters, exam_sections });
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "Choose a date range, active DIT class, session, and semester." }, { status: 400 });
@@ -41,16 +43,20 @@ export async function GET(req: NextRequest) {
   );
   if (!contexts.length) return NextResponse.json({ error: "The selected class, session, and semester do not match an active DIT class." }, { status: 400 });
   const students = await query<ReportIdentity>(
-    `select s.id, s.name, s.father_name, s.roll_no, s.profile_image_url, cl.class_name, cl.session
+    `select s.id, s.name, s.father_name, s.roll_no, s.profile_image_url, cl.class_name, cl.session,
+            m.exam_section_id,es.name as exam_section_name
      from students s join classes cl on cl.id = s.class_id
+     left join dit_exam_section_memberships m on m.student_id=s.id
+     left join dit_exam_sections es on es.id=m.exam_section_id
      where s.class_id = $1 and s.deleted_at is null
+       and ($2::uuid is null or m.exam_section_id=$2)
      order by s.roll_no asc nulls last, s.name, s.id`,
-    [p.class_id],
+    [p.class_id, p.exam_section_id ?? null],
   );
   if (!students.length) return NextResponse.json({ error: "This class has no students." }, { status: 404 });
   const [rows, attendance] = await Promise.all([
     resultRows({ from: p.from_date, to: p.to_date, classId: p.class_id,
-      semesterId: p.semester_id, session: p.session }),
+      semesterId: p.semester_id, session: p.session, examSectionId: p.exam_section_id }),
     query<AttendanceWeek & { student_id: string }>(
       `select sar.student_id, to_char(sar.attendance_date, 'YYYY-MM') as month,
               ((extract(day from sar.attendance_date)::int - 1) / 7 + 1)::int as week,

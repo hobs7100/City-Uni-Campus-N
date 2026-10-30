@@ -3,14 +3,14 @@ import { requireRole } from "@/lib/requireRole";
 import { analyticsFilterOptions, resultRows, dates, effective, uuid, zone, validDateRange } from "./_lib";
 import { z } from "zod";
 const params = z.object({ from_date: z.string().date().optional(), to_date: z.string().date().optional(),
-  test_series_id: uuid.optional(), class_id: uuid.optional(), semester_id: uuid.optional(), course_id: uuid.optional(), session: z.string().min(1).optional() });
+  test_series_id: uuid.optional(), class_id: uuid.optional(), semester_id: uuid.optional(), course_id: uuid.optional(), session: z.string().min(1).optional(), exam_section_id: uuid.optional() });
 export async function GET(req: NextRequest) {
   const { response } = await requireRole("admin", "coordinator"); if (response) return response;
   const raw = Object.fromEntries(req.nextUrl.searchParams.entries()); const parsed = params.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
   const d = dates(parsed.data.from_date, parsed.data.to_date);
   if (!validDateRange(d.from, d.to)) return NextResponse.json({ error: "from_date must not be after to_date." }, { status: 400 });
-  const rows = await resultRows({ from:d.from, to:d.to, testSeriesId:parsed.data.test_series_id, classId:parsed.data.class_id, semesterId:parsed.data.semester_id, courseId:parsed.data.course_id, session:parsed.data.session });
+  const rows = await resultRows({ from:d.from, to:d.to, testSeriesId:parsed.data.test_series_id, classId:parsed.data.class_id, semesterId:parsed.data.semester_id, courseId:parsed.data.course_id, session:parsed.data.session, examSectionId:parsed.data.exam_section_id });
   const map = new Map<string, typeof rows>();
   for (const r of rows) { const a = map.get(r.course_id) || []; a.push(r); map.set(r.course_id, a); }
   const subjects = [...map.values()].map(rs => {

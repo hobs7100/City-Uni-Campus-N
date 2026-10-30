@@ -52,7 +52,9 @@ beforeAll(async () => {
     create table allocations(id uuid primary key, course_id uuid);
     create table allocation_semesters(allocation_id uuid, semester_id uuid);
     create table dit_test_series(id uuid primary key, name text, total_marks int, passing_marks int, created_at timestamptz default now());
-    create table dit_mock_results(id uuid default gen_random_uuid(), student_id uuid, semester_id uuid,
+    create table dit_exam_sections(id uuid primary key, name text);
+    create table dit_exam_section_memberships(student_id uuid primary key, exam_section_id uuid);
+    create table dit_mock_results(id uuid default gen_random_uuid(), student_id uuid, semester_id uuid, exam_section_id uuid,
       allocation_id uuid, test_series_id uuid, test_date date, obtained_marks int, is_absent boolean default false);
     insert into classes values('${A}','Digital Leaders','2026','DIT'),('${B}','Digital Innovators','2025','DIT'),('${BS}','BS Class','2026','BS');
     insert into semesters values('${S1}','${A}',1,'Regular'),('${S2}','${A}',2,'Regular'),('${SB}','${B}',1,'Regular'),('${SBS}','${BS}',1,'Regular');

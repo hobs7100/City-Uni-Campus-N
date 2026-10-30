@@ -15,7 +15,7 @@ export type FilterOption = {
 export type AnalyticsOptions = Record<string, (FilterOption | string)[]>;
 export const analyticsFilterFields = [
   ["class_id", "Class"], ["session", "Session"], ["semester_id", "Semester"],
-  ["course_id", "Course"], ["test_series_id", "Test series"],
+  ["course_id", "Course"], ["test_series_id", "Test series"], ["exam_section_id", "Exam section"],
 ] as const;
 
 export function filterChoices(data: AnalyticsOptions, key: string, filters: AnalyticsFilters) {

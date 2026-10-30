@@ -23,35 +23,43 @@ export type ResultRow = {
   class_id: string; class_name: string; session: string; semester_id: string; semester_number: number; term_type: string;
   course_id: string; course_code: string; course_title: string; test_series_id: string; series_name: string;
   test_date: string; obtained_marks: number; total_marks: number; passing_marks: number; is_absent: boolean;
+  exam_section_id?: string | null; exam_section_name?: string | null;
+  recorded_exam_section_id?: string | null; recorded_exam_section_name?: string | null;
 };
 
 export async function resultRows(p: {
   from: string; to: string; testSeriesId?: string | null; classId?: string | null;
   semesterId?: string | null; courseId?: string | null; studentId?: string | null;
-  session?: string | null;
+  session?: string | null; examSectionId?: string | null;
 }) {
   const args: unknown[] = [p.from, p.to]; const where = ["cl.type='DIT'", "s.deleted_at is null", "dmr.test_date >= $1", "dmr.test_date <= $2"];
   const add = (value: unknown, sql: string) => { if (value) { args.push(value); where.push(sql.replace("?", `$${args.length}`)); } };
   add(p.testSeriesId, "dmr.test_series_id = ?"); add(p.classId, "cl.id = ?"); add(p.semesterId, "dmr.semester_id = ?");
   add(p.courseId, "co.id = ?"); add(p.studentId, "dmr.student_id = ?"); add(p.session, "cl.session = ?");
+  add(p.examSectionId, "m.exam_section_id = ?");
   return query<ResultRow>(`select dmr.id, s.id student_id, s.name student_name, s.father_name, s.roll_no,
     cl.id class_id, cl.class_name, cl.session, sem.id semester_id, sem.semester_number, sem.term_type,
     co.id course_id, co.code course_code, co.title course_title, ts.id test_series_id, ts.name series_name,
     dmr.test_date::text test_date, case when dmr.is_absent then 0 else dmr.obtained_marks end obtained_marks,
-    ts.total_marks, ts.passing_marks, dmr.is_absent
+    ts.total_marks, ts.passing_marks, dmr.is_absent,
+    m.exam_section_id, es.name as exam_section_name,
+    dmr.exam_section_id as recorded_exam_section_id, original.name as recorded_exam_section_name
     from dit_mock_results dmr join students s on s.id=dmr.student_id
     join dit_test_series ts on ts.id=dmr.test_series_id join allocations a on a.id=dmr.allocation_id
     join courses co on co.id=a.course_id join semesters sem on sem.id=dmr.semester_id join classes cl on cl.id=sem.class_id
+    left join dit_exam_section_memberships m on m.student_id=s.id
+    left join dit_exam_sections es on es.id=m.exam_section_id
+    left join dit_exam_sections original on original.id=dmr.exam_section_id
     where ${where.join(" and ")} order by dmr.test_date, co.title, s.name`, args);
 }
 
 export function effective(p: Record<string, string | null>, from: string, to: string) {
   return { from_date: from, to_date: to, test_series_id: p.test_series_id || null, class_id: p.class_id || null,
-    semester_id: p.semester_id || null, course_id: p.course_id || null };
+    semester_id: p.semester_id || null, course_id: p.course_id || null, exam_section_id: p.exam_section_id || null };
 }
 
 export async function analyticsFilterOptions() {
-  const [classes, semesters, courses, series] = await Promise.all([
+  const [classes, semesters, courses, series, examSections] = await Promise.all([
     query<{ id:string; name:string; session:string }>(
       `select id, class_name as name, session from classes where type='DIT' order by session desc, class_name`
     ),
@@ -77,6 +85,7 @@ export async function analyticsFilterOptions() {
     query<{ id:string; name:string }>(
       `select id, name from dit_test_series order by created_at desc`
     ),
+    query<{ id:string; name:string }>(`select id,name from dit_exam_sections order by name`),
   ]);
   return {
     class_id: classes,
@@ -84,5 +93,6 @@ export async function analyticsFilterOptions() {
     semester_id: semesters,
     course_id: courses,
     test_series_id: series,
+    exam_section_id: examSections,
   };
 }

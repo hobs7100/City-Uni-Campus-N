@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/requireRole";
 import { analyticsFilterOptions, resultRows, dates, effective, uuid, zoneSchema, scopeSchema, validDateRange } from "../_lib";
 import { z } from "zod";
 import { studentResults } from "../_students";
-const schema=z.object({from_date:z.string().date().optional(),to_date:z.string().date().optional(),test_series_id:uuid.optional(),class_id:uuid.optional(),semester_id:uuid.optional(),course_id:uuid.optional(),session:z.string().min(1).optional(),zone:zoneSchema.default("toppers"),scope:scopeSchema.default("overall")});
+const schema=z.object({from_date:z.string().date().optional(),to_date:z.string().date().optional(),test_series_id:uuid.optional(),class_id:uuid.optional(),semester_id:uuid.optional(),course_id:uuid.optional(),session:z.string().min(1).optional(),exam_section_id:uuid.optional(),zone:zoneSchema.default("toppers"),scope:scopeSchema.default("overall")});
 export async function GET(req:NextRequest){
   const {response}=await requireRole("admin","coordinator"); if(response)return response;
   const raw=Object.fromEntries(req.nextUrl.searchParams.entries()); const p=schema.safeParse(raw);
@@ -11,7 +11,7 @@ export async function GET(req:NextRequest){
   if(p.data.scope==="subject"&&!p.data.course_id)return NextResponse.json({error:"course_id is required for subject scope."},{status:400});
   const d=dates(p.data.from_date,p.data.to_date);
   if(!validDateRange(d.from,d.to))return NextResponse.json({error:"from_date must not be after to_date."},{status:400});
-  const rows=await resultRows({...d,testSeriesId:p.data.test_series_id,classId:p.data.class_id,semesterId:p.data.semester_id,courseId:p.data.course_id,session:p.data.session});
+  const rows=await resultRows({...d,testSeriesId:p.data.test_series_id,classId:p.data.class_id,semesterId:p.data.semester_id,courseId:p.data.course_id,session:p.data.session,examSectionId:p.data.exam_section_id});
   const grouped=new Map<string,typeof rows>(); rows.forEach(r=>{const k=r.student_id;const x=grouped.get(k)||[];x.push(r);grouped.set(k,x);});
   const tests=[...new Map(rows.map(r=>{const id=`${r.test_date}:${r.test_series_id}:${r.course_id}`;return[id,{id,key:id,label:`${r.test_date} · ${r.series_name}${p.data.scope==="overall"?` · ${r.course_title}`:""}`,date:r.test_date,test_series_id:r.test_series_id,series_name:r.series_name,course_id:r.course_id,course_title:r.course_title,total_marks:r.total_marks}]})).values()];
   const allStudents=studentResults(rows).map(r=>{
