@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/requireRole";
 
 // ── GET /api/teacher/dit/results ─────────────────────────────────────────────
 // Returns active students for a DIT class+semester, with any saved marks for
-// the selected test_series + allocation + test_date.
+// the selected test_series + allocation. The date is editable metadata.
 // Required: allocation_id, semester_id, test_series_id, test_date.
 export async function GET(request: NextRequest) {
   const { session, response } = await requireRole("teacher");
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
               from student_course_attendance sca
               where sca.student_id    = s.id
                 and sca.allocation_id = $1
-                and sca.marked_by     = $5
+                and sca.marked_by     = $4
             ) as attendance_pct
      from students s
      join semesters sem on sem.class_id = s.class_id
@@ -75,12 +75,11 @@ export async function GET(request: NextRequest) {
        and dmr.allocation_id = $1
        and dmr.semester_id   = $2
         and dmr.test_series_id = $3::uuid
-        and dmr.test_date      = $4::date
      where sem.id = $2
        and s.status      = 'active'
         and s.deleted_at  is null
       order by s.roll_no asc nulls last, s.name asc`,
-    [allocationId, semesterId, testSeriesId ?? null, testDate ?? null, session!.userId]
+    [allocationId, semesterId, testSeriesId ?? null, session!.userId]
   );
 
   return NextResponse.json({ students });
@@ -162,8 +161,9 @@ export async function POST(request: NextRequest) {
        (test_series_id, allocation_id, semester_id, student_id, test_date, obtained_marks, is_absent, remarks, submitted_by)
         select $1, $2, $3, r.student_id, $4, case when r.is_absent then 0 else r.obtained_marks end, r.is_absent, r.remarks, $5
         from jsonb_to_recordset($6::jsonb) as r(student_id uuid, obtained_marks integer, is_absent boolean, remarks text)
-       on conflict (test_series_id, allocation_id, semester_id, student_id, test_date)
-         do update set obtained_marks = excluded.obtained_marks,
+       on conflict (test_series_id, allocation_id, semester_id, student_id)
+         do update set test_date = excluded.test_date,
+                       obtained_marks = excluded.obtained_marks,
                        is_absent = excluded.is_absent,
                        remarks = excluded.remarks,
                        submitted_by = excluded.submitted_by,

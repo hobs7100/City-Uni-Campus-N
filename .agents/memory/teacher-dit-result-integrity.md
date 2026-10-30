@@ -20,3 +20,9 @@ DIT result ownership follows the active allocation across an official teacher tr
 **Why:** Transfers create a new allocation ID. Leaving results on the closed allocation strands them from the new teacher and can produce duplicate logical results when the replacement teacher saves.
 
 **How to apply:** Treat transfer-chain results as one logical assessment owned through the current active allocation; a transfer must preserve history without stranding or duplicating results.
+
+A DIT test series is one assessment for a student in a course allocation and semester. Changing the test date must update that assessment, not create another attempt.
+
+**Why:** The user reported duplicate mock results during updates. Date-based identity allowed the same assessment to be saved repeatedly on different dates.
+
+**How to apply:** Keep exam dates editable without treating them as assessment identity. A genuinely separate assessment needs a different test series. When consolidating historical duplicates, preserve the latest correction and archive older copies before removing them from active results.

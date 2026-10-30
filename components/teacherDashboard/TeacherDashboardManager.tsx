@@ -456,6 +456,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
   // student table
   const [ditStudents, setDitStudents]       = useState<DitStudentRow[]>([]);
   const [ditStudentsLoading, setDitStudentsLoading] = useState(false);
+  const [ditLoadedSelection, setDitLoadedSelection] = useState("");
   const ditStudentsRequestId = useRef(0);
   const [ditSaving, setDitSaving]           = useState(false);
   interface DitResultSummary {
@@ -562,6 +563,7 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
       const data = await res.json();
       if (requestId !== ditStudentsRequestId.current) return;
       if (res.ok) {
+        setDitLoadedSelection([ditAllocId, ditSemId, ditSeriesId, ditTestDate].join(":"));
         setDitStudents(
           (data.students ?? []).map((s: DitStudentRow) => ({
             ...s,
@@ -584,6 +586,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
 
   async function handleSaveDitResults() {
     if (ditSaving) return;
+    if (ditStudentsLoading || !ditStudents.length ||
+        ditLoadedSelection !== [ditAllocId, ditSemId, ditSeriesId, ditTestDate].join(":")) {
+      toast.error("Wait for the selected test's students to load before saving."); return;
+    }
     if (!ditAllocId || !ditSemId || !ditSeriesId || !ditTestDate) {
       toast.error("Select class, test series, course and test date first."); return;
     }
@@ -2998,6 +3004,10 @@ export default function TeacherDashboardManager({ initialTab }: { initialTab?: s
             </div>
 
             {/* Selected series info */}
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Each student has one result per test series, course allocation and semester.
+              Saving again updates the existing marks and test date; it does not create another result.
+            </p>
             {ditSeriesId && (() => {
               const s = ditSeriesList.find((x) => x.id === ditSeriesId);
               if (!s) return null;
