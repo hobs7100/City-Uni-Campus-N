@@ -13,6 +13,7 @@ import { TableLoader } from "@/components/ui/Loaders";
 import { usePortalAccess } from "@/lib/usePortalAccess";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 import PrintListsPanel from "@/components/students/PrintListsPanel";
+import StudentCountSummaryPanel from "@/components/students/StudentCountSummaryPanel";
 
 interface Student {
   id: string;
@@ -83,7 +84,7 @@ const emptyForm = {
   status_change_semester: "",
 };
 
-type Tab = "active" | "struck_off" | "print_lists";
+type Tab = "active" | "struck_off" | "print_lists" | "count_summary";
 
 interface Props {
   /** "admin" | "coordinator" | "hod" | "assistant" | "readonly" — controls which action buttons appear */
@@ -578,14 +579,28 @@ export default function StudentManagementPage({ role }: Props) {
           <ReceiptText size={15} />
           Print Lists
         </button>
+        {role === "admin" && (
+          <button
+            onClick={() => setTab("count_summary")}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+              tab === "count_summary"
+                ? "bg-white text-indigo-700 shadow dark:bg-slate-700 dark:text-indigo-400"
+                : "text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            <Users size={15} />
+            Student Count Summary
+          </button>
+        )}
       </div>
 
       {/* Filter Bar — rendered as a variable, not a component, to preserve input focus */}
-      {tab !== "print_lists" && filterBar}
+      {tab !== "print_lists" && tab !== "count_summary" && filterBar}
 
       {tab === "print_lists" && (
         <PrintListsPanel departments={departments} classes={classes} />
       )}
+      {tab === "count_summary" && role === "admin" && <StudentCountSummaryPanel />}
 
       {/* ── Active Tab ─────────────────────────────────────────────────── */}
       {tab === "active" && (
