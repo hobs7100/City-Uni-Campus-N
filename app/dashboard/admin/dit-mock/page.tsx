@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Pencil, Plus, Trash2, Search, FileDown, ChevronDown, ChevronUp,
@@ -20,6 +20,7 @@ interface TestSeries {
   total_marks: number;
   passing_marks: number;
   created_at: string;
+  mid_result_announced_at: string | null;
 }
 
 interface DitResult {
@@ -67,12 +68,16 @@ export default function DitMockPage() {
   /* ── Test Series ─────────────────────────────────────────────────────── */
   const [series, setSeries]       = useState<TestSeries[]>([]);
   const [seriesLoading, setSeriesLoading] = useState(true);
+  const [canAnnounceMidResult, setCanAnnounceMidResult] = useState(false);
 
   const [seriesModalOpen, setSeriesModalOpen] = useState(false);
   const [editSeries, setEditSeries]           = useState<TestSeries | null>(null);
   const [seriesSaving, setSeriesSaving]       = useState(false);
   const [deleteSeriesTarget, setDeleteSeriesTarget] = useState<TestSeries | null>(null);
   const [deletingSeries, setDeletingSeries]   = useState(false);
+  const [announceSeriesTarget, setAnnounceSeriesTarget] = useState<TestSeries | null>(null);
+  const [announcingMidResult, setAnnouncingMidResult] = useState(false);
+  const announceRequestInFlight = useRef(false);
   const [sName, setSName]   = useState("");
   const [sTotal, setSTotal] = useState("");
   const [sPass, setSPass]   = useState("");
@@ -114,7 +119,10 @@ export default function DitMockPage() {
     try {
       const res  = await fetch("/api/admin/dit/test-series");
       const data = await res.json();
-      if (res.ok) setSeries(data.series ?? []);
+      if (res.ok) {
+        setSeries(data.series ?? []);
+        setCanAnnounceMidResult(data.can_announce_mid_result === true);
+      }
     } finally { setSeriesLoading(false); }
   }, []);
 
@@ -204,6 +212,31 @@ export default function DitMockPage() {
       if (!res.ok) { toast.error(data.error || "Failed."); return; }
       toast.success("Test series deleted."); setDeleteSeriesTarget(null); loadSeries();
     } finally { setDeletingSeries(false); }
+  }
+
+  async function handleAnnounceMidResult() {
+    const target = announceSeriesTarget;
+    if (!target || !canAnnounceMidResult || target.mid_result_announced_at || announceRequestInFlight.current) return;
+
+    announceRequestInFlight.current = true;
+    setAnnouncingMidResult(true);
+    try {
+      const res = await fetch(`/api/admin/dit/test-series/${target.id}/announce-mid`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Failed to announce Mid-Term results."); return; }
+      toast.success("Mid-Term results announced.");
+      setAnnounceSeriesTarget(null);
+      try {
+        await loadSeries();
+      } catch {
+        toast.error("Results were announced, but the test series list could not be refreshed.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to announce Mid-Term results.");
+    } finally {
+      announceRequestInFlight.current = false;
+      setAnnouncingMidResult(false);
+    }
   }
 
   /* ─── View Results ───────────────────────────────────────────────────── */
@@ -394,7 +427,14 @@ export default function DitMockPage() {
                   series.map((s, idx) => (
                     <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3 text-slate-400">{idx + 1}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{s.name}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                        {s.name}
+                        {s.name.trim().toLowerCase() === "mid-term" && (
+                          <div className={`mt-1 text-xs font-medium ${s.mid_result_announced_at ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
+                            {s.mid_result_announced_at ? "Announced" : "Not announced"}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center font-semibold text-slate-700 dark:text-slate-200">{s.total_marks}</td>
                       <td className="px-4 py-3 text-center">
                         <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
@@ -403,7 +443,15 @@ export default function DitMockPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-500">{s.created_at}</td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
+                          <div className="flex flex-wrap items-center justify-end gap-1">
+                            {s.name.trim().toLowerCase() === "mid-term" && canAnnounceMidResult && !s.mid_result_announced_at && (
+                              <button
+                                onClick={() => setAnnounceSeriesTarget(s)}
+                                className="rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                              >
+                                Announce Mid Result
+                              </button>
+                            )}
                           <button onClick={() => openEditSeries(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10">
                             <Pencil size={15} />
                           </button>
@@ -837,6 +885,18 @@ export default function DitMockPage() {
         loading={deletingResult}
         onConfirm={handleDeleteResult}
         onCancel={() => setDeleteResultTarget(null)}
+      />
+      <ConfirmDialog
+        open={!!announceSeriesTarget}
+        title="Announce Mid-Term Results"
+        message={`All DIT results belonging to "${announceSeriesTarget?.name}" will be visible to students. Other test series are unaffected, and teacher entries remain editable.`}
+        confirmLabel="Announce Mid Result"
+        danger={false}
+        loading={announcingMidResult}
+        onConfirm={handleAnnounceMidResult}
+        onCancel={() => {
+          if (!announceRequestInFlight.current) setAnnounceSeriesTarget(null);
+        }}
       />
 
       {/* Suppress unused var warning for expand icons */}

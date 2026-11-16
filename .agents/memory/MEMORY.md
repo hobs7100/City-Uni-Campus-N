@@ -45,3 +45,4 @@
 - [DIT exam-only sections](dit-exam-section-scope.md) — exam moves never change registration or attendance; one current membership, with section-change and result history preserved.
 - [Browser verification origins](browser-verification-origins.md) — localhost may render SSR without hydration; use the allowed preview origin for interactive checks.
 - [Student count summary scope](student-count-summary-scope.md) — active classes only; totals include active and struck-off students, even without a running semester.
+- [DIT Mid-Term publication](dit-mid-term-publication.md) — student visibility requires an exact-admin announcement; teachers can still enter and review marks.

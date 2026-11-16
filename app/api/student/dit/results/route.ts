@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireActiveStudent } from "@/lib/requireActiveStudent";
+import { DIT_STUDENT_RESULT_VISIBILITY } from "@/lib/dit-mid-result-announcement";
 
 // GET /api/student/dit/results
 // Returns this student's DIT mock exam results.
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
       (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)))
     return NextResponse.json({ error: "Invalid date filter." }, { status: 400 });
 
-  const conditions: string[] = ["dmr.student_id = $1"];
+  const conditions: string[] = ["dmr.student_id = $1", DIT_STUDENT_RESULT_VISIBILITY];
   const vals: unknown[] = [studentId];
   let i = 2;
 
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
     `select distinct ts.id, ts.name
      from dit_mock_results dmr
      join dit_test_series ts on ts.id = dmr.test_series_id
-     where dmr.student_id = $1
+     where dmr.student_id = $1 and ${DIT_STUDENT_RESULT_VISIBILITY}
      order by ts.name asc`,
     [studentId]
   );
@@ -98,12 +99,15 @@ export async function GET(request: NextRequest) {
   const courses = await query<{ id: string; title: string; code: string }>(
     `select distinct co.id, co.title, co.code
      from dit_mock_results dmr
+     join dit_test_series ts on ts.id = dmr.test_series_id
      join allocations a on a.id = dmr.allocation_id
      join courses co on co.id = a.course_id
-     where dmr.student_id = $1
+     where dmr.student_id = $1 and ${DIT_STUDENT_RESULT_VISIBILITY}
      order by co.title, co.code`,
     [studentId]
   );
 
-  return NextResponse.json({ results, series_list: seriesList, courses });
+  return NextResponse.json({ results, series_list: seriesList, courses }, {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }

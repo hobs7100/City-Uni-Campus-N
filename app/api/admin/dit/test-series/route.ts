@@ -11,17 +11,19 @@ const schema = z.object({
 
 // GET /api/admin/dit/test-series
 export async function GET() {
-  const { response } = await requireRole("admin", "coordinator");
+  const { session, response } = await requireRole("admin", "coordinator");
   if (response) return response;
 
   const series = await query(
-    `select id, name, total_marks, passing_marks,
+    `select id, name, total_marks, passing_marks, mid_result_announced_at,
             to_char(created_at, 'YYYY-MM-DD') as created_at
      from dit_test_series
      order by created_at desc`,
     []
   );
-  return NextResponse.json({ series });
+  return NextResponse.json({ series, can_announce_mid_result: session!.role === "admin" }, {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }
 
 // POST /api/admin/dit/test-series
