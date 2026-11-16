@@ -46,3 +46,4 @@
 - [Browser verification origins](browser-verification-origins.md) — localhost may render SSR without hydration; use the allowed preview origin for interactive checks.
 - [Student count summary scope](student-count-summary-scope.md) — active classes only; totals include active and struck-off students, even without a running semester.
 - [DIT Mid-Term publication](dit-mid-term-publication.md) — student visibility requires an exact-admin announcement; teachers can still enter and review marks.
+- [Next.js generated type races](next-generated-type-races.md) — avoid restarting or hot-reloading the dev server during production type checking.
