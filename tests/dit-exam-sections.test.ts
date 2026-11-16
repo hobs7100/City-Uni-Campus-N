@@ -42,7 +42,7 @@ import { GET as adminStudentsGET } from "../app/api/admin/students/route";
 import { GET as studentResultsGET } from "../app/api/student/dit/results/route";
 import { GET as testSeriesGET } from "../app/api/admin/dit/test-series/route";
 import { POST as announceMidPOST } from "../app/api/admin/dit/test-series/[id]/announce-mid/route";
-import { announceDitMidResult, DIT_STUDENT_RESULT_VISIBILITY } from "../lib/dit-mid-result-announcement";
+import { announceDitMidResult, setDitMidResultVisibility, DIT_STUDENT_RESULT_VISIBILITY } from "../lib/dit-mid-result-announcement";
 
 let dir: string;
 let started = false;
@@ -273,7 +273,8 @@ describe("exam-only DIT sections", () => {
     expect(await query("select * from dit_exam_section_history where student_id=$1", [student])).toHaveLength(2);
   });
 
-  const announce = (seriesId = id(50)) => announceMidPOST(post("admin/dit/test-series/announce-mid", {}), {
+  const announce = (seriesId = id(50), visible?: boolean) => announceMidPOST(post("admin/dit/test-series/announce-mid",
+    visible === undefined ? {} : { visible }), {
     params: Promise.resolve({ id: seriesId }),
   });
 
@@ -302,6 +303,20 @@ describe("exam-only DIT sections", () => {
     expect(released.results[0]).toMatchObject({ test_series_name: "Mid-Term", obtained_marks: 90 });
     expect(released.series_list).toEqual([{ id: id(50), name: "Mid-Term" }]);
     expect(released.courses).toHaveLength(1);
+    role = "admin";
+    expect((await announce(id(50), false)).status).toBe(200);
+    role = "student";
+    expect(await (await studentResultsGET(get("student/dit/results"))).json())
+      .toEqual({ results: [], series_list: [], courses: [] });
+    role = "teacher";
+    const teacherAfterHide = await resultGET(get("teacher/dit/results", {
+      allocation_id: allocation, semester_id: semester, test_series_id: id(50), test_date: "2026-10-10",
+    }));
+    expect((await teacherAfterHide.json()).students[0].obtained_marks).toBe(90);
+    role = "admin";
+    expect((await announce(id(50), true)).status).toBe(200);
+    role = "student";
+    expect((await (await studentResultsGET(get("student/dit/results"))).json()).results).toHaveLength(1);
   });
 
   it("keeps other test series visible, isolates students, and rejects non-DIT access", async () => {
@@ -321,6 +336,7 @@ describe("exam-only DIT sections", () => {
   it.each(["teacher", "student", "assistant", "coordinator", "hod"])("does not let %s announce results", async denied => {
     role = denied;
     expect((await announce()).status).toBe(403);
+    expect((await announce(id(50), false)).status).toBe(403);
     expect((await query("select mid_result_announced_at from dit_test_series where id=$1", [id(50)]))[0]
       .mid_result_announced_at).toBeNull();
   });
@@ -336,6 +352,33 @@ describe("exam-only DIT sections", () => {
     expect(first.mid_result_announced_at).toBe(second.mid_result_announced_at);
     expect(first.mid_result_announced_by).toBe(admin);
     expect((await (await announce()).json()).announcement).toEqual(first);
+    expect((await announce(series, false)).status).toBe(400);
+    const hides = await Promise.all([announce(id(50), false), announce(id(50), false)]);
+    for (const response of hides) {
+      expect(response.status).toBe(200);
+      expect((await response.json()).announcement).toMatchObject({
+        mid_result_announced_at: null, mid_result_announced_by: null,
+      });
+    }
+    const shownAgain = await (await announce(id(50), true)).json();
+    expect(shownAgain.announcement.mid_result_announced_at).not.toBeNull();
+    expect(shownAgain.announcement.mid_result_announced_by).toBe(admin);
+  });
+
+  it("rejects invalid visibility payloads without changing the current state", async () => {
+    await announce(id(50), true);
+    const before = (await query("select * from dit_test_series where id=$1", [id(50)]))[0];
+    for (const body of [{ visible: "false" }, { visible: 0 }, { visible: null }, { wrong: false }, null]) {
+      const response = await announceMidPOST(post("admin/dit/test-series/announce-mid", body), {
+        params: Promise.resolve({ id: id(50) }),
+      });
+      expect(response.status).toBe(400);
+    }
+    const malformed = new NextRequest("http://localhost/api/admin/dit/test-series/announce-mid", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{",
+    });
+    expect((await announceMidPOST(malformed, { params: Promise.resolve({ id: id(50) }) })).status).toBe(400);
+    expect((await query("select * from dit_test_series where id=$1", [id(50)]))[0]).toEqual(before);
   });
 
   it("rolls back a demo upload and announcement together without changing registration or attendance", async () => {
@@ -351,6 +394,12 @@ describe("exam-only DIT sections", () => {
         where ts.id=$1 and ${DIT_STUDENT_RESULT_VISIBILITY}`, [demoId])).rows[0].n;
       expect(await visibleCount()).toBe(0);
       await announceDitMidResult(client, demoId, admin);
+      expect(await visibleCount()).toBe(1);
+      await setDitMidResultVisibility(client, demoId, admin, false);
+      expect(await visibleCount()).toBe(0);
+      expect((await client.query("select obtained_marks from dit_mock_results where test_series_id=$1", [demoId]))
+        .rows[0].obtained_marks).toBe(80);
+      await setDitMidResultVisibility(client, demoId, admin, true);
       expect(await visibleCount()).toBe(1);
     } finally { await client.query("rollback"); client.release(); }
     expect(await query("select id from dit_test_series where id=$1", [demoId])).toEqual([]);

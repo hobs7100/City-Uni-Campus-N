@@ -75,7 +75,7 @@ export default function DitMockPage() {
   const [seriesSaving, setSeriesSaving]       = useState(false);
   const [deleteSeriesTarget, setDeleteSeriesTarget] = useState<TestSeries | null>(null);
   const [deletingSeries, setDeletingSeries]   = useState(false);
-  const [announceSeriesTarget, setAnnounceSeriesTarget] = useState<TestSeries | null>(null);
+  const [announceSeriesTarget, setAnnounceSeriesTarget] = useState<{ series: TestSeries; visible: boolean } | null>(null);
   const [announcingMidResult, setAnnouncingMidResult] = useState(false);
   const announceRequestInFlight = useRef(false);
   const [sName, setSName]   = useState("");
@@ -216,23 +216,30 @@ export default function DitMockPage() {
 
   async function handleAnnounceMidResult() {
     const target = announceSeriesTarget;
-    if (!target || !canAnnounceMidResult || target.mid_result_announced_at || announceRequestInFlight.current) return;
+    if (!target || !canAnnounceMidResult || announceRequestInFlight.current) return;
 
     announceRequestInFlight.current = true;
     setAnnouncingMidResult(true);
     try {
-      const res = await fetch(`/api/admin/dit/test-series/${target.id}/announce-mid`, { method: "POST" });
+      const res = await fetch(`/api/admin/dit/test-series/${target.series.id}/announce-mid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visible: target.visible }),
+      });
       const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Failed to announce Mid-Term results."); return; }
-      toast.success("Mid-Term results announced.");
+      if (!res.ok) {
+        toast.error(data.error || `Failed to ${target.visible ? "show" : "hide"} Mid-Term results.`);
+        return;
+      }
+      toast.success(target.visible ? "Mid-Term results are now visible to students." : "Mid-Term results are now hidden from students.");
       setAnnounceSeriesTarget(null);
       try {
         await loadSeries();
       } catch {
-        toast.error("Results were announced, but the test series list could not be refreshed.");
+        toast.error("Visibility was updated, but the test series list could not be refreshed.");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to announce Mid-Term results.");
+      toast.error(error instanceof Error ? error.message : `Failed to ${target.visible ? "show" : "hide"} Mid-Term results.`);
     } finally {
       announceRequestInFlight.current = false;
       setAnnouncingMidResult(false);
@@ -431,7 +438,7 @@ export default function DitMockPage() {
                         {s.name}
                         {s.name.trim().toLowerCase() === "mid-term" && (
                           <div className={`mt-1 text-xs font-medium ${s.mid_result_announced_at ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
-                            {s.mid_result_announced_at ? "Announced" : "Not announced"}
+                            {s.mid_result_announced_at ? "Shown" : "Hidden"}
                           </div>
                         )}
                       </td>
@@ -444,12 +451,17 @@ export default function DitMockPage() {
                       <td className="px-4 py-3 text-slate-500">{s.created_at}</td>
                       <td className="px-4 py-3">
                           <div className="flex flex-wrap items-center justify-end gap-1">
-                            {s.name.trim().toLowerCase() === "mid-term" && canAnnounceMidResult && !s.mid_result_announced_at && (
+                            {s.name.trim().toLowerCase() === "mid-term" && canAnnounceMidResult && (
                               <button
-                                onClick={() => setAnnounceSeriesTarget(s)}
-                                className="rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                                type="button"
+                                role="switch"
+                                aria-checked={!!s.mid_result_announced_at}
+                                aria-label="Show Mid-Term results to students"
+                                disabled={announcingMidResult}
+                                onClick={() => setAnnounceSeriesTarget({ series: s, visible: !s.mid_result_announced_at })}
+                                className="rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
                               >
-                                Announce Mid Result
+                                {s.mid_result_announced_at ? "Hide Mid Result" : "Show Mid Result"}
                               </button>
                             )}
                           <button onClick={() => openEditSeries(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10">
@@ -888,9 +900,11 @@ export default function DitMockPage() {
       />
       <ConfirmDialog
         open={!!announceSeriesTarget}
-        title="Announce Mid-Term Results"
-        message={`All DIT results belonging to "${announceSeriesTarget?.name}" will be visible to students. Other test series are unaffected, and teacher entries remain editable.`}
-        confirmLabel="Announce Mid Result"
+        title={announceSeriesTarget?.visible ? "Show Mid-Term Results" : "Hide Mid-Term Results"}
+        message={announceSeriesTarget?.visible
+          ? `Students will be able to see Mid-Term marks for "${announceSeriesTarget.series.name}".`
+          : `Students will no longer see Mid-Term results for "${announceSeriesTarget?.series.name}". Teacher and admin access, and all saved marks, will remain unchanged.`}
+        confirmLabel={announceSeriesTarget?.visible ? "Show Mid Result" : "Hide Mid Result"}
         danger={false}
         loading={announcingMidResult}
         onConfirm={handleAnnounceMidResult}

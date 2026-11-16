@@ -58,42 +58,53 @@ try {
   await call("Network.setCookies", { cookies: JSON.parse(readFileSync(process.argv[2], "utf8")).cookies });
   await call("Page.addScriptToEvaluateOnNewDocument", { source: `(()=>{
     const realFetch=window.fetch.bind(window);
-    window.__midCheck={requests:0,released:false};
+    window.__midCheck={requests:0,released:false,states:[]};
     window.fetch=async(input,init={})=>{
       const url=new URL(typeof input==='string'?input:input.url,location.href);
       const method=init.method||'GET';
       if(method==='POST'&&/\\/api\\/admin\\/dit\\/test-series\\/[^/]+\\/announce-mid$/.test(url.pathname)){
-        window.__midCheck.requests++;window.__midCheck.released=true;
-        return new Response(JSON.stringify({announcement:{mid_result_announced_at:new Date().toISOString()}}),{headers:{'Content-Type':'application/json'}});
+        const visible=JSON.parse(init.body).visible;
+        if(typeof visible!=='boolean')throw Error('Expected explicit boolean visibility');
+        window.__midCheck.requests++;window.__midCheck.released=visible;window.__midCheck.states.push(visible);
+        return new Response(JSON.stringify({announcement:{mid_result_announced_at:visible?new Date().toISOString():null}}),{headers:{'Content-Type':'application/json'}});
       }
       if(method!=='GET')throw Error('Blocked real mutation during browser check');
       const response=await realFetch(input,init);
-      if(url.pathname==='/api/admin/dit/test-series'&&response.ok&&window.__midCheck.released){
+      if(url.pathname==='/api/admin/dit/test-series'&&response.ok){
         const data=await response.json();
-        data.series=data.series.map(s=>s.name.trim().toLowerCase()==='mid-term'?{...s,mid_result_announced_at:new Date().toISOString()}:s);
+        data.series=data.series.map(s=>s.name.trim().toLowerCase()==='mid-term'?{...s,mid_result_announced_at:window.__midCheck.released?new Date().toISOString():null}:s);
         return new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}});
       }
       return response;
     };
   })();` });
   await call("Page.navigate", { url: origin + "/dashboard/admin/dit-mock" });
-  await click("Announce Mid Result");
-  await until(() => evaluate("document.body.innerText.includes('Teacher')||document.body.innerText.includes('teacher entries remain editable')"), "confirmation message");
+  await click("Show Mid Result");
+  await until(() => evaluate("document.body.innerText.includes('Students will be able to see Mid-Term marks')"), "confirmation message");
   assert.equal(await evaluate("window.__midCheck.requests"), 0);
   await click("Cancel");
   assert.equal(await evaluate("window.__midCheck.requests"), 0);
-  await click("Announce Mid Result");
-  const dialogNode = "[...document.querySelectorAll('h3')].find(e=>e.textContent==='Announce Mid-Term Results')?.parentElement.parentElement";
+  await click("Show Mid Result");
+  const dialogNode = "[...document.querySelectorAll('h3')].find(e=>e.textContent==='Show Mid-Term Results'||e.textContent==='Hide Mid-Term Results')?.parentElement.parentElement";
   await until(() => evaluate(`Boolean(${dialogNode})`), "confirmation dialog");
   const dialog = await evaluate(`(${dialogNode}).innerText`);
-  assert(dialog.includes("visible to students") && dialog.includes("teacher entries remain editable"));
-  await evaluate(`[...(${dialogNode}).querySelectorAll('button')].find(b=>b.textContent.trim()==='Announce Mid Result').click()`);
-  await until(() => evaluate(`window.__midCheck.requests===1&&!(${dialogNode})&&document.body.innerText.includes('Announced')&&!([...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Announce Mid Result'))`), "announced status");
-  assert(await evaluate("document.body.innerText.includes('Announced')"));
+  assert(dialog.includes("Students will be able to see"));
+  await evaluate(`[...(${dialogNode}).querySelectorAll('button')].find(b=>b.textContent.trim()==='Show Mid Result').click()`);
+  await until(() => evaluate(`window.__midCheck.requests===1&&!(${dialogNode})&&document.querySelector('button[role="switch"]')?.getAttribute('aria-checked')==='true'`), "shown status");
+  await click("Hide Mid Result");
+  await until(() => evaluate(`Boolean(${dialogNode})`), "hide confirmation");
+  assert((await evaluate(`(${dialogNode}).innerText`)).includes("all saved marks"));
+  await evaluate(`[...(${dialogNode}).querySelectorAll('button')].find(b=>b.textContent.trim()==='Hide Mid Result').click()`);
+  await until(() => evaluate(`window.__midCheck.requests===2&&!(${dialogNode})&&document.querySelector('button[role="switch"]')?.getAttribute('aria-checked')==='false'`), "hidden status");
+  await click("Show Mid Result");
+  await until(() => evaluate(`Boolean(${dialogNode})`), "show-again confirmation");
+  await evaluate(`[...(${dialogNode}).querySelectorAll('button')].find(b=>b.textContent.trim()==='Show Mid Result').click()`);
+  await until(() => evaluate(`window.__midCheck.requests===3&&!(${dialogNode})&&document.querySelector('button[role="switch"]')?.getAttribute('aria-checked')==='true'`), "shown again");
+  assert.deepEqual(await evaluate("window.__midCheck.states"), [true, false, true]);
   assert.deepEqual(errors, []);
   writeFileSync(join(dir, "admin-announced.png"), Buffer.from((await call("Page.captureScreenshot", { format: "png" })).data, "base64"));
-  console.log(JSON.stringify({ passed: true, adminButton: true, confirmationAndCancel: true,
-    singleInterceptedPost: true, announcedStatus: true, realMutations: 0, evidence: dir }));
+  console.log(JSON.stringify({ passed: true, adminToggle: true, confirmationAndCancel: true,
+    showHideShow: true, realMutations: 0, evidence: dir }));
 } finally {
   socket?.close();
   if (browser && browser.exitCode === null) {
